@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead Air — Fixed Neighbourhood Map (UI mock)</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#111922; --panel-2:#0f151d;
+    --border:#1e2b38; --border-soft:#182430;
+    --ink:#c6d2dd; --ink-strong:#e7eef4; --muted:#7d8c9a; --faint:#4c5a67;
+    --cold:#69b6d6; --cold-dim:#3f6d82;
+    --warm:#e8ad5c; --warm-soft:#f0c483;
+    --blood:#c9695e; --green:#8bb08a;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    background-image:radial-gradient(1000px 600px at 80% -10%,rgba(232,173,92,.06),transparent 60%);
+    min-height:100vh;padding:22px}
+  .frame{max-width:1180px;margin:0 auto;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel-2);box-shadow:0 24px 70px rgba(0,0,0,.5)}
+
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:15px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#121b24,#0f151d)}
+  .tb-left{display:flex;gap:12px;align-items:center}
+  .mapicon{width:38px;height:38px;border:1px solid var(--cold-dim);border-radius:9px;display:grid;place-items:center;color:var(--cold);font-size:18px}
+  .tb-title{font-family:var(--serif);font-size:19px;color:var(--ink-strong)}
+  .tb-sub{font-size:11.5px;color:var(--muted)}
+  .tb-right{text-align:right;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .when{font-size:12.5px;color:var(--ink)}.when .ov{color:var(--muted)}
+  .stagechip{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--warm);border:1px solid #7a5c2e;border-radius:20px;padding:3px 11px}
+
+  .statusstrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:11px 20px;border-bottom:1px solid var(--border-soft);background:#0d131a}
+  .stat{display:flex;align-items:center;gap:7px}
+  .stat .lab{font-size:10.5px;color:var(--muted);min-width:58px}
+  .barm{width:64px;height:6px;border-radius:4px;background:#0a0e13;border:1px solid var(--border);overflow:hidden}
+  .barm>i{display:block;height:100%}
+  .fc{background:linear-gradient(90deg,var(--cold-dim),var(--cold))}
+  .fw{background:linear-gradient(90deg,#7a5c2e,var(--warm))}
+  .fg{background:linear-gradient(90deg,#4a6349,var(--green))}
+  .fb{background:linear-gradient(90deg,#6e3a34,var(--blood))}
+  .basenote{margin-left:auto;font-size:11px;color:var(--muted)}.basenote b{color:var(--warm-soft)}.basenote .sp{color:var(--blood)}
+
+  .stage{display:grid;grid-template-columns:1fr 330px}
+  @media(max-width:880px){.stage{grid-template-columns:1fr}}
+  .mapwrap{padding:22px;border-right:1px solid var(--border)}
+
+  /* THE FIXED MAP */
+  .map{position:relative;width:100%;max-width:680px;aspect-ratio:3/2;margin:auto;border:1px solid var(--border);border-radius:10px;overflow:hidden;
+    background:linear-gradient(180deg,#0c1218,#0b0f14)}
+  /* woods area */
+  .woods{position:absolute;left:-3%;top:33%;width:25%;height:44%;border-radius:52% 48% 60% 40%/54% 46% 58% 46%;
+    background:radial-gradient(circle at 62% 42%,rgba(139,176,138,.16),rgba(139,176,138,.03));border:1px dashed #3c5a3c}
+  /* roads */
+  .road{position:absolute;background:#141d26;box-shadow:inset 0 0 0 1px #1b2733}
+  .road.h{left:6%;right:4%;height:11px;top:65%;border-radius:6px}
+  .road.v{top:8%;bottom:6%;width:11px;left:49%;border-radius:6px}
+  .road::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent,transparent 9px,rgba(124,140,154,.18) 9px,rgba(124,140,154,.18) 15px)}
+  .road.v::after{background:repeating-linear-gradient(0deg,transparent,transparent 9px,rgba(124,140,154,.18) 9px,rgba(124,140,154,.18) 15px)}
+  /* cordon = map edge */
+  .cordon{position:absolute;top:0;left:0;right:0;height:30px;border-bottom:2px solid #6e3a34;
+    background:repeating-linear-gradient(45deg,#2a1a17,#2a1a17 7px,#1b1210 7px,#1b1210 14px);
+    display:flex;align-items:center;justify-content:center}
+  .cordon span{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:#c98f86}
+  .tower{position:absolute;top:22px;width:9px;height:9px;background:#6e3a34;border-radius:2px;transform:rotate(45deg)}
+
+  /* distance HUD rings centered on YOU */
+  .arc{position:absolute;left:21%;top:80%;transform:translate(-50%,-50%);border:1px dashed rgba(105,182,214,.13);border-radius:50%;pointer-events:none}
+  .arclab{position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:8.5px;color:rgba(105,182,214,.4);pointer-events:none;background:#0b0f14;padding:0 4px}
+
+  /* building nodes */
+  .b{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;width:max-content;z-index:2}
+  .b .icon{width:27px;height:27px;border-radius:7px;display:grid;place-items:center;font-size:13px;border:1px solid var(--border);background:var(--panel);color:var(--muted);transition:transform .1s}
+  .b:hover .icon{transform:scale(1.12)}
+  .b .cap{font-size:9.5px;color:var(--ink);white-space:nowrap;text-align:center;line-height:1.1}
+  .b .cap .dd{font-family:var(--mono);font-size:8px;display:block}
+  .b.low .icon{border-color:var(--green);color:var(--green)} .b.low .dd{color:var(--green)}
+  .b.med .icon{border-color:var(--warm);color:var(--warm)} .b.med .dd{color:var(--warm)}
+  .b.high .icon{border-color:var(--blood);color:var(--blood)} .b.high .dd{color:var(--blood)}
+  .b.special .icon{border-color:#6e3a34;color:var(--blood)} .b.special .dd{color:var(--blood)}
+  .b.mine .icon{border-color:var(--cold);color:var(--cold);box-shadow:0 0 0 1px var(--cold-dim)} .b.mine .dd{color:var(--cold)}
+  .b.stripped{opacity:.4} .b.stripped .icon{border-style:dashed}
+  .b.searched .icon{border-color:var(--faint);color:var(--muted);border-style:dashed}
+  .b.shell{opacity:.42} .b.shell .icon{border-style:dashed;color:var(--faint);border-color:var(--faint)}
+  .chip.searched{color:var(--warm);border:1px solid #6b5227}
+  .chip.shell{color:var(--faint);border:1px dashed var(--faint)}
+  .chip.stash{color:var(--cold);border:1px solid var(--cold-dim)}
+  .b.home .icon{border-color:var(--warm);color:var(--warm);background:radial-gradient(circle at 50% 40%,rgba(232,173,92,.3),rgba(232,173,92,.05));box-shadow:0 0 22px rgba(232,173,92,.4)}
+  .b.sel .icon{outline:2px solid var(--warm);outline-offset:2px;box-shadow:0 0 20px rgba(232,173,92,.45)}
+  .b .dd i{font-style:normal;color:var(--faint)}
+  .youhere{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--warm-soft);display:flex;align-items:center;gap:4px}
+  .youhere .p{width:7px;height:7px;border-radius:50%;background:var(--warm);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,173,92,.55)}70%{box-shadow:0 0 0 10px rgba(232,173,92,0)}100%{box-shadow:0 0 0 0 rgba(232,173,92,0)}}
+
+  /* detail panel */
+  .detail{padding:20px 20px 22px;min-width:0}
+  .d-kicker{font-family:var(--mono);font-size:10.5px;color:var(--warm);letter-spacing:.06em}
+  .d-title{font-family:var(--serif);font-size:22px;color:var(--ink-strong);margin:2px 0}
+  .d-sub{font-size:11.5px;color:var(--muted);margin-bottom:12px}
+  .d-sec{border-top:1px solid var(--border-soft);padding:11px 0}.d-sec:first-of-type{border-top:none}
+  .d-h{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--cold);margin-bottom:6px}
+  .threat{font-size:13px;color:var(--ink)}.threat b{color:var(--blood)}
+  .lootbar{height:7px;border-radius:4px;background:#0a0e13;border:1px solid var(--border);overflow:hidden;margin:6px 0 5px}.lootbar>i{display:block;height:100%;width:58%;background:linear-gradient(90deg,#7a5c2e,var(--warm))}
+  .lootlist{font-size:12px;color:var(--muted);line-height:1.5}
+  .route{display:flex;flex-direction:column;gap:7px}
+  .ropt{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer}
+  .ropt.on{border-color:var(--warm);background:rgba(232,173,92,.06)}
+  .ropt .rn{color:var(--ink-strong)}.ropt .rm{color:var(--muted);font-family:var(--mono);font-size:11px}
+  .exp-hi{color:var(--blood)}.exp-lo{color:var(--green)}
+  .cost{font-family:var(--mono);font-size:12px;color:var(--ink);line-height:1.7}.cost .neg{color:var(--blood)}
+  .away{font-size:11.5px;color:var(--muted);line-height:1.5;font-style:italic}
+  .acts{display:flex;flex-direction:column;gap:8px;margin-top:13px}
+  .btn{border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;font-size:13px;color:var(--ink);cursor:pointer}
+  .btn.primary{border-color:var(--warm);color:var(--warm-soft);background:rgba(232,173,92,.08)}
+  .btn.quiet{border-color:var(--cold-dim);color:var(--cold)}
+  .btn.ghost{color:var(--muted)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:8px 20px;padding:13px 20px;border-top:1px solid var(--border);background:#0d131a;font-size:11px;color:var(--muted)}
+  .legend .li{display:flex;align-items:center;gap:6px}
+  .chip{font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:1px 6px;white-space:nowrap}
+  .chip.mine{color:var(--cold);border:1px solid var(--cold-dim)}
+  .chip.strip{color:var(--faint);border:1px dashed var(--faint)}
+  .chip.renew{color:var(--green);border:1px solid #4a6349}
+  .mocknote{padding:10px 20px;font-size:10.5px;color:var(--faint);border-top:1px solid var(--border-soft);text-align:center;font-style:italic}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="tb-left">
+        <div class="mapicon">◱</div>
+        <div><div class="tb-title">Map — The Neighbourhood</div><div class="tb-sub">a fixed, hand-authored layout · every building has its own place · click one to plan a run</div></div>
+      </div>
+      <div class="tb-right">
+        <div class="when">Day 12 · Late Autumn · <span class="ov">Overcast, wind rising</span></div>
+        <span class="stagechip">Stage 1 · Rationing</span>
+      </div>
+    </div>
+
+    <div class="statusstrip">
+      <div class="stat"><span class="lab">Calories</span><span class="barm"><i class="fc" style="width:74%"></i></span></div>
+      <div class="stat"><span class="lab">Hydration</span><span class="barm"><i class="fc" style="width:63%"></i></span></div>
+      <div class="stat"><span class="lab">Warmth</span><span class="barm"><i class="fw" style="width:48%"></i></span></div>
+      <div class="stat"><span class="lab">Energy</span><span class="barm"><i class="fc" style="width:58%"></i></span></div>
+      <div class="stat"><span class="lab">Immune</span><span class="barm"><i class="fg" style="width:70%"></i></span></div>
+      <div class="stat"><span class="lab">Mind</span><span class="barm"><i class="fb" style="width:41%"></i></span></div>
+      <div class="basenote"><b>Pantry:</b> 3 days canned · <b>Fridge:</b> <span class="sp">spoiling — eat first</span></div>
+    </div>
+
+    <div class="stage">
+      <div class="mapwrap">
+        <div class="map">
+          <!-- distance HUD, centred on YOU (home) -->
+          <div class="arc" style="width:46%;height:46%"></div>
+          <div class="arc" style="width:82%;height:82%"></div>
+          <div class="arc" style="width:118%;height:118%"></div>
+          <div class="arclab" style="left:44%;top:70%">~30m</div>
+          <div class="arclab" style="left:60%;top:57%">~1h</div>
+          <div class="arclab" style="left:74%;top:44%">~2h</div>
+
+          <!-- woods -->
+          <div class="woods"></div>
+          <!-- roads -->
+          <div class="road h"></div>
+          <div class="road v"></div>
+          <!-- cordon edge -->
+          <div class="cordon"><span>◄ Exclusion-Zone cordon — mined, do not approach ►</span></div>
+          <div class="tower" style="left:20%"></div><div class="tower" style="left:50%"></div><div class="tower" style="left:80%"></div>
+
+          <!-- The Woods node (renewable) -->
+          <div class="b low" style="left:11%;top:50%"><div class="icon">♣</div><div class="cap">The Woods<span class="dd" style="color:var(--green)">↻ regrows</span></div></div>
+
+          <!-- residential street — each house its own place; loot depletes in layers, never a binary -->
+          <div class="b searched" style="left:13%;top:71%"><div class="icon">⌂</div><div class="cap">No.1<span class="dd" style="color:var(--warm)">searched · ⚒ salvage</span></div></div>
+          <div class="b home" style="left:22%;top:81%"><div class="icon">⌂</div><div class="cap">HOME · Maple St.</div><div class="youhere"><span class="p"></span>You are here</div></div>
+          <div class="b low" style="left:33%;top:73%"><div class="icon">⌂</div><div class="cap">No.2<span class="dd">●<i>○○○</i> unsearched</span></div></div>
+          <div class="b mine" style="left:36%;top:90%"><div class="icon">⌂</div><div class="cap">No.3 · reinforced<span class="dd">yours · cache 6</span></div></div>
+          <div class="b shell" style="left:15%;top:91%"><div class="icon">⌂</div><div class="cap">No.4<span class="dd">shell — dismantled</span></div></div>
+          <div class="b searched" style="left:44%;top:84%"><div class="icon">⌂</div><div class="cap">No.5<span class="dd" style="color:var(--cold)">you left 3 · come back</span></div></div>
+
+          <!-- POIs (fixed positions; far = near the cordon = deadlier) -->
+          <div class="b med" style="left:56%;top:63%"><div class="icon">◧</div><div class="cap">Gas Station<span class="dd">●●<i>○○○</i></span></div></div>
+          <div class="b high sel" style="left:70%;top:53%"><div class="icon">▦</div><div class="cap">Supermarket<span class="dd">●●●●<i>○</i></span></div></div>
+          <div class="b med" style="left:82%;top:41%"><div class="icon">✚</div><div class="cap">Pharmacy<span class="dd">●●<i>○○○</i></span></div></div>
+          <div class="b med" style="left:91%;top:66%"><div class="icon">⚒</div><div class="cap">Hardware<span class="dd">●●<i>○○○</i></span></div></div>
+          <div class="b high" style="left:60%;top:25%"><div class="icon">⊕</div><div class="cap">The Clinic<span class="dd">●●●●<i>○</i></span></div></div>
+        </div>
+      </div>
+
+      <aside class="detail">
+        <div class="d-kicker">◈ 1.2 KM FROM YOU · SUPERMARKET</div>
+        <div class="d-title">Supermarket</div>
+        <div class="d-sub">The bulk food &amp; water run — your pantry-restock before the grid drops.</div>
+
+        <div class="d-sec">
+          <div class="d-h">Threat — seen on arrival</div>
+          <div class="threat">A <b>Cluster</b> + 3 Shamblers by the tills. Loot around them; <b>breaking glass alerts the whole crowd.</b></div>
+        </div>
+        <div class="d-sec">
+          <div class="d-h">Loot · non-renewable</div>
+          <div class="lootbar"><i></i></div>
+          <div class="lootlist">Bulk food · bottled water · bleach · camping gear — <span style="color:var(--warm-soft)">~58% remaining.</span></div>
+        </div>
+        <div class="d-sec">
+          <div class="d-h">Route — distance from where you stand</div>
+          <div class="route">
+            <div class="ropt"><span class="rn">Main road</span><span class="rm">1.2 km · ~45m · <span class="exp-hi">Exp High</span></span></div>
+            <div class="ropt on"><span class="rn">Back-ways</span><span class="rm">1.7 km · ~1h10 · <span class="exp-lo">Exp Low</span></span></div>
+          </div>
+        </div>
+        <div class="d-sec">
+          <div class="d-h">Projected cost · round trip</div>
+          <div class="cost"><span class="neg">−18</span> Cal · <span class="neg">−22</span> Hyd · <span class="neg">−16</span> Energy · 6-slot pack</div>
+        </div>
+        <div class="d-sec">
+          <div class="d-h">On the way</div>
+          <div class="away">Passes your reinforced No.3 — a safe fallback if night catches you out.</div>
+        </div>
+        <div class="acts">
+          <div class="btn quiet">Enter Quietly</div>
+          <div class="btn primary">Set out</div>
+          <div class="btn ghost">Cancel</div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="legend">
+      <span class="li"><span style="color:var(--green);font-family:var(--mono)">●○○</span> low</span>
+      <span class="li"><span style="color:var(--warm);font-family:var(--mono)">●●○</span> med</span>
+      <span class="li"><span style="color:var(--blood);font-family:var(--mono)">●●●●●</span> lethal</span>
+      <span class="li"><span class="chip renew">↻</span> renewable</span>
+      <span class="li"><span class="chip mine">reinforced</span> your secured sites</span>
+      <span class="li"><span class="chip searched">searched</span> quick loot gone — salvage/materials remain</span>
+      <span class="li"><span class="chip shell">shell</span> dismantled — shelter only</span>
+      <span class="li"><span class="chip stash">stash</span> you left items to collect</span>
+      <span class="li"><span style="color:var(--warm-soft)">◉ you are here</span></span>
+      <span class="li" style="margin-left:auto;color:var(--faint)">Distance is measured from where you stand — move house and trips change by <em>geometry</em>, no recompute. Faint rings are just a ruler.</span>
+    </div>
+    <div class="mocknote">UI concept mock — fixed hand-authored neighbourhood (node-graph, one screen, no pathfinding). Not final art; positions &amp; values illustrative.</div>
+  </div>
+</body>
+</html>

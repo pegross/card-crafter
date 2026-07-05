@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead Air — Game Design Document</title>
+<style>
+  :root{
+    --bg:#0a0e13; --bg-2:#0d131a; --panel:#111922; --panel-2:#0f151d;
+    --border:#1e2b38; --border-soft:#182430;
+    --ink:#c6d2dd; --ink-strong:#e7eef4; --muted:#7d8c9a; --faint:#586674;
+    --cold:#69b6d6; --cold-dim:#3f6d82;
+    --warm:#e8ad5c; --warm-soft:#f0c483;
+    --blood:#c9695e; --green:#8bb08a;
+    --radius:12px;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","Source Code Pro",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--serif);font-size:17px;line-height:1.68;-webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1100px 620px at 80% -10%, rgba(232,173,92,.085), transparent 60%),
+      radial-gradient(900px 700px at -5% 0%, rgba(105,182,214,.05), transparent 55%);
+    background-attachment:fixed;
+  }
+  a{color:var(--warm-soft);text-decoration:none}
+  a:hover{text-decoration:underline;text-underline-offset:3px}
+
+  .shell{display:grid;grid-template-columns:270px minmax(0,1fr);max-width:1300px;margin:0 auto}
+  nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:34px 20px 40px 30px;border-right:1px solid var(--border-soft)}
+  nav.toc .brand{font-family:var(--serif);font-size:22px;color:var(--ink-strong);letter-spacing:.4px;line-height:1.1}
+  nav.toc .brand em{color:var(--warm);font-style:normal;text-shadow:0 0 24px rgba(232,173,92,.4)}
+  nav.toc .sub{font-family:var(--sans);font-size:10.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.16em;margin:4px 0 22px}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:s}
+  nav.toc li{counter-increment:s;margin:1px 0}
+  nav.toc a{display:flex;gap:9px;align-items:baseline;font-family:var(--sans);font-size:12.5px;color:var(--muted);padding:5px 9px;border-radius:7px;border-left:2px solid transparent}
+  nav.toc a::before{content:counter(s,decimal-leading-zero);font-family:var(--mono);font-size:10px;color:var(--faint)}
+  nav.toc a:hover{color:var(--ink-strong);background:var(--panel-2);text-decoration:none}
+  nav.toc a.active{color:var(--warm-soft);border-left-color:var(--warm);background:rgba(232,173,92,.06)}
+  nav.toc a.active::before{color:var(--warm)}
+
+  main{padding:0 clamp(20px,5vw,72px) 120px;min-width:0}
+  .wrap{max-width:920px;margin:0 auto}
+
+  header.hero{padding:92px 0 46px;border-bottom:1px solid var(--border-soft)}
+  .hero .eyebrow{font-family:var(--sans);font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--cold);margin-bottom:22px}
+  .hero h1{font-size:clamp(52px,9vw,104px);line-height:.92;margin:0 0 22px;color:var(--ink-strong);font-weight:600;letter-spacing:-1px}
+  .hero h1 .glow{color:var(--warm);text-shadow:0 0 52px rgba(232,173,92,.5)}
+  .hero .tagline{font-size:clamp(18px,2.4vw,23px);max-width:40ch;font-style:italic;color:#aebdc7}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:32px}
+  .chip{font-family:var(--sans);font-size:11.5px;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:6px 13px}
+  .chip b{color:var(--cold);font-weight:600}
+  .supersede{margin-top:26px;font-family:var(--sans);font-size:12.5px;color:var(--faint)}
+  .readnote{margin-top:16px;padding:13px 17px;border:1px dashed var(--border);border-radius:8px;background:rgba(105,182,214,.04);font-family:var(--sans);font-size:12.5px;color:var(--muted);line-height:1.62}
+  .readnote b{color:var(--cold);font-weight:600}
+  .provbadge{font-family:var(--sans);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint);border:1px dashed var(--border);border-radius:5px;padding:2px 7px;vertical-align:middle;margin-left:10px;white-space:nowrap}
+
+  section{padding:62px 0;border-bottom:1px solid var(--border-soft)}
+  .sec-head{margin-bottom:28px}
+  .sec-num{font-family:var(--mono);font-size:12px;color:var(--warm);letter-spacing:.1em}
+  h2{font-size:clamp(28px,4vw,38px);margin:.25em 0 .1em;color:var(--ink-strong);font-weight:600;letter-spacing:-.3px}
+  .sec-head p.lead{color:var(--muted);font-size:16px;margin:.4em 0 0;max-width:66ch;font-family:var(--sans)}
+  h3{font-size:19px;color:var(--ink-strong);margin:34px 0 10px;font-weight:600}
+  p{margin:0 0 16px}
+  .prose p:first-child{margin-top:0}
+  code{font-family:var(--mono);font-size:.86em;background:rgba(105,182,214,.09);border:1px solid var(--border-soft);border-radius:4px;padding:1px 5px;color:var(--cold)}
+
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(330px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px}
+  .card h4{margin:0 0 8px;font-size:17.5px;color:var(--ink-strong);font-family:var(--serif);font-weight:600;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .card .kdot{width:8px;height:8px;border-radius:50%;background:var(--warm);flex:none;box-shadow:0 0 12px rgba(232,173,92,.6)}
+  .card p{font-size:15px;color:var(--ink);margin:0}
+  .card p+p{margin-top:10px}
+  .tag{font-family:var(--sans);font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--cold);border:1px solid var(--cold-dim);border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .tag.warm{color:var(--warm);border-color:#7a5c2e}
+  .tag.blood{color:var(--blood);border-color:#6e3a34}
+  .tag.green{color:var(--green);border-color:#4a6349}
+
+  ul.clean{margin:10px 0 0;padding:0;list-style:none}
+  ul.clean li{position:relative;padding:5px 0 5px 20px;font-size:15px;color:var(--ink)}
+  ul.clean li::before{content:"";position:absolute;left:2px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--cold-dim)}
+  ul.clean.warm li::before{background:var(--warm)}
+
+  .pillars{counter-reset:pil}
+  .pillar{counter-increment:pil;position:relative;overflow:hidden}
+  .pillar h4::after{content:"0" counter(pil);position:absolute;right:22px;top:12px;font-family:var(--mono);font-size:34px;color:rgba(255,255,255,.05)}
+
+  .presence{display:inline-flex;gap:6px;align-items:center;font-family:var(--mono);font-size:13px;margin:2px 0;vertical-align:middle;flex-wrap:wrap}
+  .pip{background:rgba(232,173,92,.12);border:1px solid #6b5227;color:var(--warm-soft);border-radius:6px;padding:3px 8px}
+  .pip.sum{background:rgba(105,182,214,.12);border-color:var(--cold-dim);color:var(--cold)}
+  .callout{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--warm);border-radius:8px;padding:18px 22px;margin:22px 0;font-size:15.5px}
+  .callout.cold{border-left-color:var(--cold)}
+  .callout.blood{border-left-color:var(--blood)}
+  .callout .lbl{font-family:var(--sans);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--warm);display:block;margin-bottom:6px}
+  .callout.cold .lbl{color:var(--cold)}
+  .callout.blood .lbl{color:var(--blood)}
+
+  .flow{list-style:none;margin:0;padding:0;counter-reset:st}
+  .flow li{counter-increment:st;position:relative;padding:0 0 20px 46px;border-left:1px solid var(--border);margin-left:14px}
+  .flow li:last-child{border-left-color:transparent;padding-bottom:0}
+  .flow li::before{content:counter(st);position:absolute;left:-14px;top:-4px;width:28px;height:28px;border-radius:50%;background:var(--panel);border:1px solid var(--border);color:var(--warm);font-family:var(--mono);font-size:12px;display:grid;place-items:center}
+  .flow li b{color:var(--ink-strong)}
+  .flow li p{font-size:15px;margin:0}
+
+  /* phase strip / stage strip */
+  .stages{display:flex;flex-wrap:wrap;gap:0;margin:8px 0 4px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+  .stages .st{flex:1 1 140px;padding:14px 16px;border-right:1px solid var(--border-soft);background:var(--panel-2)}
+  .stages .st:last-child{border-right:none}
+  .stages .st .n{font-family:var(--mono);font-size:10.5px;color:var(--faint)}
+  .stages .st .t{font-family:var(--serif);font-size:15px;color:var(--ink-strong);margin-top:2px}
+  .stages .st small{display:block;font-family:var(--sans);font-size:11.5px;color:var(--muted);margin-top:4px}
+  .stages .st:nth-child(1) .t{color:var(--green)}
+  .stages .st:nth-child(4) .t,.stages .st:nth-child(5) .t{color:var(--blood)}
+
+  .tblwrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+  table{border-collapse:collapse;width:100%;font-size:14px;min-width:600px}
+  th,td{text-align:left;padding:11px 15px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+  thead th{font-family:var(--sans);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cold);background:var(--panel-2)}
+  tbody tr:last-child td{border-bottom:none}
+  td.cat{font-family:var(--sans);font-size:12px;color:var(--warm);white-space:nowrap;font-weight:600}
+  .dots{font-family:var(--mono);letter-spacing:1px;color:var(--blood);white-space:nowrap}
+  .dots .o{color:var(--faint)}
+
+  /* utility cards */
+  .util{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .util h4{margin:0 0 10px;font-size:15.5px;color:var(--ink-strong);display:flex;align-items:center;gap:9px}
+  .util .life{display:flex;gap:5px;align-items:center;font-family:var(--mono);font-size:9px;color:var(--faint);margin-left:auto}
+  .util .life i{width:22px;height:4px;border-radius:2px;background:var(--cold-dim);display:inline-block}
+  .util .life i.b{background:var(--warm)}
+  .util .life i.c{background:var(--blood)}
+  .util dl{margin:0;font-size:13.5px}
+  .util dt{font-family:var(--sans);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-top:9px}
+  .util dt.a{color:var(--green)} .util dt.f{color:var(--warm)} .util dt.i{color:var(--cold)}
+  .util dd{margin:2px 0 0;color:var(--ink)}
+
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .scopebox{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+  .scopebox h4{margin:0 0 12px;font-family:var(--sans);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+  .scopebox.in h4{color:var(--green)} .scopebox.out h4{color:var(--faint)}
+  .scopebox ul{list-style:none;margin:0;padding:0}
+  .scopebox li{font-size:13.5px;padding:7px 0 7px 22px;position:relative;border-top:1px solid var(--border-soft)}
+  .scopebox li:first-child{border-top:none}
+  .scopebox.in li::before{content:"+";position:absolute;left:2px;color:var(--green);font-family:var(--mono)}
+  .scopebox.out li{color:var(--muted)}
+  .scopebox.out li::before{content:"–";position:absolute;left:2px;color:var(--faint);font-family:var(--mono)}
+
+  .escape{border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;background:var(--panel-2)}
+  .escape.rec{border-color:#7a5c2e;background:linear-gradient(180deg,rgba(232,173,92,.06),var(--panel-2))}
+  .escape h4{margin:0 0 6px;font-size:16.5px;color:var(--ink-strong);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .escape .concept{font-style:italic;color:#aebdc7;font-size:14.5px;margin:0 0 10px}
+  .escape p{font-size:13.5px;margin:6px 0 0;font-family:var(--sans)}
+  .escape .k{font-family:var(--sans);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint)}
+
+  ol.qs{counter-reset:q;list-style:none;margin:0;padding:0}
+  ol.qs li{counter-increment:q;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--border-soft);font-size:15px}
+  ol.qs li:first-child{border-top:none}
+  ol.qs li::before{content:"Q" counter(q);position:absolute;left:0;top:14px;font-family:var(--mono);font-size:12px;color:var(--warm)}
+
+  .rm{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--border-soft)}
+  .rm:first-of-type{border-top:none}
+  .rm .r{padding:16px 20px;border-right:1px solid var(--border-soft)}
+  .rm .r .lbl{font-family:var(--sans);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--blood);display:block;margin-bottom:5px}
+  .rm .m{padding:16px 20px}
+  .rm .m .lbl{font-family:var(--sans);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--green);display:block;margin-bottom:5px}
+  .rm .r p,.rm .m p{font-size:13.5px;margin:0;font-family:var(--sans)}
+  .rmwrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  @media(max-width:660px){.rm{grid-template-columns:1fr}.rm .r{border-right:none;border-bottom:1px solid var(--border-soft)}.cols2{grid-template-columns:1fr}}
+
+  .insp{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .insp .row{display:grid;grid-template-columns:230px 1fr}
+  .insp .row+.row{border-top:1px solid var(--border-soft)}
+  .insp .src{background:var(--panel-2);padding:16px 20px;font-family:var(--serif);color:var(--ink-strong);font-size:15.5px}
+  .insp .take{padding:16px 20px;font-size:14px;color:var(--ink)}
+  @media(max-width:640px){.insp .row{grid-template-columns:1fr}}
+
+  .colophon{margin-top:26px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:26px 28px}
+  .colophon .stats{display:flex;flex-wrap:wrap;gap:26px;margin-top:16px}
+  .colophon .stat b{display:block;font-family:var(--mono);font-size:26px;color:var(--warm);line-height:1}
+  .colophon .stat span{font-family:var(--sans);font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  footer.foot{padding:40px 0 10px;color:var(--faint);font-family:var(--sans);font-size:12.5px}
+
+  @media(max-width:940px){.shell{grid-template-columns:1fr}nav.toc{display:none}}
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <div class="brand"><em>Dead</em> Air</div>
+    <div class="sub">Concept v2 · Game Design Document</div>
+    <ol>
+      <li><a href="#pitch">Elevator Pitch</a></li>
+      <li><a href="#pillars">Design Pillars</a></li>
+      <li><a href="#loop">The Core Loop</a></li>
+      <li><a href="#survival">Survival Systems</a></li>
+      <li><a href="#status">Status &amp; Conditions</a></li>
+      <li><a href="#detect">Detectability — the spine</a></li>
+      <li><a href="#collapse">The Collapsing World</a></li>
+      <li><a href="#shelter">Shelter &amp; Base-Building</a></li>
+      <li><a href="#areas">Exploration &amp; Areas</a></li>
+      <li><a href="#combat">Threats &amp; Combat</a></li>
+      <li><a href="#escape">Goals &amp; Escape</a></li>
+      <li><a href="#atmos">Atmosphere</a></li>
+      <li><a href="#slice">The Vertical Slice</a></li>
+      <li><a href="#tech">Technical Architecture</a></li>
+      <li><a href="#risks">Risks &amp; Mitigations</a></li>
+      <li><a href="#questions">Open Questions</a></li>
+      <li><a href="#inspiration">Inspirations</a></li>
+      <li><a href="#colophon">How This Was Made</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <div class="wrap">
+      <header class="hero" id="top">
+        <div class="eyebrow">Open-Ended Zombie Survival Card-Sim · Godot 4</div>
+        <h1><span class="glow">Dead</span> Air</h1>
+        <p class="tagline">Every warm thing is a beacon. No one is coming. Outlast the quiet.</p>
+        <div class="chips">
+          <span class="chip"><b>Structure</b> &nbsp;Open-ended sandbox — no scripted arc</span>
+          <span class="chip"><b>Model</b> &nbsp;Cards-as-objects + CSTI-style stat sliders · no deck</span>
+          <span class="chip"><b>Time</b> &nbsp;Action-driven — the clock moves only when you act</span>
+          <span class="chip"><b>Engine</b> &nbsp;Godot 4 · GDScript</span>
+          <span class="chip"><b>Platform</b> &nbsp;PC / desktop</span>
+          <span class="chip"><b>Art</b> &nbsp;Text-forward / iconographic</span>
+        </div>
+        <p class="supersede">Reworked concept — supersedes the earlier scripted-7-day pitch "The Long Quiet" (archived at docs/archive/). Maren, the vigil lamp and all external-salvation framing are removed; the pressure now comes from a collapsing world inside a sealed Exclusion Zone.</p>
+        <div class="readnote"><b>How to read this document.</b> This is an <b>ideation-stage concept, not a specification.</b> Every number here — drain rates, thresholds, band cutoffs, the collapse slope — is a <b>provisional tuning target to settle at implementation</b>, never a commitment. Anything about exact <b>timing or severity</b> — when the grid fails, when a cold snap hits, how steep the curve gets — is deliberately <b>deferred</b>: the sandbox has no scripted beats, so hard events emerge from the collapse state and the season, never the calendar. Sections whose eyebrow reads <span class="provbadge">figures provisional</span> are number-heavy by nature; the biggest open calls are collected in <b>Open Questions (§16)</b>.</div>
+      </header>
+
+      <!-- 01 -->
+      <section id="pitch">
+        <div class="sec-head"><span class="sec-num">§ 01</span><h2>Elevator Pitch</h2></div>
+        <div class="prose">
+          <p><em>Dead Air</em> is an open-ended survival sandbox set inside a military <strong>Exclusion Zone</strong> quarantined against a global infection. You survive — and then thrive — alone in a cold, emptying town, playing entirely on a tabletop of cards-as-objects: items, tools, resources, creatures and rooms you click for their actions or drag together to combine — with no deck, no hand, and (exactly like Card Survival: Tropical Island) time that passes only when you take an action; waiting is itself an action.</p>
+          <p>There is no scripted arc and no rescue. The difficulty engine is a <strong>collapsing world</strong>: early on there is still electricity, running water and an automated radio loop, and you can meet every need quietly. One by one those services die on their own hidden, jittered schedule as the districts outside fall — forcing you off the silent options onto the loud ones: fire to cook, boil water and stay warm; a generator for light. And loud, bright, hot and rank are exactly what the dead read.</p>
+          <p>Every survival act is a local, this-hour trade: <em>a light lets me cook, but it might bring them — do I?</em> You author your own purpose — fortify a home, reach food-and-water self-sufficiency, map the zone, or make a run at the cordon — while the season slides toward a deep winter that peaks precisely as the utilities that would have kept you warm go dark. The tone is Project Zomboid's: melancholic, mundane-routine dread, an indifferent world, and deaths that are authored and traceable rather than a bar hitting zero.</p>
+        </div>
+      </section>
+
+      <!-- 02 -->
+      <section id="pillars">
+        <div class="sec-head"><span class="sec-num">§ 02</span><h2>Design Pillars</h2></div>
+        <div class="grid g2 pillars">
+          <div class="card pillar"><h4><span class="kdot"></span>The world dies on a clock you can't stop, only outlast</h4><p>Pressure comes from a collapsing world, never a countdown to rescue. A hidden Collapse Index advances in jittered, foreshadowed clusters as the outer districts fall; you prepare during the grace period, endure the failing, and survive the dark. There is no "Day 7" — only <em>before the water went</em> and <em>after</em>. Your only lever is standing up replacement infrastructure — a rain-catch, a wood stove — before each service dies.</p></div>
+          <div class="card pillar"><h4><span class="kdot"></span>Every warm thing is a beacon</h4><p>The moment-to-moment spine. Fire, light, heat, noise and scent let you cook, purify water, stay warm and see — and they broadcast <strong>Detectability</strong>, which the dead drift down toward. It is always a local trade-off, never a hope currency and never a signal to anyone outside. No achievable upgrade drops exposure to zero: a wood stove still throws a day-visible smoke plume, blackout curtains wear out, and rising density eventually reads even a low floor on a long enough night. Upgrades change the terms of exposure; they never delete it.</p></div>
+          <div class="card pillar"><h4><span class="kdot"></span>Survive, then build something worth defending</h4><p>The game supplies the pressure; you supply the purpose. Thriving is generative, not just penalty-reduction — a secure player has things to <em>build</em> that aren't threat-mitigation: farm plots and animal husbandry that scale, a workshop tier unlocking genuinely new tools, a tamed dog whose usefulness grows, base expansion that opens new actions. A light diegetic direction layer — found notes, a milestone ladder, small emergent events — proposes ambitions without a quest system, and never implies external salvation.</p></div>
+          <div class="card pillar"><h4><span class="kdot"></span>Fair, legible dread</h4><p>The dead are a serious danger — lethal early and mid-game, manageable only once you're established — but never cheap. You see them on arrival and can withdraw; a siege is terrifying (knocking that walks treeline → yard → door → window) but answerable: go dark, go silent, hunker, and let fortifications buy the time for them to lose interest. Combat is real, loud and costly, so avoidance is usually the smart play until you're strong. Every death is authored and traceable — logged as a dated obituary — never a bar silently hitting zero.</p></div>
+        </div>
+      </section>
+
+      <!-- 03 -->
+      <section id="loop">
+        <div class="sec-head"><span class="sec-num">§ 03</span><h2>The Core Loop</h2>
+          <p class="lead">Time is <strong>action-driven</strong> — the clock advances only while an action resolves and is otherwise frozen, exactly like Card Survival: Tropical Island. The campaign is three collapse-driven phases layered over that.</p></div>
+        <div class="stages" style="margin-bottom:30px">
+          <div class="st"><div class="n">PHASE I</div><div class="t">Establishment</div><small>Grid up. Scavenge and fortify cheaply at a low Detectability floor.</small></div>
+          <div class="st"><div class="n">PHASE II</div><div class="t">The Failing</div><small>Utilities die staggered, forcing needs onto loud fire and reserves.</small></div>
+          <div class="st"><div class="n">PHASE III</div><div class="t">The Long Dark</div><small>Full scarcity: thrive in place as a quiet win, or commit to escape.</small></div>
+        </div>
+        <ol class="flow">
+          <li><p><b>Dawn.</b> Read the pinned, auto-sorted danger list (needs meters + condition tokens, most-lethal on top) and set the day's intent.</p></li>
+          <li><p><b>Day.</b> Improve the base or travel to an area; do <em>loud</em> work (chopping, boarding, prying, cooking) by daylight, when the dead converge less and you can see them coming.</p></li>
+          <li><p><b>Scavenge.</b> Pick an area, see its threats on arrival (Threat Banner + Enter / Turn-back), loot around them while noise fills a local awareness meter, then haul back — needs draining the whole trip.</p></li>
+          <li><p><b>Process &amp; maintain.</b> Craft, cook, boil water, repair tools and fortify entry points; eat before Satiation empties, drink, dry off Wet, dress wounds and bank sleep.</p></li>
+          <li><p><b>Dusk — the fire decision.</b> Warmth, cooked food and light versus the peak Detectability that authors who arrives in the dark. The channel delta is previewed before you commit.</p></li>
+          <li><p><b>Night.</b> Hunker or sleep (safe only when Detectability is below the local threshold), or ride out a siege with go-dark counterplay while cold pressure peaks.</p></li>
+          <li><p><b>Turn over.</b> End one day poorer or one door stronger — the collapsing world one notch further along, the season one degree colder.</p></li>
+        </ol>
+        <div class="callout"><span class="lbl">How you interact — click for a card's actions, or drag to combine</span>Two ways in, both fast. <strong>Click any card</strong> to open its list of contextual verbs — click the uncooked rat meat and choose <em>Eat</em> (or <em>Cook</em>); click the water and <em>Drink</em>; click a location and <em>Travel</em>; click yourself and <em>Rest</em>. This is the quick path for self-directed and single-card actions, so you never have to drag a steak onto your own portrait. <strong>Drag-combine</strong> is for putting things together — a bandage onto a wound, water + pot onto the fire, materials onto a blueprint. One recipe system resolves both: the click menu lists the recipes a card can start by itself or on you, while a drag resolves the recipe for the cards you've physically brought together. Either way the action previews its time · yield · requirement · Detectability delta before you commit.</div>
+        <div class="callout cold"><span class="lbl">How time works — action-driven, like CSTI</span>The world holds its breath until you act. Committing an action — chop wood (~45 min), boil water, dress a wound, travel, or an explicit <strong>Wait / Rest / Sleep</strong> — advances the clock by that action's duration, and while it resolves your needs drain and any threat keeps converging. Sit idle on the table and nothing moves: no wall-clock, no speed buttons. Every drain rate in this document is "per in-game hour of elapsed action-time," so the cost of a choice is always the <em>time it spends</em>, never seconds ticking past. This is what makes a long, loud daytime job a real gamble — the fire burns down and the walker keeps coming <em>because you spent the hours</em>.</div>
+      </section>
+
+      <!-- 04 -->
+      <section id="survival">
+        <div class="sec-head"><span class="sec-num">§ 04</span><span class="provbadge">figures provisional</span><h2>Survival Systems</h2>
+          <p class="lead">The retained core (you liked these) — re-tuned to a cold, collapsing setting. Every quiet solution has a loud replacement the dead can read.</p></div>
+        <div class="grid g2">
+          <div class="card"><h4>Two-Layer Hunger <span class="tag">Satiation → Calories</span></h4>
+            <ul class="clean">
+              <li>Satiation drains −4.5/h; any food refills it. Cold food is silent; cooking adds warmth but mints Heat/Light/Noise/Scent.</li>
+              <li>Calories (true starvation clock, lethal at 0) burns only while Satiation = 0, at −2.5/h — ~28h empty-stomach grace.</li>
+              <li><strong>Cold tax:</strong> in Cold/Freezing bands Satiation drain ×1.2/×1.4 — a cold snap is simultaneously a food crisis.</li>
+              <li>Mints <em>Malnourished</em> when Satiation = 0 OR Calories &lt; 30.</li>
+            </ul></div>
+          <div class="card"><h4>Thirst <span class="tag">Hydration</span></h4>
+            <ul class="clean">
+              <li>Drains −5.0/h; Fever ×1.5; heavy actions add a flat cost.</li>
+              <li>While mains water runs: instant, safe, <em>silent</em>. Once it fails: only Boiled Water (needs fire = loud) is safe; Dirty Water risks infection.</li>
+              <li>Staged: Thirsty ≤50 → Parched ≤25 → Dehydrated ≤8 → 90-min terminal countdown.</li>
+              <li>The clearest single expression of quiet-becomes-loud.</li>
+            </ul></div>
+          <div class="card"><h4>Body Warmth <span class="tag">net-delta meter · the spine</span></h4>
+            <ul class="clean">
+              <li><code>warmth_delta/h = Σ heat − (ambient_cold_pressure + condition penalties)</code>. The world exports one scalar and never writes the meter.</li>
+              <li>Heat: electric heater +10 (silent, grid-gated); open fire +6/+12/+18; hot drink +4; clothing layer +3. The cheapest warmth is the loudest; the silent warmth is the first thing collapse takes.</li>
+              <li>Cold penalties: Wet +6, night +4, wind +2, Malnourished +3; a breached shelter adds a lot.</li>
+              <li>Bands: Warm 100–60 / Cool / Cold 39–25 / Freezing 24–10 / Hypothermic 9–1 → terminal at 0 (60-min). The knife's edge recurs at every cold snap and power cut, not on a scripted day.</li>
+            </ul></div>
+          <div class="card"><h4>Energy &amp; Sleep</h4>
+            <ul class="clean">
+              <li>Drains −4.0/h awake, regenerates asleep; below 20 = <em>Exhausted</em> (action ×1.3, more mishaps, a Fever ingredient).</li>
+              <li>At 0, forced 6–8h collapse wherever you stand while Warmth keeps draining — deadly outdoors or by a dead fire.</li>
+              <li><strong>Sleep is gated by Detectability:</strong> you can't safely sleep while your emission exceeds the local threshold — a loud night forces you awake and dark.</li>
+            </ul></div>
+        </div>
+        <div class="callout cold"><span class="lbl">Activity Coefficients — buying quiet by slowing down</span>A cross-cutting multiplier on Satiation, Hydration and Energy: <strong>Rest/Hunker ×0.6 · Light ×1.0 · Heavy ×1.4</strong> (chopping, prying, boarding, fighting, travel). Hunkering through a multi-hour siege at ×0.6 is survivable rather than a starvation spiral — slowing your metabolism is how you afford a silent night.</div>
+      </section>
+
+      <!-- 05 -->
+      <section id="status">
+        <div class="sec-head"><span class="sec-num">§ 05</span><span class="provbadge">figures provisional</span><h2>Status &amp; Conditions</h2>
+          <p class="lead">Representation follows Card Survival: Tropical Island almost exactly: your internal, continuous state lives as labelled <strong>sliders</strong> in a fixed status panel, while everything discrete and physical — wounds, sickness, being soaked — is a <strong>card</strong> docked to your character. Lethality is still compounding neglect, never one bar hitting zero; no disease is ever rolled.</p></div>
+        <p class="prose" style="max-width:74ch">The <strong>sliders</strong> are the body and mind you can't hold in your hand — Calories, Hydration, Body Temperature, Energy, Immune System and Mental Wellbeing — each draining or recovering as time (that is, your actions) passes. The <strong>cards</strong> are the afflictions you fight directly with items: a bandage drags onto a Wound card, drying at the fire clears a Wet card. Afflictions read the sliders and feed back into them, so the two layers are one legible system — you never fight a hidden dice roll.</p>
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--panel-2);padding:20px 22px;margin:6px 0 22px">
+          <div style="font-family:var(--sans);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cold);margin-bottom:15px">The status panel — internal stats as sliders (CSTI-style)</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:13px 30px">
+            <div><div style="display:flex;justify-content:space-between;font-family:var(--sans);font-size:12.5px"><span style="color:var(--ink)">Calories</span><span style="color:var(--muted)">well-fed</span></div><div style="height:9px;border-radius:5px;background:#0a0e13;border:1px solid var(--border);margin-top:5px;overflow:hidden"><div style="height:100%;width:76%;background:linear-gradient(90deg,var(--cold-dim),var(--cold))"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-family:var(--sans);font-size:12.5px"><span style="color:var(--ink)">Hydration</span><span style="color:var(--muted)">ok</span></div><div style="height:9px;border-radius:5px;background:#0a0e13;border:1px solid var(--border);margin-top:5px;overflow:hidden"><div style="height:100%;width:61%;background:linear-gradient(90deg,var(--cold-dim),var(--cold))"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-family:var(--sans);font-size:12.5px"><span style="color:var(--ink)">Body Temperature</span><span style="color:var(--warm)">cold</span></div><div style="height:9px;border-radius:5px;background:#0a0e13;border:1px solid var(--border);margin-top:5px;overflow:hidden"><div style="height:100%;width:43%;background:linear-gradient(90deg,#7a5c2e,var(--warm))"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-family:var(--sans);font-size:12.5px"><span style="color:var(--ink)">Energy</span><span style="color:var(--muted)">tiring</span></div><div style="height:9px;border-radius:5px;background:#0a0e13;border:1px solid var(--border);margin-top:5px;overflow:hidden"><div style="height:100%;width:54%;background:linear-gradient(90deg,var(--cold-dim),var(--cold))"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-family:var(--sans);font-size:12.5px"><span style="color:var(--ink)">Immune System</span><span style="color:var(--muted)">holding</span></div><div style="height:9px;border-radius:5px;background:#0a0e13;border:1px solid var(--border);margin-top:5px;overflow:hidden"><div style="height:100%;width:70%;background:linear-gradient(90deg,#4a6349,var(--green))"></div></div></div>
+            <div><div style="display:flex;justify-content:space-between;font-family:var(--sans);font-size:12.5px"><span style="color:var(--ink)">Mental Wellbeing</span><span style="color:var(--blood)">fraying</span></div><div style="height:9px;border-radius:5px;background:#0a0e13;border:1px solid var(--border);margin-top:5px;overflow:hidden"><div style="height:100%;width:36%;background:linear-gradient(90deg,#6e3a34,var(--blood))"></div></div></div>
+          </div>
+          <div style="margin-top:18px;padding-top:15px;border-top:1px solid var(--border-soft);display:flex;gap:9px;flex-wrap:wrap;align-items:center">
+            <span style="font-family:var(--sans);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--warm)">…and afflictions as cards</span>
+            <span style="font-family:var(--mono);font-size:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid #6e3a34;color:#d69a92;border-radius:7px;padding:5px 11px">Wound · bleeding</span>
+            <span style="font-family:var(--mono);font-size:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--cold-dim);color:var(--cold);border-radius:7px;padding:5px 11px">Wet</span>
+            <span style="font-family:var(--mono);font-size:12px;background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid #7a5c2e;color:var(--warm-soft);border-radius:7px;padding:5px 11px">Fever</span>
+          </div>
+        </div>
+        <h3>The two new sliders, in depth</h3>
+        <p class="prose" style="max-width:74ch">Both follow the same two-layer shape as real physiology: a slow <strong>baseline</strong> your sustained habits pull up or down over days — you can't cram it before a crisis — plus fast <strong>temporary buffs/debuffs</strong> from meds and events that stack on top and decay. Both are grounded (never hope or salvation meters) and both bite through the body rather than game-over on their own.</p>
+        <div class="grid g2">
+          <div class="card">
+            <h4><span class="kdot"></span>Immune System</h4>
+            <p style="margin-bottom:6px">Governs how fast an <em>Infection</em> card gains or loses ground, your chance and severity of catching new sickness, and recovery speed. High = shrug off a chill; low = a minor cut spirals.</p>
+            <p style="font-family:var(--sans);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin:14px 0 0">Raises the baseline (slow, multi-day)</p>
+            <ul class="clean">
+              <li><strong>Nutrition — quantity AND variety.</strong> A monotonous canned-only diet erodes it (scurvy-adjacent); fresh forage, protein and vitamin-C sources (rosehips, pine-needle tea, canned veg/fruit) lift it — foraging matters beyond raw calories.</li>
+              <li><strong>Sleep</strong> — regular, full, warm, safe. Chronic sleep debt (standing Exhausted) is the single biggest suppressor.</li>
+              <li><strong>Warmth &amp; dryness</strong> — sustained Cold/Freezing and Wet are cold-stress suppressors.</li>
+              <li><strong>High Mental Wellbeing</strong> — a steady mind grants an immune floor (the stress → cortisol link).</li>
+              <li><strong>Hygiene &amp; sanitation</strong> — clean water, cleaned wounds, a shelter free of rats and rot.</li>
+              <li><strong>Activity balance</strong> — recuperation days help; chronic overexertion suppresses.</li>
+            </ul>
+            <p style="font-family:var(--sans);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm);margin:14px 0 0">Temporary decaying buffs</p>
+            <ul class="clean warm">
+              <li>Vitamins / immune boosters — a flat + that fades over a day or two.</li>
+              <li>A hot nourishing meal (broth) — a small buff plus warmth and a little Mental Wellbeing.</li>
+              <li>Foraged herbal remedies (elderberry-style) — craftable minor buffs.</li>
+              <li><em>Kept distinct:</em> antibiotics are TARGETED — they knock down an active bacterial Infection card directly, not the general slider, so meds keep different roles.</li>
+            </ul>
+            <p style="font-family:var(--sans);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--blood);margin:14px 0 0">Acute dips</p>
+            <p style="font-size:14px;color:var(--muted);margin-top:4px;font-family:var(--sans)">Cold-water immersion · a sleepless siege night · food poisoning from spoiled stock · a fresh untreated dirty wound · an active Fever draining reserves.</p>
+          </div>
+          <div class="card">
+            <h4><span class="kdot"></span>Mental Wellbeing</h4>
+            <p style="margin-bottom:6px">Grounded, never a hope meter — nothing external is coming and it is never "fed" by rescue. Governs sleep quality and action steadiness (a fraying mind = shakier hands, more mishaps, slower actions), and it feeds the Immune System floor. Left to spiral it makes every other system harder — but it is always recoverable through mundane care.</p>
+            <p style="font-family:var(--sans);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--green);margin:14px 0 0">Steadies / raises it</p>
+            <ul class="clean">
+              <li><strong>Rest &amp; warmth</strong> — a warm, safe place to simply stop.</li>
+              <li><strong>A secure, comfortable base</strong> — defensibility and homeliness both count; a fortified, tidy, decorated space reads as safety.</li>
+              <li><strong>A full belly &amp; good sleep</strong> — the body calms the mind.</li>
+              <li><strong>Small comforts &amp; routine</strong> — a hot drink, the radio's music while it lasts, a tended garden, a familiar ritual.</li>
+              <li><strong>Meaningful progress</strong> — finishing a real project (a sealed wall, a first harvest): grounded accomplishment, not hope.</li>
+              <li><strong>Daylight and, later, a companion</strong> — the tamed dog as a steadying presence.</li>
+            </ul>
+            <p style="font-family:var(--sans);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--blood);margin:14px 0 0">Wears it down</p>
+            <ul class="clean">
+              <li>Prolonged solitude and the deepening silence as the utilities die.</li>
+              <li>Darkness, cold, hunger and pain (untreated wounds).</li>
+              <li>Gruesome sights — a corpse, a kill, a siege or a near-death scare.</li>
+              <li>Exhaustion and monotony — endless identical days with no small win.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout cold"><span class="lbl">Why this fits Dead Air — the collapse erodes exactly these inputs</span>Losing <strong>running water</strong> kills hygiene, losing <strong>refrigeration + resupply</strong> kills diet variety, losing <strong>heat</strong> raises cold stress — so baseline Immunity naturally trends <em>downward</em> over a run, making you more fragile precisely as threats rise, and deep winter (less daylight, more cold) becomes a seasonal immune dip. Mental Wellbeing is pressured on the same curve as the radio dies and the world empties. Both are always recoverable through mundane care — which is the whole grim point: <em>you keep yourself alive, body and mind, one quiet chore at a time.</em></div>
+        <h3>Afflictions (cards)</h3>
+        <div class="tblwrap">
+          <table>
+            <thead><tr><th>Condition</th><th>Kind</th><th>Effect &amp; clear</th></tr></thead>
+            <tbody>
+              <tr><td class="cat">Malnourished</td><td>Band-flag</td><td>Satiation 0 OR Calories &lt;30. Enables Wound→Infection, raises cold pressure, slows healing.</td></tr>
+              <tr><td class="cat">Exhausted</td><td>Band-flag</td><td>Energy &lt;20. Action ×1.3, more mishaps, a Fever ingredient.</td></tr>
+              <tr><td class="cat">Parched / Dehydrated</td><td>Band-flag</td><td>Hydration ≤25 / ≤8. Lowers Energy cap; Dehydrated starts a 90-min terminal countdown.</td></tr>
+              <tr><td class="cat">Cold / Freezing / Hypothermic</td><td>Band-flag</td><td>Warmth bands. Fever ingredient, +Satiation drain, more chop-mishaps; Hypothermic runs a 60-min countdown.</td></tr>
+              <tr><td class="cat">Wet</td><td>Emergent</td><td>Rain/immersion/sweat. +6 cold, slows re-warming, a Fever ingredient; clears by drying at a fire.</td></tr>
+              <tr><td class="cat">Wound {clean/dirty, bleeding?}</td><td>Emergent</td><td>Chop mishap or combat bite. Bleeding emits Scent +5; Dirty + Malnourished → Infection. Clears via Bandage → Treated.</td></tr>
+              <tr><td class="cat">Fever</td><td>Emergent</td><td>Wet + Cold + Exhausted for 30 continuous min (anti-flicker buffer). Hydration ×1.5, Energy ×1.3; clears once ingredients gone + rest.</td></tr>
+              <tr><td class="cat">Infection (staged)</td><td>Emergent card</td><td>Progresses faster the lower your Immune System slider (plus while Dirty Wound + Malnourished persist); pushed back by Treated + antibiotics + rest.</td></tr>
+              <tr><td class="cat">Frostnip / Frostbite</td><td>Emergent</td><td>Sustained Freezing/Hypothermic (&gt;45 / &gt;90 min). Frostbite locks a <em>permanent</em> action penalty — the one lasting scar.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>How they reinforce each other</h3>
+        <ul class="clean">
+          <li><strong>Cold → hunger:</strong> shivering drives Satiation ×1.2/×1.4, so a cold snap is also a food crisis — the two lethal axes feed each other.</li>
+          <li><strong>Wound → detection:</strong> a bleeding wound emits Scent +5, so triage of wounds is triage of Detectability — an untreated cut on a windy night can out your shelter to a dog before hunger ever matters.</li>
+          <li><strong>Loud night → no sleep → Exhausted → Fever:</strong> being detectable at night blocks safe sleep, draining Energy straight into the Fever recipe. The detection system and the illness system share a wall.</li>
+          <li><strong>Every terminal state is a named countdown</strong> (Dehydrated 90 min, Hypothermic / Warmth-0 60 min), so death is authored and the dated obituary names the exact chain.</li>
+        </ul>
+      </section>
+
+      <!-- 06 -->
+      <section id="detect">
+        <div class="sec-head"><span class="sec-num">§ 06</span><span class="provbadge">figures provisional</span><h2>Detectability — the spine</h2>
+          <p class="lead">The unified signal, with Survival as the single source of truth. Four literal trailing cards dock to the Survivor and show a pip strip. The summed Σ is a display-only gut-read; actual detection is computed <em>per perceiver</em>, which is what makes the dead and the animals feel like distinct threats off one shared system.</p></div>
+        <div class="presence" style="font-size:15px;margin-bottom:22px"><span class="pip">Heat 2</span><span class="pip">Light 4</span><span class="pip">Noise 0</span><span class="pip">Scent 2</span><span class="pip sum">Σ 8 — a walker two houses down could hear this</span></div>
+        <h3>Four channels, distinct physics</h3>
+        <div class="tblwrap">
+          <table>
+            <thead><tr><th>Channel</th><th>Range</th><th>Behaviour</th></tr></thead>
+            <tbody>
+              <tr><td class="cat">Heat 0–5</td><td>Very short, steep falloff</td><td>Rises into a day-visible smoke plume (×1.5 against frozen ambient).</td></tr>
+              <tr><td class="cat">Light 0–10</td><td>Line-of-sight, wall-blocked</td><td>Night ×1.0 / day ×0.1; curtain or board leak ×0.3.</td></tr>
+              <tr><td class="cat">Noise 0–10</td><td>Radial, distance-attenuated</td><td>Partial wall punch-through; spiky events vs a sustained hum. <code>eff = emit − 0.4×dist</code> (wall = +2 dist).</td></tr>
+              <tr><td class="cat">Scent 0–10</td><td>Downwind plume (0 upwind)</td><td>Lingers as a decaying floor on the tile after you leave.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>The per-perceiver weight matrix <em>is</em> the creature design</h3>
+        <div class="tblwrap">
+          <table>
+            <thead><tr><th>Perceiver</th><th>Weights (H / L / N / S)</th><th>How you hide</th></tr></thead>
+            <tbody>
+              <tr><td class="cat">Walker</td><td>N 1.0 · L 0.8 · S 0.4 · H 0.3 (P 4 calm, 7 alert)</td><td>Go dark and silent.</td></tr>
+              <tr><td class="cat">Wild Dog</td><td>S 1.0 · N 0.6 (P 6)</td><td>Treat the wound; cook upwind or not at all.</td></tr>
+              <tr><td class="cat">Rats</td><td>Food-scent only</td><td>Seal your stores.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="prose" style="margin-top:18px;max-width:72ch"><code>detect_p = Σ emit(ch) × falloff(ch, dist, LOS, wind) × weight_p(ch)</code>, triggering when <code>detect_p ≥ P</code>. Same four numbers, opposite counterplay — <strong>new creatures are just new weight rows.</strong> One detection→aggro primitive drives all three arenas: the cook/warm/see trade previews its channel delta before you commit; exploration stealth fills a per-threat <strong>Notice</strong> meter; the shelter siege feeds a single <strong>Interest</strong> meter fortification buys time against. Notice and Interest are the same primitive at different scales.</p>
+        <div class="callout"><span class="lbl">The invariant that keeps the dilemma alive</span>No achievable loadout reaches zero exposure — upgrades change the terms, never remove them. The wood stove trades Light and Noise for a day-visible smoke plume; blackout curtains and soundproofing degrade with use; the ever-rising ambient density eventually reads even a low floor on a long enough or downwind night. You are always trading one exposure for another.</div>
+      </section>
+
+      <!-- 07 -->
+      <section id="collapse">
+        <div class="sec-head"><span class="sec-num">§ 07</span><span class="provbadge">figures provisional</span><h2>The Collapsing World</h2>
+          <p class="lead">The real difficulty engine — no countdown, no scripted end. A single hidden float (the Collapse Index) is the master clock the whole world reads, advancing ~2.0/day with jitter and "the outside is falling" event bumps. You can never slow the rot, only mitigate it locally by standing up replacements before each service dies.</p></div>
+        <h3>The Exclusion Zone</h3>
+        <p class="prose" style="max-width:74ch">The map edge is a military cordon — concrete barriers, razor wire, a cleared and mined strip, watchtowers — where crossing means certain death, so you never wonder why you can't just leave. Every outside "presence" is automated and pre-recorded: sentry turrets, loudspeaker pylons looping curfew messages, drop-drones. You can shout at the cordon and <strong>nothing ever answers</strong> — the no-rescue promise is enforced structurally, not narrated. The cordon doubles as the collapse barometer: resupply thins, the loudspeaker loop corrupts and dies, the turrets go dark. And because that automation runs down on the same curve as your tap water, the edge becomes physically crossable only at max collapse — the grounded, earned, non-guaranteed hook the optional escape hangs on. Beyond the wire is a global graveyard, not a rescued destination.</p>
+        <h3>The escalation — five foreshadowed stages</h3>
+        <div class="stages">
+          <div class="st"><div class="n">STAGE 0</div><div class="t">The Cordon Holds</div><small>Grid up, resupply reliable. The grace period.</small></div>
+          <div class="st"><div class="n">STAGE 1</div><div class="t">Rationing</div><small>Drops thin; first warnings on the wire.</small></div>
+          <div class="st"><div class="n">STAGE 2</div><div class="t">Brownout</div><small>Power falters; the loud pivot begins.</small></div>
+          <div class="st"><div class="n">STAGE 3</div><div class="t">The Silence</div><small>Radio dies to static; the last voice gone.</small></div>
+          <div class="st"><div class="n">STAGE 4</div><div class="t">The Long Dark</div><small>Full scarcity; the cordon crossable at last.</small></div>
+        </div>
+        <p class="prose" style="margin-top:18px;max-width:74ch">Failures arrive in correlated, foreshadowed clusters — each paired with a zombie-density band, a weather band, and an "outside is falling" beat delivered 1–2 days ahead by a still-living info channel, so pressure reads as weather, not a script. The arc is genuinely non-deterministic run to run: failure <em>order</em> is randomized inside stage bands, which utilities a map possesses varies, and events branch — always preserving causal dependencies (pumps need power; gas holds residual pressure past the grid).</p>
+        <div class="callout blood"><span class="lbl">No IDLE safety — but a worked home can last forever</span>The anti-plateau rule is about <em>labour</em>, not eviction: a base <strong>left alone</strong> decays, its fire dies and roaming hordes home on its last warm/lit point — but a base <strong>actively worked</strong> (repaired, defended, re-provisioned from renewables) can be held indefinitely. So the late game is a <em>demanding, holdable steady-state</em>, not an endless ramp: threat density rises after collapse but must <strong>plateau where a maxed, vigilant base can just hold it</strong> — an unbounded rise would make "last forever" a lie. The rhythm then comes from the <em>cyclical seasons</em> (hard spring → scavenging summer → a harder winter), not from ever-climbing numbers. Weather cycles; the grid never comes back; standing still slowly loses while working keeps you alive.</div>
+        <h3>The nine services (each with a quiet solution the collapse takes away)</h3>
+        <div class="grid g2">
+          <div class="util"><h4>Mains Electricity <span class="life"><i class="b"></i><i class="b"></i><i></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>Silent heat, light, cooking; refrigeration (perishables keep for days); charging; powered tools.</dd><dt class="f">How it fails</dt><dd>Brownouts → announced rolling blackouts → permanent grid-drop.</dd><dt class="i">Impact</dt><dd>The pivotal failure. Fridge dies (hoarded food spoils); silent heat/light end, dropping you onto loud fire and generators. Detection goes from optional to unavoidable.</dd></dl></div>
+          <div class="util"><h4>Mains Water <span class="life"><i class="b"></i><i class="b"></i><i></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>Unlimited safe drinking water from the tap; thirst is a non-problem — which makes its loss land hard.</dd><dt class="f">How it fails</dt><dd>Potability first (a boil-water notice), then pressure (taps cough, run dry).</dd><dt class="i">Impact</dt><dd>Boil everything (fire = detectable), then haul from rain-catch and snowmelt. Replacement is a staged rain-catchment project that must be finished before pressure fails.</dd></dl></div>
+          <div class="util"><h4>Piped Gas <span class="life"><i class="b"></i><i class="b"></i><i class="b"></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>Silent cooking and warmth independent of electricity — the quiet survivor's best friend after the power dies.</dd><dt class="f">How it fails</dt><dd>Pipes hold residual pressure after the grid (a causal dependency), then bleed out.</dd><dt class="i">Impact</dt><dd>The last <em>silent</em> heat/cook source gone — the failure that finally forces the core dilemma with no clean escape. Replacement: the wood stove (chimney + real detectability).</dd></dl></div>
+          <div class="util"><h4>Radio / Emergency Broadcast <span class="life"><i class="b"></i><i class="b"></i><i class="b"></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>An automated national loop — bulletins, weather, a time signal, and the best foreshadowing of upcoming failures.</dd><dt class="f">How it fails</dt><dd>Updates clip → the loop corrupts → cuts off mid-sentence into carrier hiss.</dd><dt class="i">Impact</dt><dd>Your last window on the outside. "The Silence" is the emotional floor of the game. A hand-crank set extends the dying loop a little longer — not a save.</dd></dl></div>
+          <div class="util"><h4>Fuel Deliveries &amp; Pumps <span class="life"><i class="b"></i><i class="b"></i><i></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>Near-unlimited fuel for generators, stoves, molotovs, vehicles.</dd><dt class="f">How it fails</dt><dd>Tanker convoys stop; pumps also need grid power.</dd><dt class="i">Impact</dt><dd>Fuel becomes strictly finite (siphon parked cars, diminishing). The biggest constraint on "run a generator forever" — forcing a pivot to wood/solar/hand-crank.</dd></dl></div>
+          <div class="util"><h4>Cordon Resupply Drops <span class="life"><i class="b"></i><i class="b"></i><i></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>Periodic airdrops of food/water/meds/fuel — the reason the zone is looted-but-not-barren.</dd><dt class="f">How it fails</dt><dd>Thin (smaller, later, spoiled), then stop entirely near CI 88.</dd><dt class="i">Impact</dt><dd>The hard transition from supplied survivor to true scavenger — the clearest "the outside has fully fallen" beat. Nothing external ever arrives again.</dd></dl></div>
+          <div class="util"><h4>Streetlights <span class="life"><i class="b"></i><i></i><i></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>Safe night travel on free ambient light that isn't <em>yours</em> to carry.</dd><dt class="f">How it fails</dt><dd>First thing load-shedding kills; often storm-knocked early and locally.</dd><dt class="i">Impact</dt><dd>The exterior goes pitch black; to move after dark you carry your own detectable light — pushing activity into the shrinking winter daylight.</dd></dl></div>
+          <div class="util"><h4>Cellular &amp; Emergency Alerts <span class="life"><i class="b"></i><i></i><i></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>A found phone receives government push-alerts — the earliest text foreshadowing channel.</dd><dt class="f">How it fails</dt><dd>Towers need backhaul + unfuelled backup gens; overloaded then starved, it fails first.</dd><dt class="i">Impact</dt><dd>The last alert freezes on the lock screen forever; phones become flashlights and clocks. Teaches you to read the world through slower, dumber channels.</dd></dl></div>
+          <div class="util"><h4>Landline / Automated Hotline <span class="life"><i class="b"></i><i class="b"></i><i></i><i class="c"></i></span></h4><dl><dt class="a">Works early</dt><dd>A recorded status oracle (boil-water orders, sector status) — a diegetic help menu you can query on demand.</dd><dt class="f">How it fails</dt><dd>Dial tone → the loop skips and repeats → fast-busy → dead line.</dd><dt class="i">Impact</dt><dd>You can no longer <em>ask</em> the world anything, only passively receive — the drift from interactive information toward silence.</dd></dl></div>
+        </div>
+      </section>
+
+      <!-- 08 -->
+      <section id="shelter">
+        <div class="sec-head"><span class="sec-num">§ 08</span><span class="provbadge">figures provisional</span><h2>Shelter &amp; Base-Building</h2>
+          <p class="lead">The shelter IS the table — the active base defines the tabletop board. One StructureCard schema (SHELL / OPENING / STATION / UTILITY / STORAGE / TRAP) covers walls, doors, stoves and barrels alike; building = dragging materials onto a blueprint. You may claim <strong>any building</strong> as a home — the game never gates the choice, it <em>informs</em> it (the Survey, below) and then lets the consequences land. The three archetypes are not a menu but <strong>exemplars</strong>; a building's traits set how <em>hard</em> it is to hold, never <em>whether</em> it can be.</p></div>
+        <div class="callout cold"><span class="lbl">Two stages: bolthole → homestead</span>Shelter has a shape. <strong>Early</strong> you throw up a <strong>bolthole</strong> — any defensible-enough hole to survive the first nights while you scout, barely fortified and gladly abandoned. <strong>Then</strong>, once you've surveyed a few candidates, you <strong>commit</strong> to a homestead and pour the real work in — and a well-built homestead can last the <em>whole game</em>. Relocation stays a legitimate option (a costed haul of your stockpile), never a forced treadmill: survive → scout → commit, then hold.</div>
+        <h3>Claim anywhere — the Survey</h3>
+        <p class="prose" style="max-width:74ch">The player is never stopped from a bad choice, only <strong>informed</strong> before making it — the same legibility the rest of the game runs on, applied to its biggest decision. A candidate exposes a readable <strong>trait profile</strong>: some traits are obvious on arrival (a glass storefront leaks Light &amp; Noise), others need a costed <strong>Survey</strong> action (a walk-through that spends time and exposure and might wake a Lurker). Sleep in the apothecary with the huge glass front and you'll have <em>seen</em> it is Ring-2 dead-dense, leaky, bedless and bare — and you earn the nightly sieges you signed up for.</p>
+        <div class="tblwrap">
+          <table>
+            <thead><tr><th>Trait</th><th>What it tells you before you commit</th></tr></thead>
+            <tbody>
+              <tr><td class="cat">Defensibility</td><td>Openings, wall material, chokepoints → how hard sieges are to hold.</td></tr>
+              <tr><td class="cat">Signature / leak</td><td>Default Light/Noise/Heat leak — a glass storefront vs a windowless basement.</td></tr>
+              <tr><td class="cat">Footprint</td><td>Station slots, storage, room to expand (farm plots, workshop).</td></tr>
+              <tr><td class="cat">Starting utilities</td><td>Power/water/gas present? (all decay anyway — early comfort only.)</td></tr>
+              <tr><td class="cat">Location context</td><td>Its ring and local dead traffic — and, since <em>rings are relative to your base</em>, what becomes near or far once you live here.</td></tr>
+              <tr><td class="cat">Renewables access</td><td>Adjacent woods / water / farmable land — the forever-home question.</td></tr>
+              <tr><td class="cat">Condition</td><td>Pre-looted, damaged, already breached?</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>The three archetypes — exemplars, not a menu</h3>
+        <p class="prose" style="max-width:74ch">These are the clearest teaching cases of three strategies any building leans toward by its traits. <strong>Archetype sets the upkeep cost of holding, never a ceiling on viability</strong> — a residential home is a <em>higher-upkeep, higher-exposure</em> base, not a doomed one, and with enough work it holds into the late game like any other. Urban self-sufficiency is on the table: you <em>can</em> grow food and catch water in a suburban house (roof/yard plots, rain barrels, gutter catchment). What the house can't hand you is what comes from <em>land it doesn't have</em> — firewood/fuel is the classic gap (no forest on the doorstep → haul it or substitute) — so the urban forever-home is a logistics puzzle the shed-dweller never faces. Each card's Progression line is that building's <em>characteristic</em> strategy, not a locked class.</p>
+        <div class="grid g3">
+          <div class="card"><h4><span class="kdot"></span>Suburban House <span class="tag">Seal Down</span></h4>
+            <p><em>A kettle still on the hob, kids' drawings on the fridge — the mundane made unbearable. The onboarding shell, and the one that feels emptiest when the utilities die.</em></p>
+            <p style="margin-top:10px"><strong style="color:var(--green)">Pros:</strong> richest manufactured loot; best early utilities (power, water, gas, radio); large footprint (8 slots); central to the loot rings.</p>
+            <p><strong style="color:var(--blood)">Cons:</strong> seven openings and big glass = huge leak; you physically can't defend the whole envelope late. The comfortable utilities are a trap.</p>
+            <p><strong style="color:var(--cold)">Progression:</strong> permanently brick/board most of it and collapse into a one-room keep. You end with <em>less</em> house, better defended — the home shrinks as the world does.</p></div>
+          <div class="card"><h4><span class="kdot"></span>Old Bunker <span class="tag">Restore Systems</span></h4>
+            <p><em>Claustrophobic concrete, humming fluorescents while the generator holds, no windows. The safest and loneliest shell — you can't see the threat, you listen for it.</em></p>
+            <p style="margin-top:10px"><strong style="color:var(--green)">Pros:</strong> highest defensibility (blast door; sieges rare); a one-time civil-defense cache; near-zero leak; closed systems if you feed it fuel.</p>
+            <p><strong style="color:var(--blood)">Cons:</strong> worst early utilities (dead generator to repair, hand-pump cistern, no radio underground); isolated = long dangerous supply runs; a <em>single exit</em> makes a breach a death trap.</p>
+            <p><strong style="color:var(--cold)">Progression:</strong> repair the generator, get water flowing, raise a hidden antenna — turn a tomb into a self-powered fortress. Your enemy is the fuel gauge, not the horde.</p></div>
+          <div class="card"><h4><span class="kdot"></span>Woodland Shed <span class="tag">Homesteading</span></h4>
+            <p><em>Exposed, rustic, wind through the boards, the forest breathing outside. Fragile but free; the cold is always in the room.</em></p>
+            <p style="margin-top:10px"><strong style="color:var(--green)">Pros:</strong> richest renewables (wood, forage, game, water); off-grid from turn one, so nothing to lose when infrastructure decays; the only shell with outdoor space for a layered perimeter; low local zombie density.</p>
+            <p><strong style="color:var(--blood)">Cons:</strong> flimsy walls, high cold exposure; animal threats (dog, wolves); poorest in manufactured goods — distant urban loot runs.</p>
+            <p><strong style="color:var(--cold)">Progression:</strong> chink the walls, raise a palisade, dig pit traps, add a smokehouse, tame the dog — and grow the generative homesteading tree. You conjure a base from the forest.</p></div>
+        </div>
+        <h3>The siege model (the one authoritative spec)</h3>
+        <p class="prose" style="max-width:74ch">A single <strong>Interest</strong> meter per siege zombie. <strong>Engaged</strong> while your Detectability exceeds its threshold — Interest pinned high, it hammers the opening as time elapses, dealing <code>base_dmg×(1−DR)</code> per elapsed minute to Integrity. <strong>Lingering</strong> the moment you drop below threshold — knock interval lengthens, Interest decays until it disengages (&lt;12) and wanders off. A breach happens only if <em>time-to-zero-Integrity &lt; time-for-Interest-to-bleed-out</em>, so fortification widens the lingering tail: <strong>going dark WINS, and barricades buy the seconds to do it.</strong> The telegraph rungs (treeline → yard → door → window) are flavour feeding this one meter.</p>
+        <div class="callout"><span class="lbl">Fortification does two jobs per card</span>Boarding/curtains/soundproofing cut the Light/Noise <em>leak</em> per opening (a horde reads your <strong>worst</strong> opening, not your average), while Integrity/DR add breach <em>time</em>. Layered defence runs outer→inner: <strong>Perimeter</strong> (tripwire alarms, pit traps, snares, cleared sightline — the Shed's edge) → <strong>Envelope</strong> (opening barricades + sandbag/soundproof/blackout) → <strong>Keep</strong> (best door + a hide + a secure cache). But structures <em>decay</em>: a base is never "finished," and roaming hordes home on the last warm/lit points — no <em>idle</em> turtle is permanently safe, though a base you keep working holds.</div>
+        <h3>Stockpiling — the thriving loop</h3>
+        <p class="prose" style="max-width:74ch">Collapse creates demand spikes; reserves banked during the calm carry you through them. Storage cards carry Freshness multipliers (Pantry ×1.0, Root Cellar ×0.5, Fridge ×0.2, Freezer ×0.05 — the power-only comfort trap that spoils hard when the grid drops, Sealed Cache ×0.9). Preservation is itself a detectability trade: <strong>Smoking gives Scent 8 while running</strong> (a beacon — batch it, then go dark). The reserves that matter: <strong>water</strong> (banked before the tap dies), <strong>fuel</strong> (renewable firewood + diesel), shelf-stable <strong>food</strong> (the Calorie buffer against siege lockdowns), and irreplaceable <strong>medicine</strong>. To keep the mastered plateau from becoming daily busywork, established stations can be gated into an opt-in <em>semi-autonomous</em> mode at a resource cost — but survival stays hands-on during real stakes.</p>
+        <h3>The incapacitation cascade — why reserves exist</h3>
+        <p class="prose" style="max-width:74ch">A solo homestead runs on your daily labour — so the deepest dread is <strong>the day you can't work.</strong> Sickness or a bad injury slows you, forces bed rest and drains needs faster, so you <em>consume</em> reserves while maintenance goes undone: the fire isn't fed (colder → sicker), crops go unwatered, barricades decay unrepaired, water isn't collected. Illness IS the "bad time" the whole stockpiling loop exists for — a stocked base lets you lie feverish for three days on banked water, stacked wood and a self-filling rain barrel; a hand-to-mouth base unravels.</p>
+        <div class="callout"><span class="lbl">The base-design axis it creates: passive vs active infrastructure</span>Infrastructure that runs <strong>without you</strong> — rain barrel, root cellar, banked woodpile, automated snares, solar trickle — keeps working while you're bedridden. Infrastructure that needs <strong>you</strong> — an open fire you must feed, crops you must water, on-demand boiling, repairs — fails. A resilient homestead <em>minimises the labour only you can do</em> — and this is where the residential home is most fragile, because passive infra is harder to stand up there. Another honest cost of the choice.</div>
+        <div class="callout cold"><span class="lbl">Fair, not a doom spiral</span>Incapacitation must never be an arbitrary one-way slide. Three guards keep it fair: <strong>preparation is the counterplay</strong> (a buffer of reserves rides it out — you survive by having prepared, not by heroics); <strong>partial capacity</strong> (the Activity Coefficients let you still do the low-effort essentials — drink stored water, throw a log on the fire — while too weak to chop or fight); and <strong>recovery if the basics hold</strong> (stay warm, fed, hydrated and safe and your Immune System pulls you back). A spiral turns terminal only when a <em>basic</em> fails — you run out of stored water, or the fire dies and you freeze — so every such death traces to a reserve you didn't build, never a dice roll. It closes the loop with the sliders: low Immune System → longer illness; sick-and-helpless-alone → falling Mental Wellbeing → suppressed immunity. Tuned as pressure, never guaranteed doom.</div>
+      </section>
+
+      <!-- 09 -->
+      <section id="areas">
+        <div class="sec-head"><span class="sec-num">§ 09</span><h2>Exploration &amp; Locations</h2>
+          <p class="lead">Exploration is the supply pipe, never a parallel economy — no new meter, no new resource type. There is <strong>no map</strong>: like Card Survival, every place is a <strong>location card</strong>, and you travel between connected locations, discovering more as you explore. Depletion of the near, safe places plus the collapse clock turn the pipe from short/safe to long/deadly — that transformation IS the difficulty curve. Leaving is never free: time drains your needs and the home you left drifts out of your control while you're gone.</p></div>
+        <p class="prose" style="max-width:74ch">You are always <em>at</em> a location — its cards are your table. A <strong>travel row</strong> shows the places connected to it (Forest · Country Lane · Abandoned Shack…); pick one and you move there, paying that <strong>connection's cost</strong>: <strong>Time</strong> (needs drain the whole way), <strong>Detectability/Exposure</strong> (route + time-of-day + weather + wounds), and <strong>Carry</strong> (backpack cap; overencumbrance slows you and raises exposure). En-route encounters are presented, never sprung ("two shamblers on the road ahead" → Detour / Sneak / Engage). Arrival is the fairness gate: a <strong>Threat Banner</strong> (count + type + aggression), then Enter / Enter Quietly / Turn back (free — nothing has seen you). No map is ever drawn — the world is a hidden, internally-logical graph you hold in your head.</p>
+        <h3>Discovery — connections &amp; per-location milestones</h3>
+        <p class="prose" style="max-width:74ch">Every place is a <strong>named, characterful location card</strong> — <em>Big Red, the Abandoned Shack, Lordly Manor</em>, plus the typed spots (Pharmacy, Gas Station, the Forest, Supermarket, Clinic, the Cordon). Searching a location fills a <strong>per-location exploration meter</strong>, and its <strong>milestones</strong> (25/50/75/100 for a big place, 50/100 for a small one) pay out: fresh findings and lore, and — the key one — <strong>new connected locations unlock</strong> ("a trail behind the Manor leads to the Forest"; the cellar at 75% yields a <em>Map to the Hidden Bunker</em>). Discovery is the fun, and because milestones open <em>finite authored places</em>, it never becomes the infinite-loot-spam a re-searchable jungle would. Found <strong>map items</strong> are a second, occasional unlock vector alongside exploring.</p>
+        <div class="callout"><span class="lbl">Two tracks, kept distinct</span><strong>Exploration %</strong> is discovery — one-way, persistent, unlocks structure (findings, lore, new connections). <strong>Loot depletion</strong> is consumption — the layered <em>searched → salvage → shell</em> model below. Discovery says what's <em>there</em>; depletion says what you've <em>taken</em>. Your base is simply a location card you've claimed; relocation is "make a different location home" — no geometry, nothing to recompute.</div>
+        <h3>The kinds of place you'll meet</h3>
+        <div class="grid g2">
+          <div class="card"><h4>Homes — Big Red · the Shack · Lordly Manor <span class="tag">early</span></h4><p><strong>Loot:</strong> canned/dry food, blankets &amp; clothing, batteries/candles, first-aid, a bigger backpack — feeds early needs broadly.</p><p><strong>Threats:</strong> the occasional single "resident" zombie and rats; low count, close quarters.</p><p><strong>Note:</strong> breadth over depth; the tutorial teacher. Un-searched houses later become where migrating dead shelter.</p></div>
+          <div class="card"><h4>Supermarket <span class="tag">town</span></h4><p><strong>Loot:</strong> bulk food &amp; bottled water (the calorie/hydration backbone), bleach, camping gear, batteries.</p><p><strong>Threats:</strong> the horde — loot-rich means zombie-dense (fairness rule 1 made literal). You see the cluster on arrival; breaking glass spikes the whole crowd's awareness.</p><p><strong>Note:</strong> rich but strictly non-renewable — the first-arc powerhouse that MUST run dry to push you outward.</p></div>
+          <div class="card"><h4>Pharmacy <span class="tag">town</span></h4><p><strong>Loot:</strong> antibiotics (cure Infection), painkillers, antiseptic, bandages, vitamins — the discrete-condition answers the illness system needs.</p><p><strong>Threats:</strong> low body-count but contested; the prize sits behind a locked cage (prying = a Noise spike).</p><p><strong>Note:</strong> small pool, stripped fast. Its loss forces the far, scarier Clinic run.</p></div>
+          <div class="card"><h4>Gas Station <span class="tag">town</span></h4><p><strong>Loot:</strong> fuel, lighters, road flares (a throwable Light/Noise distraction), road maps that reveal new Locations.</p><p><strong>Threats:</strong> the exposed forecourt — nowhere to hide. The danger is being <em>seen</em>, not numbers.</p><p><strong>Note:</strong> relevance RISES as the world worsens — once power fails, fuel jumps from "nice" to "essential."</p></div>
+          <div class="card"><h4>Hardware / Industrial <span class="tag">town · deep</span></h4><p><strong>Loot:</strong> lumber, planks, nails, sheet metal, rope, tools, generator parts, the cart — the fortification pipeline, plus improvised weapons.</p><p><strong>Threats:</strong> few dead but a guard dog and structural hazards; poor sightlines.</p><p><strong>Note:</strong> "hauling over looting" — a long-running supply line. Every fortification traces back here.</p></div>
+          <div class="card"><h4>The Woods <span class="tag">renewable</span></h4><p><strong>Loot:</strong> firewood (cheap-but-loud heat), forage (some poisonous), a water source (needs boiling), snares, medicinal plants.</p><p><strong>Threats:</strong> wild animals (starving dog pack, rats, later wolves) and the weather itself; almost no zombies — a different threat register.</p><p><strong>Note:</strong> the ONE renewable area; the sustainable floor whose importance rises as running water and man-made loot vanish.</p></div>
+          <div class="card"><h4>The Clinic / Medical Center <span class="tag">deep</span></h4><p><strong>Loot:</strong> surgical supplies, real antibiotics, saline, advanced first aid — the deep medical reserve for when the Pharmacy is gone.</p><p><strong>Threats:</strong> dense and lethal — infected in tight corridors where the see-first/flee margin is thin.</p><p><strong>Note:</strong> a committed interior — plan the exit before you enter. Becomes mandatory once dirty-water Infection risk climbs.</p></div>
+          <div class="card"><h4>The Cordon / Zone Edge <span class="tag blood">the edge · special</span></h4><p><strong>Loot:</strong> rare military/police caches (a firearm, ammo, fuel), a vehicle (the escape seed), intel notes that build the world but never offer salvation.</p><p><strong>Threats:</strong> the densest, most collapsed zone — the dead pooled against the wire. Highest risk in the game.</p><p><strong>Note:</strong> the barrier as content — you see the outside and never reach anyone in it. Its gate becomes passable only once the cordon's automation decays at max collapse.</p></div>
+        </div>
+        <h3>The resource model — finite loot, renewable living</h3>
+        <p class="prose" style="max-width:74ch">Why a house is "picked dry" but the woods aren't: resources split by <em>where they come from</em>. That split is the whole survive → thrive arc — not a countdown.</p>
+        <div class="tblwrap">
+          <table>
+            <thead><tr><th>Class</th><th>Examples</th><th>Behaviour</th></tr></thead>
+            <tbody>
+              <tr><td class="cat">Finite (manufactured)</td><td class="ex" style="font-family:var(--sans);color:var(--ink)">canned food, batteries, ammo, meds, fuel, factory tools</td><td>Deplete across the whole run — the scarcity clock. Nobody makes more inside the Zone.</td></tr>
+              <tr><td class="cat">Renewable (natural / produced)</td><td class="ex" style="font-family:var(--sans);color:var(--ink)">firewood, forage, game, rain/snow water, farmed crops</td><td>Regenerate to a cap — the infinite floor. The Woods behave like CSTI's jungle on purpose.</td></tr>
+              <tr><td class="cat">Recyclable (semi-finite)</td><td class="ex" style="font-family:var(--sans);color:var(--ink)">planks, nails, scrap, cloth from structures &amp; junk</td><td>Vast but bounded; player labour converts it.</td></tr>
+              <tr><td class="cat">Soft-restock (rare)</td><td class="ex" style="font-family:var(--sans);color:var(--ink)">resupply drops (early), wandering-survivor leftovers, events</td><td>Occasional top-ups that thin and dry up as the world falls.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout"><span class="lbl">"Do resources run out?" — the finite pool that isn't a wall</span>Only the <strong>manufactured</strong> class is finite, and it <em>should</em> run out — that's the collapse pressure and the reason to farm. The game is survivable <strong>forever</strong> because you pivot to <strong>renewable production</strong>: the scavenger who never plants a crop rightly starves; the homesteader lives indefinitely. Finite loot isn't the timer — it's the <em>engine</em> that forces the looter-to-farmer graduation. The Exclusion-Zone edge is the one hard wall, so you'll strip the whole zone of manufactured goods eventually — but by then you're self-sufficient or dead.</div>
+        <div class="callout cold"><span class="lbl">What happens to a looted location</span>Nothing is a binary "stripped." A place depletes in <strong>layers</strong>: its <strong>consumables</strong> (finite) go first — that's "searched" — but its <strong>structural materials</strong> persist as a salvage quarry (your lumberyard) until you dismantle it to a <strong>shell</strong> (then just shelter/fallback). And because your pack is small, surplus you leave behind is <strong>tracked on the location card</strong> ("you left 3 here"), so returning is meaningful. You literally watch yourself eat the town — perfectly on-tone for the withdrawing world.</div>
+      </section>
+
+      <!-- 10 -->
+      <section id="combat">
+        <div class="sec-head"><span class="sec-num">§ 10</span><h2>Threats &amp; Combat</h2>
+          <p class="lead">Combat is necessary but avoidable, readable, and never a power fantasy. It obeys a fairness contract — and (fix 11) the tactical layer is deferred past the first slice: early on a breach is an authored fail-state and "flee" means leaving before Detectability trips.</p></div>
+        <h3>The fairness contract</h3>
+        <ul class="clean">
+          <li><strong>You see it before it sees you</strong> — revealed cards with a visible awareness state (Unaware / Alerted / Hunting) on arrival; you choose Enter / Enter Quietly / Leave.</li>
+          <li><strong>Every attack is telegraphed and auto-pauses the sim;</strong> Flee is a first-class verb beside Avoid / Sneak / Distract.</li>
+          <li><strong>Fighting is LOUD</strong> — and loud assembles the crowd that actually kills you. Power comes from position, prep and fortification, never from out-DPSing the dead.</li>
+          <li><strong>Disguised Lurkers always render their tell</strong> (flies, fresh look, strong Scent) and always occupy a counted Threat-Banner slot — no blind ambush the axiom forbids.</li>
+          <li><strong>All zombies stay slow</strong> (protects the melancholic dread; a fast variant would reshape the whole flee math — flagged as a group call, not a default).</li>
+        </ul>
+        <div class="callout cold"><span class="lbl">When built (Milestone 2+): drag-combine combat</span>Combat is re-expressed in the same grammar as everything else: drag the weapon card onto the threat = a Strike; drag the Survivor onto cover/an exit = Break Away; drag a bandage onto a wound = treat. each strike, dodge and reposition is an action that advances time; the sim halts for your input on an enemy wind-up, a Grab, a weapon break, a wound, or a new threat entering, so you're never resolved-into unaware. <strong>Stamina IS the Energy meter</strong> (fights can starve you). <strong>Downed ≠ Dead</strong> — a felled zombie rises after ~6 beats unless you spend a slow, loud Finisher. Bite lethality routes through the infection curve, keeping deaths traceable.</div>
+        <h3>Bestiary</h3>
+        <div class="tblwrap">
+          <table>
+            <thead><tr><th>Creature</th><th>Type</th><th>Danger</th><th>Counterplay</th></tr></thead>
+            <tbody>
+              <tr><td class="cat">Shambler</td><td>The dead (baseline)</td><td><span class="dots">●●●<span class="o">○○</span></span></td><td>Beatable 1v1; the danger is the second one noise brings. Space with a spear, don't linger, Finish before it rises.</td></tr>
+              <tr><td class="cat">Lurker</td><td>Disguised corpse</td><td><span class="dots">●●●<span class="o">○○</span></span></td><td>Read the guaranteed tell; approach corpses with a weapon queued; loot from the far zone.</td></tr>
+              <tr><td class="cat">Cluster / Pack</td><td>A crowd as one card</td><td><span class="dots">●●●●●</span></td><td>Never fight in the open; Distract, reroute, funnel through a 1-wide doorway. The late-game migration threat — the reason you fortify.</td></tr>
+              <tr><td class="cat">Reeker / Bloated</td><td>The dead (later)</td><td><span class="dots">●●●●<span class="o">○</span></span></td><td>Bursts infectious gas when destroyed close — range or positioning; never cave its skull up close.</td></tr>
+              <tr><td class="cat">Rats</td><td>Wild animal (logistical)</td><td><span class="dots">●<span class="o">○○○</span></span></td><td>A threat to your STORES, not you. Seal food, set traps, clean nests. Worsens as stores grow.</td></tr>
+              <tr><td class="cat">Starving Dog</td><td>Former pet</td><td><span class="dots">●●●<span class="o">○○</span></span></td><td>Scare, fight, or FEED to tame into a growing early-warning companion that reads Detectability for you (a tool, never hope).</td></tr>
+              <tr><td class="cat">Crows / Ravens</td><td>Detection, both ways</td><td><span class="dots">●<span class="o">○○○</span></span></td><td>Betray your position and pilfer food — but circling crows pre-read an area's carrion before you enter.</td></tr>
+              <tr><td class="cat">Feral Boar</td><td>High-risk hunt</td><td><span class="dots">●●●●<span class="o">○</span></span></td><td>Ignores you unless startled, then charges. Ranged/spear from spacing or avoid — never melee a charge. More tempting as food scarcity bites.</td></tr>
+              <tr><td class="cat">Wolves</td><td>Winter pack</td><td><span class="dots">●●●●●</span></td><td>The wild mirror of the Cluster; a late-winter escalation. Fire helps here (they fear it) — a rare case where Light/Heat is an ally.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 11 -->
+      <section id="escape">
+        <div class="sec-head"><span class="sec-num">§ 11</span><h2>Goals &amp; Escape</h2>
+          <p class="lead">The world supplies the pressure and the possibility space; the player supplies the purpose. No scripted arc, no rescue thread, no hope currency — a light diegetic direction layer (found notes, a milestone ladder, local events) proposes ambition without a quest system.</p></div>
+        <h3>Self-authored sandbox goals</h3>
+        <ul class="clean warm">
+          <li><strong>The Stronghold</strong> — bring every entry point to its top tier and survive a full siege with no breach.</li>
+          <li><strong>The Larder</strong> — reach net-positive food AND water income without scavenging, and hold it N days.</li>
+          <li><strong>The Cartographer</strong> — discover and fully explore every area (self-limiting; the zone is finite).</li>
+          <li><strong>Outlast</strong> — survive N days from the FINAL utility failure (the "how long could you last" high-score analog).</li>
+          <li><strong>Ghost</strong> — reach a milestone never sieged and never bitten (mastery of the Detectability dial).</li>
+          <li><strong>The Way Out</strong> — complete the escape route (the optional, non-guaranteed win).</li>
+          <li><strong>Generative build-toward goals</strong> — a producing homestead (farm + husbandry + trapping), a workshop tier unlocking new stations, a raised companion dog: three things a secure player is excited to <em>build</em> that aren't threat-mitigation.</li>
+        </ul>
+        <h3>What does "escape" even mean when the virus is global?</h3>
+        <p class="lead" style="margin:0 0 18px">Six options were weighed. Escape must stay grounded and non-guaranteed — no clean "rescued" bow. The recommendation: <strong>Route A</strong> as the first, with <strong>Route E</strong> always available as a dignified reason to stay.</p>
+        <div class="grid" style="gap:14px">
+          <div class="escape rec"><h4>A · Run the Cordon <span class="tag warm">Recommended first route</span></h4><p class="concept">Restore a vehicle and drive out through a decayed cordon checkpoint at maximum collapse.</p><p><span class="k">How</span> — a long scavenge + craft + fuel + repair project reusing existing systems, ending in a multi-beat, telegraphed climax (fuel check, route choice, a gauntlet of drawn dead through the stealth systems), NOT a single roll. Crossable only through a specific decayed gate — never the mined strip (mines don't die when turrets do).</p><p><span class="k">Ambiguity</span> — you breach out into a global graveyard; the game never confirms the road is clear. It cuts to black on an uncertain log: <em>you got out, you were not saved.</em></p></div>
+          <div class="escape rec"><h4>E · The Sanctuary Is the Win <span class="tag green">Always-available baseline</span></h4><p class="concept">Don't leave — converge Stronghold + Larder + Outlast into a recognised self-sufficient end-state.</p><p><span class="k">How</span> — the natural terminal state of every base arc, made an ACTIVE recognised ending: a distinct acknowledgment plus a legacy/obituary reflecting exactly what you built, ideally unlocking a new-game+ or a fresh archetype. Not victory over the virus but <em>peace with it</em> — so choosing to stay is a rewarded choice, not a passive non-event.</p></div>
+          <div class="grid g2">
+            <div class="escape"><h4>B · The Boat</h4><p class="concept">Repair a boat and go downriver / out to sea past the cordon.</p><p><span class="k">Note</span> — same restore shape as A but needs a whole new water area; a fuel-limited voyage toward nowhere named. Deferred.</p></div>
+            <div class="escape"><h4>F · The Cordon Gap</h4><p class="concept">Slip through a weak point on foot, at night, at low Detectability.</p><p><span class="k">Note</span> — reuses the stealth model as a final gauntlet through a collapsed section or rail tunnel. The obvious second route to add after A.</p></div>
+            <div class="escape"><h4>C · The Rumored Pocket</h4><p class="concept">A radio fragment names an uninfected valley; you walk off the map edge toward it.</p><p><span class="k">Note</span> — cheap to build (walk off + epilogue) but weak as a climactic process; never confirmed. Deferred.</p></div>
+            <div class="escape"><h4>D · Reach the Lab <span class="tag blood">carry with caution</span></h4><p class="concept">Get to a research facility for answers.</p><p><span class="k">Note</span> — the trap option: risks implying a cure = the banned hope framing. Must be reframed hard as "answers, not salvation," or cut.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 12 -->
+      <section id="atmos">
+        <div class="sec-head"><span class="sec-num">§ 12</span><h2>Atmosphere</h2>
+          <p class="lead">Melancholic, isolated, mundane-routine dread in Project Zomboid's register. The prose is flat, clinical and past-tense-adjacent — no exclamation, no hero framing, no reassurance. The world is indifferent: it never celebrates a fortified door and never editorialises a death.</p></div>
+        <div class="callout"><em>"Day 41, 04:12 — hypothermia. The stove had been cold six hours. There was dry wood in the next room."</em></div>
+        <p class="prose" style="max-width:74ch">Mental Wellbeing is a modelled slider (CSTI-style) but grounded and honest — there is no cure, no hope meter, and nothing external is ever coming, so no system asks you to "feel better" or rewards a rescue that won't arrive; a fraying mind simply makes the body harder to keep alive. Silence is the default, which is exactly what lets an unsolicited world line — a shutter banging, the fridge hum stopping when the power dies — land as an intrusion. The working title's own meaning is now literal: <em>dead air</em> is the grid going dark, the last radio dropping to static.</p>
+        <h3>Techniques</h3>
+        <ul class="clean">
+          <li><strong>Diegetic-only pressure signalling:</strong> no doomsday clock, no "Day 30: power fails" tooltip. Pressure is read through information channels that die one by one — phone alerts → landline → radio → cordon loudspeaker → the utilities → your own eyes. The game gets quieter and lonelier as it gets harder.</li>
+          <li><strong>Flat, traceable death authoring</strong> — every death reads back card by card, logged as a dated obituary that never editorialises. A retrospective days-survived counter is sanctioned tone, not a countdown.</li>
+          <li><strong>Cyclical seasons over an irreversible tide</strong> — the rising density is the trend; the seasonal sine wave is the rhythm.</li>
+          <li><strong>Every warm/lit/loud act previews its Detectability delta</strong> ("Cook: +4 Heat · +3 Noise · +4 Scent"), surfaced qualitatively ("a walker two houses down could hear this"), never as a raw float.</li>
+        </ul>
+        <div class="callout cold"><span class="lbl">Text-forward UX — the CSTI layout</span>Typography and layout do the work; there is no illustration pipeline, so the whole art budget is a coherent type system. The screen follows Card Survival: Tropical Island almost exactly: a fixed left-hand <strong>status panel of labelled sliders</strong> (Calories, Hydration, Body Temperature, Energy, Immune System, Mental Wellbeing), a central <strong>table of cards</strong> you click for their actions or drag together to combine, and afflictions (Wound, Wet, Fever…) as <strong>cards docked to your character</strong> that each PRINT their own recipe and break condition (<em>"Fever ← Wet + Cold + Exhausted, 30 min"</em>). Detectability rides as the H/L/N/S pip strip with a Σ gut-read; every drag prints time · yield · requirement · Detectability delta before you commit.</div>
+      </section>
+
+      <!-- 13 -->
+      <section id="slice">
+        <div class="sec-head"><span class="sec-num">§ 13</span><h2>The Vertical Slice</h2>
+          <p class="lead">Prove the entire spine — "a light lets me cook, but it might bring them" under a quietly collapsing world — in ONE unified cross-remit slice a solo learner can actually ship. This slice's cut list OVERRIDES every subsystem's local ambitions.</p></div>
+        <div class="callout"><span class="lbl">First-playable focus</span>Build <strong>Milestone 0</strong> (the engine skeleton) first as a gate, then <strong>Milestone 1</strong>: survive one scripted power-failure and out-wait one fire-drawn siege by going dark — with <strong>no combat.</strong> The load-bearing beat: the heater dies, you must light a fire, the detection floor jumps, a Walker reads it, and you douse and hunker to make it lose interest.</div>
+        <div class="cols2">
+          <div class="scopebox in"><h4>In the slice</h4>
+            <ul>
+              <li><strong>Milestone 0 skeleton</strong> (gates all content): one Table scene with clickable + draggable Card nodes (click → a contextual verb menu, plus a drag drop/combine hook); an ActionClock autoload (time advances only on a committed action; a Wait action passes time); ONE Card Resource (.tres); a pinned banded-meter panel.</li>
+              <li>Four core meters — hunger (2-layer), Hydration, Warmth (net-delta), Energy — with Wet/Exhausted/Cold/Malnourished flags and the cold→calorie tax. No illness self-assembly.</li>
+              <li>Detection = <strong>Noise + Light only</strong>, one gut-read value, simple radial falloff, exactly ONE perceiver (the Walker). The four-channel architecture stays canonical for later.</li>
+              <li>ONE scripted power-fail event on a timer — no CI engine. The fridge spoils and you're forced onto fire.</li>
+              <li>The house with a reduced opening set (front door + one boardable window); states Open → Shut → Boarded → Reinforced; stations Fireplace / Shelf / Bed / Workbench.</li>
+              <li>ONE full go-dark siege you WAIT OUT via the single Interest meter — no combat; a failed go-dark breach = an authored obituary.</li>
+              <li>ONE adjacent area: leave → time passes → Threat Banner + Enter/Turn-back → grab items into a flat list → return.</li>
+              <li>The Outlast Aim + days-survived counter + a dated obituary. One QoL upgrade (Blackout Curtains) to prove the reward loop.</li>
+            </ul>
+          </div>
+          <div class="scopebox out"><h4>Deferred (Milestone 2+)</h4>
+            <ul>
+              <li>The entire tactical combat mat — weapons, Grab/Guard, Finisher, Downed, the bestiary. A breach is a fail-state, not a fight.</li>
+              <li>Illness self-assembly (Fever, Infection counter, bite reveal) — with combat cut, wounds have no source.</li>
+              <li>Heat &amp; Scent channels, wind, LOS occlusion, scent floors, any second perceiver.</li>
+              <li>The CI engine + jitter, the 9-service catalog, generator/fuel economy, radio degradation, the cordon, resupply, weather variety, density scaling.</li>
+              <li>The Bunker and Shed archetypes; slot-grid inventory; route toggle; loot depletion tiers; caches and carts; extra areas.</li>
+              <li>Escape entirely; morale (cut permanently); T3 sealing; perimeter traps; homesteading/workshop trees; station automation; structure-decay + roaming-horde plateau (flagged motivation-critical).</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout" style="border-left-color:var(--green)"><span class="lbl" style="color:var(--green)">Definition of fun — the one beat that must feel good</span>The heater dies, you light a fire to cook and stay warm, you watch the Detectability floor jump, a Walker closes with knocking that walks door → window in the dark — and you douse, go silent, hunker, and feel the Interest bleed out until it wanders off. If that <em>"went dark and waited it out, heart pounding"</em> moment lands in a single session, the whole thesis is proven and every later utility, area, archetype and escape route is just data bolted onto the same scaffolding. A second, <em>motivation-focused</em> validation milestone is scheduled — its real pass condition: "a tester keeps playing after the base is secure and invents their own goals."</div>
+      </section>
+
+      <!-- 14 -->
+      <section id="tech">
+        <div class="sec-head"><span class="sec-num">§ 14</span><h2>Technical Architecture</h2>
+          <p class="lead">Godot 4 (latest stable), GDScript-first, PC/desktop. Cards-as-objects — click a card for its actions or drag to combine — action-driven time (the clock advances only while an action resolves), no deck. Content is authored as data (.tres) in the Inspector, not code.</p></div>
+        <p class="prose" style="max-width:74ch">One <strong>Card/StructureCard Resource</strong> is the spine: <code>kind</code> (SHELL/OPENING/STATION/UTILITY/STORAGE/TRAP/ITEM/THREAT), the four-channel <code>emit</code> vector, containment {insul, blackout, soundproof, seal}, slots, integrity, barricade_tier, an ordered <code>states[]</code> upgrade path with material costs. Areas are an <code>AreaDefinition</code> (.tres): ring, loot_table, density, renewable/regen, threat_tiers keyed to the collapse Stage — so new destinations are new <em>data</em>, and the scene is reused.</p>
+        <div class="callout blood"><span class="lbl">Honest framing correction (fix 19)</span>The "one Card, N data files, zero new code" optimism holds ONLY for the base tableau and simple docking. The travel board, the search/found-tray, the fortification state machine, the siege ladder UI, and the later engagement layer are each <strong>distinct coded interaction surfaces</strong> scheduled across milestones — the data-only story must not hide real interaction-code work.</div>
+        <h3>Key systems</h3>
+        <div class="grid g2">
+          <div class="card"><h4>ActionClock autoload</h4><p>Time is <em>action-driven</em>: committing an action advances the clock by that action's duration (Wait / Rest / Sleep are explicit time-passing actions); idle is frozen. Each advance steps a deterministic per-minute pipeline across the elapsed span — draining needs, assembling illness, resolving threat convergence — so obituaries stay traceable. The single source of game time.</p></div>
+          <div class="card"><h4>Detection service <span class="tag">Survival-owned, canonical</span></h4><p>The four-channel {H,L,N,S} vector + per-tile scent floors is the single source of truth; all consumers read it and apply their own weight row + threshold. No pre-weighted global scalar (Σ is display-only). Slice ships Noise+Light and one Walker.</p></div>
+          <div class="card"><h4>Detection→aggro primitive</h4><p>One per-perceiver awareness value rising on emissions and decaying when they drop — reused verbatim as the exploration "Notice" meter and the siege "Interest" meter. Area-scale "Commotion" is the same primitive applied at area scale.</p></div>
+          <div class="card"><h4>Siege state machine <span class="tag">Shelter-owned, canonical</span></h4><p>Opening Integrity/DR + the single Interest meter's Engaged/Lingering phases — the ONE authoritative siege model. Survival exports Detectability into it; Combat owns only the post-breach chokepoint fight (deferred).</p></div>
+          <div class="card"><h4>Collapse engine <span class="tag">World-owned, M2+</span></h4><p>A hidden CI float, non-deterministic within causal constraints, with the canonical power-before-radio failure order. In slice 1 it is replaced by a single scripted timer event.</p></div>
+          <div class="card"><h4>Reusable TableView + signal seams</h4><p>Drives both shelter and areas from data; remit seams are signals (threat_engaged, detectability_changed, time_advanced, shelter_state_dirty, material_hauled) so systems integrate without reaching into each other.</p></div>
+        </div>
+        <h3>Godot specifics &amp; top risks</h3>
+        <ul class="clean">
+          <li>Prototype BOTH card interactions in Milestone 0 before ANY content — a <strong>click → context-verb menu</strong> (a card's own actions) and <strong>drag-combine</strong> (one card onto another), plus the action-advance clock — the first hard Godot rep and the riskiest early work.</li>
+          <li>Resource (.tres) subclasses for Card / AreaDefinition / StateDef with export vars → all content authored in the Inspector.</li>
+          <li>Autoload singletons for SimClock and Detection; Godot signals as decoupled seams; a reusable banded-meter Control scene.</li>
+          <li>Text-forward via RichTextLabel + a shared Theme and icon fonts — no sprite pipeline; typography is the art.</li>
+          <li>Save/load via a JSON snapshot of card + meter state; deterministic tick order preserves traceable death cascades.</li>
+          <li><strong>The never-ships trap:</strong> six per-remit slices sum to a commercial game — build only the unified slice, gated behind the M0 skeleton.</li>
+        </ul>
+      </section>
+
+      <!-- 15 -->
+      <section id="risks">
+        <div class="sec-head"><span class="sec-num">§ 15</span><h2>Risks &amp; Mitigations</h2>
+          <p class="lead">The 3 adversarial critics raised 29 findings; all were verified and integrated. The load-bearing ones — the traps a sandbox falls into:</p></div>
+        <div class="rmwrap">
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>No single first-playable slice — six per-remit slices whose union is a whole commercial game. A fatal never-ships trap for a solo learner.</p></div><div class="m"><span class="lbl">Fix</span><p>ONE unified cross-remit slice with a cut list that overrides every remit, gated behind a Milestone 0 engine skeleton so nothing is built until the table + SimClock + one Card + meter panel run.</p></div></div>
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>Turtling becomes a dominant, unpunished, permanent steady-state — a CI hard-cap flatlines exactly where "thrive indefinitely" should live.</p></div><div class="m"><span class="lbl">Fix</span><p>Remove the cap; after collapse keep an emergent rising tide — density creep, decaying fortifications that force runs, roaming hordes that home on your warm/lit points, a cyclical season pulse. No configuration is safe forever.</p></div></div>
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>"Thrive" has no aspirational loop — every upgrade only reduces a penalty, so thriving just means "the world can't kill me": the end of engagement.</p></div><div class="m"><span class="lbl">Fix</span><p>Add generative, capability-expanding progression — homesteading tree, a workshop tier unlocking new stations, the tameable dog, base expansion. Acceptance test: three things a secure player wants to BUILD that aren't threat-mitigation.</p></div></div>
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>The signature light-vs-dead tension is bought off to ~zero by core progression (wood stove, blackout curtains, soundproofing) exactly when longevity needs it.</p></div><div class="m"><span class="lbl">Fix</span><p>No achievable loadout drops detection to ~zero — the stove throws a day-visible smoke plume, curtains/soundproofing degrade with use, rising density reads a low floor on a long night. You always trade one exposure for another.</p></div></div>
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>The collapse is a fixed, memorizable playlist with only cosmetic jitter — after 1–2 runs the arc is known beat-for-beat.</p></div><div class="m"><span class="lbl">Fix</span><p>Non-deterministic within causal constraints: randomize failure order inside stage bands, vary which utilities a map possesses, branch events — always preserving dependencies (pumps need power) and the buildable-in-window golden rule.</p></div></div>
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>Both endgame payoffs are anti-climaxes — Escape resolves as one roll + a fade, Sanctuary is a passive non-event.</p></div><div class="m"><span class="lbl">Fix</span><p>Decouple ambiguous outcome from unrewarding process: the cordon run is a multi-beat telegraphed climax with ambiguity only in the final fade; Sanctuary becomes an active recognised end-state with a legacy and a new-game+ unlock.</p></div></div>
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>Detection — the spine — was specified two incompatible ways (per-perceiver vector vs a pre-summed global scalar), making creature differentiation impossible.</p></div><div class="m"><span class="lbl">Fix</span><p>Survival is the single source of truth: all remits consume the four-channel vector and hand it to each perceiver's own weight row; the global scalar is deleted, Σ kept only as a display gut-read.</p></div></div>
+          <div class="rm"><div class="r"><span class="lbl">Risk</span><p>Escape Route A was incoherent with the cordon fiction — a vehicle run framed against live guns and a mined strip that doesn't die when the turrets do.</p></div><div class="m"><span class="lbl">Fix</span><p>Crossable only once the automation has decayed at max collapse, through a specific decayed gate — never the mined strip. The gamble is uncertainty about the destination; nothing outside is confirmed.</p></div></div>
+        </div>
+      </section>
+
+      <!-- 16 -->
+      <section id="questions">
+        <div class="sec-head"><span class="sec-num">§ 16</span><h2>Open Questions</h2>
+          <p class="lead">What needs your playtest or a call from you — the tuning targets and the group decisions the council left open.</p></div>
+        <ol class="qs">
+          <li>What <code>ambient_cold_pressure</code> in a grid-down blizzard puts a steady dry fire (+18 Warmth) on a knife's edge (≈±0) without making normal nights trivially warm?</li>
+          <li>Walker Perception thresholds (calm vs alert) — is "sustained cook survives, one loud spike outs you" the right survivable margin, or too forgiving?</li>
+          <li>Structure/fortification decay rate — fast enough that turtling is a genuine losing equilibrium, slow enough it isn't unfair upkeep busywork?</li>
+          <li>Where does the post-collapse threat ceiling <strong>plateau</strong> so a maxed, worked base can just hold it (the "worked home lasts forever" invariant) — and how much late-game pressure comes from that steady-state vs. the cyclical-season sine wave?</li>
+          <li>Base upkeep-per-day by archetype — high enough that an idle base loses, low enough that holding a home is engaging work not dawn busywork? Where does opt-in station automation kick in?</li>
+          <li>Incapacitation severity — how deep should the sick/injured "can't maintain" spiral bite before preparation reliably rides it out, without ever becoming an unrecoverable dice-roll death?</li>
+          <li>Soft-restock generosity — how rare should resupply/wanderer top-ups be? Generous keeps scavenging alive longer but softens the depletion pressure.</li>
+          <li>Generative-progression pacing — does the homesteading/workshop tree stay tone-appropriate (production, not whimsy) and gate correctly behind real infrastructure?</li>
+          <li>Opt-in station automation cost — what price keeps auto-collect convenient on the plateau without removing the hands-on survival you like during real stakes?</li>
+          <li><strong>Bite lethality</strong> — infection-routed (recommended, keeps deaths traceable) or hard-coded near-certain zombification? A group call.</li>
+          <li><strong>Runners</strong> — keep ALL zombies slow (recommended, protects the dread and the flee math) or allow a fast variant that reshapes encounter design?</li>
+          <li>Escape ambiguity calibration — after a multi-beat cordon climax, does the fade-to-black read as honest, not a feel-bad or a shrug?</li>
+          <li>Motivation at day 50 on the plateau — will testers invent their own goals and keep playing, or drift and stop?</li>
+          <li><strong>Working title</strong> — keep "Dead Air," or something else? (The prior title "The Long Quiet" is now literal too.) A group call.</li>
+        </ol>
+      </section>
+
+      <!-- 17 -->
+      <section id="inspiration">
+        <div class="sec-head"><span class="sec-num">§ 17</span><h2>Inspirations, Mapped</h2></div>
+        <div class="insp">
+          <div class="row"><div class="src">Card Survival: Tropical Island</div><div class="take">The whole interaction DNA — cards-as-objects, <strong>click-to-act and drag-combine</strong>, <strong>action-driven time (the clock moves only when you act)</strong>, no deck/hand, and its exact split of internal stats as sliders vs. wounds/afflictions as cards — plus distinct explorable areas with characteristic resources &amp; threats, self-authored sandbox goals, and "leave the island" reframed as the optional escape.</div></div>
+          <div class="row"><div class="src">Project Zomboid</div><div class="take">The tonal register and honesty — a hard military map-edge you never wonder about, sensible zombie placement, traceable authored deaths, dated clinical obituaries, "this is how you died," and difficulty as a collapsing-world curve rather than a countdown.</div></div>
+          <div class="row"><div class="src">This War of Mine</div><div class="take">The melancholic, morally-flat survival register; the shelter as the board you manage; scavenging as a costed, risky expedition; quiet private victories over heroism.</div></div>
+          <div class="row"><div class="src">Don't Starve <small>(structure only, register swapped)</small></div><div class="take">Seasonal temperature as a first-class survival axis and the homesteading build-up loop (farming, husbandry, trapping), retuned to a cold collapse and stripped of all whimsy.</div></div>
+          <div class="row"><div class="src">RimWorld / Dwarf Fortress <small>(framing)</small></div><div class="take">Emergent, self-assembling narrative and player-authored goals in place of a scripted quest arc — the game supplies pressure and a possibility space, the player supplies purpose.</div></div>
+          <div class="row"><div class="src">Traditional roguelike death logs</div><div class="take">The dated, clinical, fully-traceable obituary as the game's memory — a death is a readable cascade of choices — which doubles as the Outlast high-score analog.</div></div>
+        </div>
+      </section>
+
+      <!-- 18 -->
+      <section id="colophon" style="border-bottom:none">
+        <div class="sec-head"><span class="sec-num">§ 18</span><h2>How This Was Made</h2></div>
+        <div class="colophon">
+          <p style="margin:0;font-family:var(--sans);font-size:15px;color:var(--ink)">This reworked concept came from a lean evaluation council run as a multi-agent workflow, steered by your directional feedback (sandbox, infrastructure decay, Exclusion Zone, drop Maren, base variety, fair combat, optional escape). <strong>Six designers</strong> each owned a subsystem; <strong>three adversarial critics</strong> attacked the result across fun / scope / consistency; every finding was verified, and <strong>29 of 29 survived and were integrated.</strong> A two-part synthesizer then assembled the GDD above — split in two after the full 19-field schema tripped a size limit on the first attempt.</p>
+          <div class="stats">
+            <div class="stat"><b>12</b><span>Agents (your cap)</span></div>
+            <div class="stat"><b>6</b><span>Subsystem designers</span></div>
+            <div class="stat"><b>29</b><span>Findings verified &amp; integrated</span></div>
+            <div class="stat"><b>9 · 8 · 3</b><span>Utilities · areas · base types</span></div>
+          </div>
+        </div>
+        <footer class="foot">Dead Air — reworked concept (v2.5 — locations-as-cards exploration, no map · claim-anywhere shelter · incapacitation cascade · finite↔renewable resources) · open-ended zombie survival card-sim · Godot 4 · Generated for the <code>card-crafter</code> project. Supersedes docs/archive/the-long-quiet-gdd.html.</footer>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+  (function(){
+    var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+    var map = {};
+    links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          var a = map[e.target.id];
+          if(a) a.classList.add('active');
+        }
+      });
+    }, {rootMargin:'-45% 0px -50% 0px', threshold:0});
+    document.querySelectorAll('main section[id]').forEach(function(s){ obs.observe(s); });
+  })();
+</script>
+</body>
+</html>

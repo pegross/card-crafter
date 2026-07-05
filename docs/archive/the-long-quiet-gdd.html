@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Long Quiet — Game Design Document</title>
+<style>
+  :root{
+    --bg:#0a0e13;
+    --bg-2:#0d131a;
+    --panel:#111922;
+    --panel-2:#0f151d;
+    --border:#1e2b38;
+    --border-soft:#182430;
+    --ink:#c6d2dd;
+    --ink-strong:#e7eef4;
+    --muted:#7d8c9a;
+    --faint:#5a6874;
+    --cold:#69b6d6;      /* steel cyan — structure */
+    --cold-dim:#3f6d82;
+    --warm:#e8ad5c;      /* lamp amber — hope / presence */
+    --warm-soft:#f0c483;
+    --blood:#c9695e;     /* mortality / threat */
+    --green:#8bb08a;
+    --radius:12px;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code","Source Code Pro",Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family:var(--serif);font-size:17px;line-height:1.68;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(1100px 600px at 78% -8%, rgba(232,173,92,.09), transparent 60%),
+      radial-gradient(900px 700px at 0% 0%, rgba(105,182,214,.05), transparent 55%);
+    background-attachment:fixed;
+  }
+  a{color:var(--warm-soft);text-decoration:none}
+  a:hover{text-decoration:underline;text-underline-offset:3px}
+
+  /* layout */
+  .shell{display:grid;grid-template-columns:264px minmax(0,1fr);max-width:1280px;margin:0 auto}
+  nav.toc{
+    position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;
+    padding:34px 22px 40px 30px;border-right:1px solid var(--border-soft);
+  }
+  nav.toc .brand{font-family:var(--serif);font-size:20px;color:var(--ink-strong);letter-spacing:.3px;line-height:1.25;margin-bottom:2px}
+  nav.toc .brand em{color:var(--warm);font-style:normal}
+  nav.toc .sub{font-family:var(--sans);font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.14em;margin-bottom:22px}
+  nav.toc ol{list-style:none;margin:0;padding:0;counter-reset:s}
+  nav.toc li{counter-increment:s;margin:1px 0}
+  nav.toc a{
+    display:flex;gap:9px;align-items:baseline;font-family:var(--sans);font-size:12.5px;
+    color:var(--muted);padding:5px 9px;border-radius:7px;border-left:2px solid transparent;
+  }
+  nav.toc a::before{content:counter(s,decimal-leading-zero);font-family:var(--mono);font-size:10px;color:var(--faint)}
+  nav.toc a:hover{color:var(--ink-strong);background:var(--panel-2);text-decoration:none}
+  nav.toc a.active{color:var(--warm-soft);border-left-color:var(--warm);background:rgba(232,173,92,.06)}
+  nav.toc a.active::before{color:var(--warm)}
+
+  main{padding:0 clamp(20px,5vw,72px) 120px;min-width:0}
+  .wrap{max-width:900px;margin:0 auto}
+
+  /* hero */
+  header.hero{padding:96px 0 46px;border-bottom:1px solid var(--border-soft);position:relative}
+  .hero .eyebrow{font-family:var(--sans);font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--cold);margin-bottom:22px}
+  .hero h1{font-size:clamp(44px,7vw,78px);line-height:.98;margin:0 0 20px;color:var(--ink-strong);font-weight:600;letter-spacing:-.5px}
+  .hero h1 .glow{color:var(--warm);text-shadow:0 0 46px rgba(232,173,92,.45)}
+  .hero .tagline{font-size:clamp(18px,2.4vw,22px);max-width:44ch;font-style:italic;color:#aebdc7}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:34px}
+  .chip{font-family:var(--sans);font-size:11.5px;letter-spacing:.03em;color:var(--ink);background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:6px 13px}
+  .chip b{color:var(--cold);font-weight:600}
+
+  /* sections */
+  section{padding:64px 0;border-bottom:1px solid var(--border-soft)}
+  .sec-head{margin-bottom:30px}
+  .sec-num{font-family:var(--mono);font-size:12px;color:var(--warm);letter-spacing:.1em}
+  h2{font-size:clamp(28px,4vw,38px);margin:.25em 0 .1em;color:var(--ink-strong);font-weight:600;letter-spacing:-.3px}
+  .sec-head p.lead{color:var(--muted);font-size:16px;margin:.4em 0 0;max-width:60ch;font-family:var(--sans)}
+  h3{font-size:20px;color:var(--ink-strong);margin:34px 0 10px;font-weight:600}
+  p{margin:0 0 16px}
+  .prose p:first-child{margin-top:0}
+
+  /* generic cards + grids */
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--border);border-radius:var(--radius);padding:22px 24px}
+  .card h4{margin:0 0 8px;font-size:17.5px;color:var(--ink-strong);font-family:var(--serif);font-weight:600;display:flex;align-items:baseline;gap:10px}
+  .card .kdot{width:8px;height:8px;border-radius:50%;background:var(--warm);flex:none;box-shadow:0 0 12px rgba(232,173,92,.6)}
+  .card p{font-size:15px;color:var(--ink);margin:0}
+  .card p+p{margin-top:10px}
+  .tag{font-family:var(--sans);font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--cold);border:1px solid var(--cold-dim);border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .tag.warm{color:var(--warm);border-color:#7a5c2e}
+  .tag.blood{color:var(--blood);border-color:#6e3a34}
+
+  ul.clean{margin:10px 0 0;padding:0;list-style:none}
+  ul.clean li{position:relative;padding:5px 0 5px 20px;font-size:15px;color:var(--ink)}
+  ul.clean li::before{content:"";position:absolute;left:2px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--cold-dim)}
+  ul.clean.warm li::before{background:var(--warm)}
+
+  /* pillars numbered */
+  .pillar{counter-increment:pil}
+  .pillar h4::after{content:"0" counter(pil);position:absolute;right:24px;font-family:var(--mono);font-size:34px;color:rgba(255,255,255,.05);top:14px}
+  .pillar{position:relative;overflow:hidden}
+  .pillars{counter-reset:pil}
+
+  /* presence strip visual */
+  .presence{display:inline-flex;gap:6px;align-items:center;font-family:var(--mono);font-size:13px;margin:4px 0;vertical-align:middle}
+  .pip{background:rgba(232,173,92,.12);border:1px solid #6b5227;color:var(--warm-soft);border-radius:6px;padding:3px 8px;letter-spacing:.02em}
+  .pip.sum{background:rgba(105,182,214,.12);border-color:var(--cold-dim);color:var(--cold)}
+  .callout{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--warm);border-radius:8px;padding:18px 22px;margin:22px 0;font-size:15.5px}
+  .callout .lbl{font-family:var(--sans);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--warm);display:block;margin-bottom:6px}
+
+  /* loop timeline */
+  .flow{list-style:none;margin:0;padding:0;counter-reset:st}
+  .flow li{counter-increment:st;position:relative;padding:0 0 22px 46px;border-left:1px solid var(--border);margin-left:14px}
+  .flow li:last-child{border-left-color:transparent;padding-bottom:0}
+  .flow li::before{content:counter(st);position:absolute;left:-14px;top:-4px;width:28px;height:28px;border-radius:50%;background:var(--panel);border:1px solid var(--border);color:var(--warm);font-family:var(--mono);font-size:12px;display:grid;place-items:center}
+  .flow li p{font-size:15px;margin:0}
+
+  /* two-col scope */
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .scopebox{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px}
+  .scopebox h4{margin:0 0 12px;font-family:var(--sans);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+  .scopebox.in h4{color:var(--green)}
+  .scopebox.out h4{color:var(--faint)}
+  .scopebox ul{list-style:none;margin:0;padding:0}
+  .scopebox li{font-size:14px;padding:6px 0 6px 22px;position:relative;border-top:1px solid var(--border-soft)}
+  .scopebox li:first-child{border-top:none}
+  .scopebox.in li::before{content:"+";position:absolute;left:2px;color:var(--green);font-family:var(--mono)}
+  .scopebox.out li{color:var(--muted)}
+  .scopebox.out li::before{content:"–";position:absolute;left:2px;color:var(--faint);font-family:var(--mono)}
+
+  /* recipe rows */
+  .recipe{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:14px 18px;margin-bottom:10px}
+  .recipe .in{font-family:var(--mono);font-size:13px;color:var(--ink-strong)}
+  .recipe .arrow{color:var(--warm);font-size:20px}
+  .recipe .out{font-family:var(--mono);font-size:13px;color:var(--cold)}
+  .recipe .note{grid-column:1/-1;font-size:13.5px;color:var(--muted);border-top:1px solid var(--border-soft);padding-top:9px;margin-top:3px;font-family:var(--sans)}
+  @media(max-width:620px){.recipe{grid-template-columns:1fr}.recipe .arrow{transform:rotate(90deg)}}
+
+  /* taxonomy table */
+  .tblwrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius)}
+  table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:560px}
+  th,td{text-align:left;padding:12px 16px;border-bottom:1px solid var(--border-soft);vertical-align:top}
+  thead th{font-family:var(--sans);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--cold);background:var(--panel-2)}
+  tbody tr:last-child td{border-bottom:none}
+  td.cat{font-family:var(--sans);font-size:12px;letter-spacing:.06em;color:var(--warm);white-space:nowrap;font-weight:600}
+  td .ex{color:var(--muted);font-family:var(--mono);font-size:12.5px}
+
+  /* milestone timeline */
+  .ms{position:relative;padding-left:34px;margin-bottom:20px;border-left:2px solid var(--border)}
+  .ms::before{content:"";position:absolute;left:-8px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--cold)}
+  .ms.gate::before{border-color:var(--warm);background:rgba(232,173,92,.15)}
+  .ms .mtag{font-family:var(--mono);font-size:12px;color:var(--cold);font-weight:600}
+  .ms.gate .mtag{color:var(--warm)}
+  .ms h4{margin:2px 0 6px;font-size:16.5px;color:var(--ink-strong)}
+  .ms p{font-size:14.5px;color:var(--muted);margin:0;font-family:var(--sans)}
+  .ms .gatemark{font-family:var(--sans);font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--warm);border:1px solid #7a5c2e;border-radius:5px;padding:1px 7px;margin-left:8px}
+
+  ol.qs{counter-reset:q;list-style:none;margin:0;padding:0}
+  ol.qs li{counter-increment:q;position:relative;padding:14px 0 14px 44px;border-top:1px solid var(--border-soft);font-size:15px}
+  ol.qs li:first-child{border-top:none}
+  ol.qs li::before{content:"Q" counter(q);position:absolute;left:0;top:14px;font-family:var(--mono);font-size:12px;color:var(--warm)}
+
+  .insp{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .insp .row{display:grid;grid-template-columns:220px 1fr;gap:0;border-top:1px solid var(--border-soft)}
+  .insp .row:first-child{border-top:none}
+  .insp .src{background:var(--panel-2);padding:18px 22px;font-family:var(--serif);color:var(--ink-strong);font-size:16px}
+  .insp .src small{display:block;font-family:var(--sans);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--cold-dim);margin-top:4px}
+  .insp .take{padding:18px 22px;font-size:14.5px;color:var(--ink)}
+  @media(max-width:640px){.insp .row{grid-template-columns:1fr}.cols2{grid-template-columns:1fr}}
+
+  /* colophon */
+  .colophon{margin-top:30px;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:26px 28px}
+  .colophon .stats{display:flex;flex-wrap:wrap;gap:26px;margin-top:16px}
+  .colophon .stat b{display:block;font-family:var(--mono);font-size:26px;color:var(--warm);line-height:1}
+  .colophon .stat span{font-family:var(--sans);font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+  footer.foot{padding:40px 0 10px;color:var(--faint);font-family:var(--sans);font-size:12.5px}
+
+  .mobhead{display:none}
+  @media(max-width:940px){
+    .shell{grid-template-columns:1fr}
+    nav.toc{display:none}
+    .mobhead{display:block;padding:24px 20px 0}
+  }
+</style>
+</head>
+<body><div style="position:sticky;top:0;z-index:9999;background:#3a1d1a;color:#f0c483;font-family:system-ui,-apple-system,sans-serif;font-size:14px;text-align:center;padding:12px 18px;border-bottom:1px solid #6e3a34">&#9888; ARCHIVED &amp; SUPERSEDED &mdash; this is the retired &ldquo;The Long Quiet&rdquo; scripted-7-day concept. The current design is <a href="../dead-air-gdd.html" style="color:#f0c483;font-weight:600">Dead Air</a>.</div>
+<div class="shell">
+  <nav class="toc" aria-label="Contents">
+    <div class="brand">The <em>Long</em> Quiet</div>
+    <div class="sub">Game Design Document</div>
+    <ol>
+      <li><a href="#pitch">Elevator Pitch</a></li>
+      <li><a href="#pillars">Design Pillars</a></li>
+      <li><a href="#loop">The Core Loop</a></li>
+      <li><a href="#twists">Key Twists</a></li>
+      <li><a href="#survival">Survival Systems</a></li>
+      <li><a href="#mind">The Mind — The Vigil</a></li>
+      <li><a href="#cards">The Card System</a></li>
+      <li><a href="#threats">Threats</a></li>
+      <li><a href="#world">World &amp; Time</a></li>
+      <li><a href="#atmos">Atmosphere</a></li>
+      <li><a href="#slice">The Vertical Slice</a></li>
+      <li><a href="#roadmap">Build Roadmap</a></li>
+      <li><a href="#tech">Technical Architecture</a></li>
+      <li><a href="#risks">Risks &amp; Mitigations</a></li>
+      <li><a href="#questions">Open Questions</a></li>
+      <li><a href="#inspiration">Inspirations</a></li>
+      <li><a href="#colophon">How This Was Made</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <div class="wrap">
+      <header class="hero" id="top">
+        <div class="eyebrow">Card Survival &times; Zombie Apocalypse &middot; Godot Vertical Slice</div>
+        <h1>The <span class="glow">Long Quiet</span></h1>
+        <p class="tagline">Every warm, bright, hopeful thing you do to stay alive — most of all the light you keep in the window for someone who may never come — draws the dead a little closer.</p>
+        <div class="chips">
+          <span class="chip"><b>Genre</b> &nbsp;Survival card-sim, real-time-with-pause</span>
+          <span class="chip"><b>Engine</b> &nbsp;Godot 4.7 · GDScript</span>
+          <span class="chip"><b>Platform</b> &nbsp;PC / desktop</span>
+          <span class="chip"><b>Scope</b> &nbsp;Learning vertical slice</span>
+          <span class="chip"><b>Art</b> &nbsp;Text-forward / iconographic</span>
+          <span class="chip"><b>Deck?</b> &nbsp;None — cards are objects on a table</span>
+        </div>
+      </header>
+
+      <!-- 1 -->
+      <section id="pitch">
+        <div class="sec-head"><span class="sec-num">§ 01</span><h2>Elevator Pitch</h2></div>
+        <div class="prose">
+          <p><em>The Long Quiet</em> is a text-forward, real-time-with-pause survival card game in the lineage of <em>Card Survival: Tropical Island</em> — no deck, no hand, just cards-as-objects on a table you drag together to boil water, feed the fire, dress wounds, and eat before the food rots. There is no health bar and there is no enemy you fight.</p>
+          <p>The zombies are <strong>weather</strong>. The indifferent dead never hunt you; they drift down a <strong>Presence</strong> gradient toward the loudest, brightest, warmest thing in a frozen valley. And that thing is you — because every act that keeps you alive (light a fire, cook a meal, chop wood, bleed) docks a trailing signal card — <span class="presence"><span class="pip">Heat</span><span class="pip">Light</span><span class="pip">Noise</span><span class="pip">Scent</span></span> — that sums into one Presence value shown <em>before</em> you commit. Survival and safety are the same dial pulled in opposite directions, so there are no dead chores.</p>
+          <p>Each dusk you face the game's aching choice: split your last fuel between the <strong>hearth</strong> that keeps your body alive and the <strong>lamp</strong> you light in the window for Maren, last known alive across the valley — hope, warmth's rival, and the brightest beacon you own. A visible, fragile ladder called <strong>The Road</strong> inches forward each morning that followed a lit night, so hope is something you watch climb, not an invisible coin flip.</p>
+          <p>You do not beat this game. You author the specific, mundane, dignified way one winter week ends, logged day by day into a persistent obituary journal.</p>
+        </div>
+      </section>
+
+      <!-- 2 -->
+      <section id="pillars">
+        <div class="sec-head"><span class="sec-num">§ 02</span><h2>Design Pillars</h2>
+          <p class="lead">Four load-bearing ideas. Every feature must sharpen one of them or it is cut.</p></div>
+        <div class="grid g2 pillars">
+          <div class="card pillar">
+            <h4><span class="kdot"></span>Presence: the beacon you are</h4>
+            <p>One unifying signal fuses safety and survival into a single dial. Heat, Light, Noise and Scent are literal trailing cards docked to your Survivor that sum into one value on a pip strip <span class="presence"><span class="pip">H2</span><span class="pip">L4</span><span class="pip">N0</span><span class="pip">S2</span><span class="pip sum">&Sigma;8</span></span>. The dead drift down that gradient rather than targeting you. Every efficient action is also a broadcast — each drag's Presence delta is shown before you commit, and every loud daytime action previews the night it will author (<em>"Chop: +8 Noise now · tonight's approach reaches the Door ~01:40"</em>). The one act that overrides caution is fighting: the panic axe-swing is the only action in the game with <em>no</em> preview.</p>
+          </div>
+          <div class="card pillar">
+            <h4><span class="kdot"></span>Interlocking attrition, not health bars</h4>
+            <p>The real game is the slow, compounding neglect of parallel needs — two-layer hunger, thirst, Warmth, energy, and a single infection counter — each with staged effects, surfaced through a pinned, auto-sorted danger list. Illness is never rolled; it self-assembles from your own status cards using the same drag-to-combine grammar that crafts a tool (<em>Wet + Cold + Exhausted &rarr; Fever</em>). Death arrives as a traceable cascade you can narrate card by card — <em>Wet &rarr; Cold &rarr; Fever &rarr; idle &rarr; freeze</em> — never a single bar hitting zero.</p>
+          </div>
+          <div class="card pillar">
+            <h4><span class="kdot"></span>The Vigil: hope you can watch climb</h4>
+            <p>You keep a lamp lit in the window for Maren, last known alive across the valley. Lighting it slows your Solitude decay, feeds Hope, and advances <strong>The Road</strong> — a visible ladder of named rungs (<em>"footprints at the treeline" &rarr; "smoke on the ridge, closer" &rarr; "a figure on the road"</em>), the one thing in the week that grows instead of drains. But the lamp is the brightest signal you own, and an unlit night slips The Road back a rung. Never lighting it isn't free either: within a few dark nights the Depressed spiral accelerates hunger and thirst and stalls your hands.</p>
+          </div>
+          <div class="card pillar">
+            <h4><span class="kdot"></span>Melancholic legibility</h4>
+            <p>Every drag lists its time, yield, requirement <em>and</em> Presence delta up front, so physical deaths feel authored, not arbitrary — which is exactly what invites one more run. But legibility is applied with a scalpel: the mind is felt, not itemized (Solitude surfaces as a single band word — <em>"The quiet is unbearable"</em> — never a float), P(arrival) is qualitative bands only, and the bite stays face-down. Flat, clinical, Project Zomboid prose; empty days are logged; each run ends in a dated obituary card in a journal that persists across runs.</p>
+          </div>
+        </div>
+        <div class="callout">
+          <span class="lbl">The core hook, in one line</span>
+          You must be warm, fed, and busy to survive — yet every warm, fed, busy act makes you the loudest thing in a silent world. You never beat a zombie; you spend the whole game trying to be a smaller sound. And the single loudest thing you can <em>choose</em> to be is hopeful.
+        </div>
+      </section>
+
+      <!-- 3 -->
+      <section id="loop">
+        <div class="sec-head"><span class="sec-num">§ 03</span><h2>The Core Loop</h2>
+          <p class="lead">Wake, secure needs quietly, make a timed daytime run, maintain the pipelines, advance The Road, then face the dusk fuel-split and endure a telegraphed night. Sleep, log the day, repeat toward the Day-7 resolution.</p></div>
+        <ol class="flow">
+          <li><p><strong>Wake.</strong> Read the auto-sorted danger list (most-lethal need pinned top) and the Presence strip on your Survivor — how warm, bright, loud and bloody are you, and what does today's accumulated exposure forecast for tonight's approach?</p></li>
+          <li><p><strong>Secure acute needs quietly</strong>, each with cost / yield / Presence shown before you drag: drink stored Boiled Water; eat against two-layer hunger (cold = silent, no warmth; cooked = warm and higher morale but mints Scent); feed the fire (Heat + Light + Noise).</p></li>
+          <li><p><strong>Travel.</strong> Choose a timed run from the Cabin hub to the Woodline (20m) or Creek (15m). The world keeps ticking — the hearth burns down at home, cold bites you the whole walk. Chop firewood or fill Dirty Water; triage into 6 inventory slots; loose Ground cards left behind are abandoned.</p></li>
+          <li><p><strong>Maintain the pipelines.</strong> Boil a full pot of water at once and store it, keep the hearth fed, eat foraged food before it spoils, dress a wound before it turns dirty — and read the two Found Notes (one in Maren's hand) for a small cache or a better-boil recipe.</p></li>
+          <li><p><strong>Advance the long horizon.</strong> Tune the degrading radio at dusk (a shrinking morale lift, one of 7 serialized messages dying toward static), dwell on a keepsake to blunt Solitude, and watch The Road for the rung a lit night would win — or a dark night would lose.</p></li>
+          <li><p><strong>Face the dusk decision.</strong> The projection shows both stakes side by side: lamp (Hope+, Solitude slowed, The Road advances — but tonight's peak Presence spikes and they will come) vs. dark (safe — but Solitude accelerates toward Depressed and The Road slips back). Split finite fuel between hearth and vigil lamp.</p></li>
+          <li><p><strong>Endure the night.</strong> A high-Presence night converges the Dead across four telegraphed states — <em>Treeline &rarr; Yard &rarr; Door &rarr; Breach</em> — over hours, never a jump scare. Go dark (dowse the fire, beginning a cold cascade whose cost grows as the week deepens), hold still, or accept the breach's auto-Bite. Then sleep, log Day N and the weather, and weigh warmth vs. quiet vs. hope again.</p></li>
+        </ol>
+      </section>
+
+      <!-- 4 -->
+      <section id="twists">
+        <div class="sec-head"><span class="sec-num">§ 04</span><h2>Key Twists</h2>
+          <p class="lead">What makes this stand apart from both Card Survival and every other zombie game.</p></div>
+        <div class="grid g2">
+          <div class="card"><h4>Presence-as-beacon</h4><p>Efficient survival <em>is</em> loud survival. Heat, Noise, Scent and Light are trailing cards summing to one detectability value; "the horde" is a systemic pressure gradient you manage by being smaller, not an encounter you fight. Every loud daytime action previews its contribution to tonight's approach — closing the gap between cause (chopping at noon) and consequence (the shape crossing the yard at 1am).</p></div>
+          <div class="card"><h4>The vigil lamp &amp; The Road</h4><p>Each night you can spend scarce fuel to light a lamp for Maren. It is the brightest signal you own — and it advances The Road, a visible ladder of named rungs in a flat, unreliable-narrator voice. Hope is something you watch inch forward, not a hidden percentage. The Day-7 payoff is gated off the visible rung reached — a legible culmination, never a coin flip.</p></div>
+          <div class="card"><h4>Both keepsakes are fuel</h4><p>Maren's mended sweater and one dull photograph each carry a real Warmth value alongside a Hope value that fades each time you dwell (grief wears the photo smooth). On the Day-6 Deep-Freeze night, holding Warmth on firewood alone may be impossible, and the game presents the sentiment-vs-survival gut-punch as a real choice of which to burn — a permanent Grief status and Hope-ceiling loss. Emergent pressure, never a hard "burn-or-die" gate.</p></div>
+          <div class="card"><h4>Illness self-assembles</h4><p>No disease is rolled. Fever crystallizes when <em>Wet + Cold + Exhausted</em> coexist on your Survivor for 30 continuous minutes; Infection begins when a <em>Dirty Wound</em> meets the <em>Malnourished</em> flag. Same drag-to-combine grammar as crafting, evaluated passively each tick. Each result card prints its own recipe and break condition, so you fight the conditions that let illness form.</p></div>
+          <div class="card"><h4>The bite you can't read</h4><p>A zombie breach auto-mints a Bite: a bleeding Wound plus a <em>face-down</em> Infection? card whose true value — harmless graze or the turn — stays hidden, auto-flipping at a fixed 60 in-game hours. There is no fight verb and no inspection tool in the slice; the horror is the two-and-a-half days of not knowing while you keep tending the fire.</p></div>
+          <div class="card"><h4>Loneliness is an appetite with an empty pantry</h4><p>Solitude decays like thirst but has no true food — only diminishing palliatives (journal, radio static, a keepsake) that lose their taste. Its ceiling drifts down every day (<span class="tag">75 − 3·day</span>), so a perfect routine tops out lower each morning. It never kills directly — it makes everything else more lethal, which is the mechanical statement that being alone is a survival threat.</p></div>
+          <div class="card"><h4>The world withdraws on a clock you can't avert</h4><p>A deepening Cold Front turns cold into a second hunger; the radio degrades message by message to static then silence on a datable countdown; daylight contracts ~35 minutes a day; fuel dwindles with no resupply; foraged food rots visibly in place. Winter is a week-long boss you can read on the calendar and never stop.</p></div>
+          <div class="card"><h4>Fighting is the authored failure state</h4><p>You never have a viable combat build. The single axe panic-swing is the one action with no preview — the fairness contract itself breaks when you're reduced to violence — and a "won" fight reliably spikes Noise + Scent and leaves a Corpse whose Scent floor summons the next approach. Picking up the axe is how the lonely attrition sim tells you it has already gone wrong.</p></div>
+        </div>
+      </section>
+
+      <!-- 5 -->
+      <section id="survival">
+        <div class="sec-head"><span class="sec-num">§ 05</span><h2>Survival Systems</h2>
+          <p class="lead">Interlocking parallel needs. <code>survival-needs</code> is the sole authority for all drain rates and the Warmth meter.</p></div>
+        <div class="grid g2">
+          <div class="card">
+            <h4>Two-layer hunger <span class="tag">Satiation &rarr; Calories</span></h4>
+            <p>A fast "hungry feeling" layer over a deep, slow starvation clock — a forgiving grace window that also supplies the Malnourished flag the infection cascade needs.</p>
+            <ul class="clean">
+              <li>Satiation drains ~−4.5/h awake. Cold food is silent; cooking at a lit hearth adds warmth and morale but mints Scent.</li>
+              <li>Calories (the true starvation clock, lethal at 0) burns only while Satiation = 0, at ~−2.5/h — ~28h of empty-stomach grace.</li>
+              <li>Malnourished = Satiation = 0 OR Calories &lt; 30; printed on the Survivor card because it is load-bearing for wound &rarr; infection.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>Thirst <span class="tag">Hydration</span></h4>
+            <p>The reliable steady secondary killer — roughly a once-or-twice-a-day drink.</p>
+            <ul class="clean">
+              <li>Drains ~−5.0/h; Fever multiplies it &times;1.5; heavy work adds a flat cost.</li>
+              <li>Boiled Water is safe; Dirty Water hydrates but adds an infection tick. Pipeline: <em>Dirty Water + Pot + lit Hearth &rarr; 3 Boiled Water</em>, stored in the Water Store (cap 5).</li>
+              <li>Hot water drunk fresh gives a small one-time Warmth bonus — a quiet warmth source that doesn't broadcast.</li>
+              <li>Staged: Thirsty &rarr; Parched &rarr; Dehydrated &rarr; 90-min terminal countdown.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>Body Warmth <span class="tag">the slice's spine</span></h4>
+            <p>A single meter driven by net delta. The world layer only exports one scalar — <code>ambient_cold_pressure</code> — into the cold side of the sum; it never touches the meter directly.</p>
+            <ul class="clean">
+              <li><code>warmth_delta/h = &Sigma; heat − &Sigma; cold_pressure</code>. Fire adds +6/+12/+18 by burn level; Wet adds +6 cold; outdoors and night add more.</li>
+              <li>Bands: Warm 100–60 / Cool 59–40 / Cold 39–25 / Freezing 24–10 / Hypothermic 9–1. Terminal at 0 (60-min countdown).</li>
+              <li>Day-6 Deep Freeze: cold so high a steady dry fire barely offsets it — forcing the keepsake-burn.</li>
+              <li>Warmth is the warmth-vs-quiet cascade in one number: the cheapest way to stay warm (a roaring fire) is the loudest, brightest thing you own.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>Energy &amp; Sleep</h4>
+            <p>The exhaustion axis feeding the fever cascade; at zero it forces collapse, not death.</p>
+            <ul class="clean">
+              <li>Drains ~−4.0/h awake; regenerates asleep. Below 20 mints Exhausted (a Fever ingredient).</li>
+              <li>Energy at 0 forces 6–8h sleep wherever you stand — Warmth keeps draining, dangerous outdoors or by a dead fire.</li>
+              <li>Sleeping on a high-Presence night is unsafe, so a loud night can force you to stay awake and dark.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>Wounds &amp; Bleeding <span class="tag">status-card model</span></h4>
+            <p>Wounds are status cards with sub-states, not a health-bar dip.</p>
+            <ul class="clean">
+              <li>A Wound carries {clean/dirty, bleeding?}. Bleeding emits Scent — triage of wounds is triage of Presence.</li>
+              <li>Sources in slice: a chopping mishap (likelier when Exhausted/Freezing) and the zombie breach auto-Bite. No player combat produces wounds.</li>
+              <li>Clean turns Dirty after ~4h exposed; Dirty + Malnourished self-assembles Infection.</li>
+              <li><em>Bandage &rarr; Survivor &rarr; Treated Wound</em>: stops bleeding and Scent, halts infection. Clean with Boiled Water first to upgrade Dirty &rarr; Clean.</li>
+            </ul>
+          </div>
+          <div class="card">
+            <h4>Illness self-assembly <span class="tag">single infection counter</span></h4>
+            <p>Emergent recipes over docked status cards, deliberately simplified: one counter, not a two-stat immune model.</p>
+            <ul class="clean">
+              <li>Fever: <em>Wet + Cold + Exhausted</em> coexisting 30 continuous minutes (a named anti-flicker buffer) — accelerates thirst, drags morale.</li>
+              <li>Infection: one <code>infection_progress</code> counter rises while Dirty Wound + Malnourished persist, falls once Treated; staged thresholds gate severity.</li>
+              <li>The face-down Infection? from a bite is separate: a fixed 60-hour reveal, deterministic for the slice.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section id="mind">
+        <div class="sec-head"><span class="sec-num">§ 06</span><h2>The Mind — The Vigil</h2>
+          <p class="lead">Solitude, Hope, Morale and The Road: one reconciled system with one owner. It never has its own health bar and never game-overs on its own — Depression kills through the body.</p></div>
+        <div class="prose">
+          <p>Loneliness is a standing negative that lowers your resilience so every physical insult lands closer to the cliff, and hope is the only forward pull — visible, costly, and the loudest thing you can choose to feel.</p>
+        </div>
+        <ul class="clean warm">
+          <li><strong>Solitude</strong> decays continuously with no true cure, only diminishing palliatives (journal, radio, keepsake dwell). Its ceiling drifts down each day (<code>75 − 3·day_index</code>) — perfect self-care tops out lower every morning.</li>
+          <li><strong>Morale is derived, not summed:</strong> <code>target = 50 + 0.25(Solitude−50) + 0.20(Hope−50) + warmth_bonus + buffers − &Sigma;(status weights)</code>, eased asymmetrically (heals slow, sinks fast). Each physical status contributes exactly one weight, counted once. Start 60.</li>
+          <li><strong>One spiral card — Depressed</strong>, minted at Morale &le; 25 held 2h (clears at &ge; 45 held 1h). While docked it stalls the hands (&times;1.4 action time), accelerates hunger &amp; thirst &times;1.3, deepens Solitude, and halves palliative gains. You can't consume your way out — you must fix root causes.</li>
+          <li><strong>Hope</strong> never rises on its own (bleeds ~0.4/h, ceiling capped by Solitude+15). Raised only by the vigil lamp, a new radio message, or a keepsake dwell; permanently cut by burning a keepsake.</li>
+          <li><strong>The Vigil lamp</strong> (Lamp Fuel + Signal Lamp): +Hope, slows overnight Solitude decay &times;0.6, advances The Road one rung next morning — and mints the biggest single Light signal in the game, steering the night's dead toward the one warm window.</li>
+          <li><strong>The Road</strong>: a visible, monotonic log card with 5–6 ordered named rungs in the flat unreliable-narrator voice. A lit night advances it; an unlit night slips it back (shown in the dusk projection beside the Presence rise). Day-7 resolution is gated off the rung reached.</li>
+          <li><strong>P(arrival)</strong> is stored as a raw float but never rendered numerically — surfaced only as the rung reached plus a qualitative band, so hope reads as fragile, not as an XP bar.</li>
+        </ul>
+        <div class="callout"><span class="lbl">Balance mandate</span>A survivor who never lights the lamp must measurably decline — Solitude and Hope visibly fall and Depressed becomes a real threat within ~2–3 dark nights — so "never light it" is never a dominant strategy.</div>
+      </section>
+
+      <!-- 7 -->
+      <section id="cards">
+        <div class="sec-head"><span class="sec-num">§ 07</span><h2>The Card System</h2>
+          <p class="lead">No deck, no hand. Cards are persistent objects at absolute positions on one Tableau. You drag one card onto another; on release the game gathers the overlapping group, builds a canonical multiset signature, and lists every matching action with its Time / Yield / Requirement / Presence-&Delta; before you commit.</p></div>
+        <div class="prose">
+          <p>That single drag-onto grammar is the entire verb set: craft, eat, drink, treat, feed, boil, light, burn, listen, dowse, and the one blind panic swing. The Survivor is a first-class drop target and the docking parent for all status and signal cards. The honest ledger is <strong>~31 CardData definitions</strong>, of which only the <strong>17 authored object cards</strong> carry per-card design cost and are governed by the ~16–18 cap.</p>
+        </div>
+        <h3>Card taxonomy</h3>
+        <div class="tblwrap">
+          <table>
+            <thead><tr><th>Category</th><th>Role</th><th>Examples</th></tr></thead>
+            <tbody>
+              <tr><td class="cat">CHARACTER</td><td>You and the awaited one — the crafting station statuses dock to</td><td class="ex">Survivor (fixed anchor); Maren (scripted Day-7 arrival, never fought)</td></tr>
+              <tr><td class="cat">LOCATION</td><td>The place you are plus its anchored Findables; interacted with in place</td><td class="ex">Cabin (Hearth + window), Woodline (Standing Tree), Creek</td></tr>
+              <tr><td class="cat">RESOURCE</td><td>Raw or processed stuff consumed by recipes</td><td class="ex">Firewood, Dirty Water, Boiled Water, Lamp Fuel</td></tr>
+              <tr><td class="cat">ITEM</td><td>Finished consumables, containers, and stores</td><td class="ex">Canned Food, Foraged Food, Bandage, Water Store, Signal Lamp, Radio, Sweater, Photograph</td></tr>
+              <tr><td class="cat">TOOL</td><td>Reusable, returns to the table, has durability</td><td class="ex">Axe (also the lone panic weapon), Cooking Pot</td></tr>
+              <tr><td class="cat">CREATURE</td><td>Reads the Presence gradient; not fought, managed</td><td class="ex">Zombie (1 archetype; the Prowler animal deferred to Phase 2)</td></tr>
+              <tr><td class="cat">SIGNAL</td><td>Trailing detectability cards docked to the Survivor; sum into Presence</td><td class="ex">Heat, Light, Noise, Scent (each ~0–5 on the pip scale)</td></tr>
+              <tr><td class="cat">STATUS</td><td>Emergent condition cards docked to the Survivor; inputs to illness recipes</td><td class="ex">Wet, Cold, Exhausted, Fever, Infection?, Depressed; Malnourished flag; terminals</td></tr>
+              <tr><td class="cat">KNOWLEDGE / LOG</td><td>Off-table cards: recipes, notes, The Road ladder, obituaries</td><td class="ex">2 Found Notes, The Road, obituary/epilogue cards persisting across runs</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>Crafting model</h3>
+        <p class="prose" style="max-width:70ch">Recipes are <code>RecipeData</code> resources matched by a multiset signature over the dropped group: consumable inputs matched by id or tag, tools matched as a separate non-consumed predicate, and context matched as predicates (<code>fire:lit</code>, <code>loc:cabin</code>, weather overlays). A prebuilt <code>RecipeIndex</code> gives O(1) lookup. Precedence: id-match over tag-match, fewer leftovers, known over discoverable. Obvious diegetic recipes are always known; the only gated content is the two Found Notes. Illness recipes are the same grammar, evaluated passively against the docked-status set.</p>
+        <h3>Example combinations</h3>
+        <div class="recipe"><div class="in">Dirty Water + Cooking Pot &rarr; lit Hearth</div><div class="arrow">&rarr;</div><div class="out">3× Boiled Water · Pot returns worn</div><div class="note">The M1 foundational recipe — three physical cards plus a <code>fire:lit</code> context predicate — proving the multi-card overlap matcher, not the degenerate 2-card path. Mints a little Noise.</div></div>
+        <div class="recipe"><div class="in">Foraged Food &rarr; Survivor (Eat)</div><div class="arrow">&rarr;</div><div class="out">Satiation ↑ · cold = silent / cooked = +Warmth +Morale +Scent</div><div class="note">Cooking is a <em>mode</em> of the single Eat recipe — no intermediate Cooked Meal card. The tangible quiet-vs-warm micro-decision, live from Night 1.</div></div>
+        <div class="recipe"><div class="in">Firewood &rarr; Hearth (Feed fire)</div><div class="arrow">&rarr;</div><div class="out">Fire re-lit · Heat +2 · Light +2 · Noise +2</div><div class="note">The central "right move that is also the dangerous move." The Presence delta and its forecast contribution to tonight's approach are shown before commit.</div></div>
+        <div class="recipe"><div class="in">Lamp Fuel &rarr; Signal Lamp (window)</div><div class="arrow">&rarr;</div><div class="out">Vigil Lit · +Hope · Solitude slowed · Road advances · Light ≈ +4</div><div class="note">The nightly aching choice — the loudest single signal in the game. The dusk projection shows lamp-lit vs. dark peak Presence and the Road rung won-or-lost side by side.</div></div>
+        <div class="recipe"><div class="in">Keepsake (Sweater / Photograph) &rarr; lit Hearth (Burn)</div><div class="arrow">&rarr;</div><div class="out">One-time Warmth + fuel · keepsake destroyed · permanent Grief + Hope-ceiling loss</div><div class="note">Both keepsakes are burnable with real Warmth values (Sweater higher), so Day 6 is a genuine "which to burn" grief trade, never a soft-lock.</div></div>
+        <div class="recipe"><div class="in">Axe &rarr; Zombie at Breach (panic swing)</div><div class="arrow">&rarr;</div><div class="out">Weighted: Corpse (Scent floor) or a Bite · NO preview</div><div class="note">The single combat verb and the only action with no cost/Presence preview — you swing blind. A "won" fight spikes Presence loud enough to summon the next approach, so it is never viable.</div></div>
+      </section>
+
+      <!-- 8 -->
+      <section id="threats">
+        <div class="sec-head"><span class="sec-num">§ 08</span><h2>Threats</h2>
+          <p class="lead">The dead are the acute punctuation on a slow sentence of attrition. Almost nothing here is fought.</p></div>
+        <div class="grid g2">
+          <div class="card">
+            <h4>The Dead <span class="tag">zombie-as-weather</span></h4>
+            <p><strong>Behavior:</strong> Never hunt. Each night one Zombie reads effective Presence via one convergence model — <code>pull = Light·1.0 + Heat·0.8 + Noise·1.0 + Scent·0.9</code> — stepping a distance index across four telegraphed states (Treeline&rarr;Yard&rarr;Door&rarr;Breach) on a 30-minute cadence. Dusk spawn distance is seeded by the day's accumulated Presence. Stiffened under the Cold Front; effectively Frozen on the Day-6 Deep Freeze.</p>
+            <p><strong>Counterplay:</strong> Go dark (dowse hearth/lamp &rarr; Presence collapses &rarr; it drifts back), hold still / sleep-dark, or the one-decoy bait. Going dark is never the same twice — its cost escalates with the deepening cold.</p>
+          </div>
+          <div class="card">
+            <h4>The Cold Front <span class="tag blood">week-long boss</span></h4>
+            <p><strong>Behavior:</strong> A per-day cold-pressure ramp plus a diurnal swing, exporting one <code>ambient_cold_pressure</code> scalar into the Warmth meter. Turns cold into a second hunger; holds one escalation state — the Day-6 Deep Freeze. A single wet-wood flag on the scripted snow beat makes fresh wood resist catching.</p>
+            <p><strong>Counterplay:</strong> Feed the fire (loud), insulate at the hearth, drink hot water (quiet warmth), dry off Wet, ration daylight for outdoor runs, and — on the climax night — burn a keepsake.</p>
+          </div>
+          <div class="card">
+            <h4>The Bite <span class="tag blood">hidden-timer dread</span></h4>
+            <p><strong>Behavior:</strong> Auto-minted only by a breach at contact: a bleeding Wound plus a face-down Infection? whose true value (graze or the turn) is fixed at spawn, revealing at 60 in-game hours.</p>
+            <p><strong>Counterplay:</strong> Dress the wound to stop the Scent and mundane infection (cannot change a blood-borne turn); otherwise wait and watch. No inspection tool, no amputation in the slice — the horror is the not-knowing.</p>
+          </div>
+          <div class="card">
+            <h4>The Long Decline <span class="tag">the true game</span></h4>
+            <p><strong>Behavior:</strong> Hunger, thirst, Warmth, energy and infection drain in parallel with staged effects; neglecting one accelerates others via a modifier matrix. Death is always the first need to reach its terminal countdown, authoring the obituary cause.</p>
+            <p><strong>Counterplay:</strong> Read the pinned danger list, pre-empt cascades by breaking any one ingredient (dry off, eat, dress, sleep), keep the status dock empty.</p>
+          </div>
+          <div class="card">
+            <h4>Loneliness &amp; Depression <span class="tag">kills through the body</span></h4>
+            <p><strong>Behavior:</strong> Solitude decays with no true cure under a ceiling that lowers each day; low Solitude drags Morale; Morale &le; 25 held 2h mints Depressed, which stalls the hands, halves palliatives, and accelerates hunger and thirst.</p>
+            <p><strong>Counterplay:</strong> Light the vigil, dwell on a keepsake, tune the radio, finish real tasks for the accomplishment buffer, and stay warm and fed — root causes, not comforts.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 9 -->
+      <section id="world">
+        <div class="sec-head"><span class="sec-num">§ 09</span><h2>World &amp; Time</h2>
+          <p class="lead">One location cluster — Cabin hub, Woodline, Creek — across seven in-game days into a deepening cold snap that breaks into a thaw on Day 7.</p></div>
+        <div class="prose">
+          <p>The world withdraws on a clock you can watch but never avert: the radio dies message by message to static, daylight contracts ~35 min/day, fuel dwindles with no resupply, food rots in place, and the cold ramps to a Day-6 Deep-Freeze climax. Emptiness is authored content — a hard budget of &le;4 unsolicited world lines per day, empty days logged flat (<em>"Day 5. Grey. You boiled water. You waited. No one on the road."</em>), and an indifferent world that never celebrates or reassures the survivor.</p>
+          <h3>Time model</h3>
+          <p>Real-time-with-pause on a single central <code>SimClock</code> — the one authoritative tick. Once per whole game-minute it calls a static <code>Sim.step(1)</code> running an ordered ~11-stage pipeline (environment &rarr; modifiers &rarr; drains &rarr; statuses &rarr; emergent recipes &rarr; illness &rarr; Presence recompute &rarr; thresholds &rarr; night convergence &rarr; scheduled beats &rarr; danger-sort/death) purely over <code>GameState</code>. No Timer nodes anywhere. One constant <code>REAL_SECS_PER_GAME_MIN ≈ 0.35</code> (~8.4 real min per game-day at 1&times;); a full 7-day run is ~59 min at 1&times;, ~15–30 min with routine 2&times;/4&times; use. Speeds: pause / 1&times; / 2&times; / 4&times;, plus dev skip-to-dusk / skip-to-Day-N. Night is the only convergence window, and travel is a daytime activity, so <em>survivor-at-cabin &equiv; cabin-Presence</em> always holds at night.</p>
+          <h3>Weather</h3>
+          <p>Exactly one system: a deepening Cold Front. A per-day cold-pressure ramp (the arrays that <em>are</em> the difficulty curve) plus a cheap diurnal sine, exporting one scalar into Warmth. It holds a single discrete state beyond Normal: the Day-6 Deep-Freeze night, load-bearing because the zombie must be Frozen so the finale is cold + the keepsake-burn, not the dead. Two named rule-patches ship: <em>cold = second hunger</em> and <em>wet-wood-resists-catching</em>. Minor variation is a pure hash of (day, minute, seed) so save/load stays deterministic. Day 7 warms — the thaw beat that gates the resolution.</p>
+        </div>
+      </section>
+
+      <!-- 10 -->
+      <section id="atmos">
+        <div class="sec-head"><span class="sec-num">§ 10</span><h2>Atmosphere &amp; Presentation</h2>
+          <p class="lead">Melancholic, isolated, mundane-routine dread in Project Zomboid's register — flat, clinical, past-tense-adjacent prose with no exclamation and no hero framing. Legibility for the body; mystery for the mind and the dead.</p></div>
+        <h3>Techniques</h3>
+        <ul class="clean">
+          <li>Flat clinical voice for all copy; status flavor as one dry italic line (<em>"[Cold] — Your hands have stopped hurting. That's not good."</em>).</li>
+          <li>Silence as default: &le;4 unsolicited world lines per day, so any line lands as an intrusion.</li>
+          <li>Empty days logged as content; deaths never editorialize — one true detail (<em>"Day 5, 03:12 — hypothermia. The fire had been out four hours. The lamp was still lit."</em>).</li>
+          <li>The mind is felt, not itemized: Solitude and Morale surface as a single band word; P(arrival) as qualitative bands; the bite stays face-down.</li>
+          <li>Emotional establishment is load-bearing: Maren is a specific mundane person (a name, a mended sweater the wrong size, one dull photograph, a note in her hand) present from the opening tableau.</li>
+          <li>Threat auto-pause defaults <strong>off</strong> (accessibility toggle) so the flat telegraph lines build dread without yanking the player out every 30 minutes.</li>
+          <li>The radio degrading to static on Day 6 is the fridge-hum-that-stops — the one scheduled sound-death, after which the ambient bed thins to wind only.</li>
+          <li>A persistent obituary journal: loss accumulates across runs; even survival is provisional (<em>"A figure on the road at first light. It's her. You live, for now."</em>).</li>
+        </ul>
+        <div class="callout"><span class="lbl">On "text-forward"</span>Zero illustration or asset pipeline — but text-forward means <em>typography does the work art usually does</em>, not that UI is cheap. Cards are <code>PanelContainer + RichTextLabel</code> with BBCode, an embedded serif for tone and an icon-glyph font for inline symbols; per-kind styling via Theme type variations. Every card body carries name / staged readout / one italic residue line / a footer chip row of time·yield·Presence. The single fiddliest Godot gotcha — BBCode plus both embedded fonts rendering correctly inside a card at 1080p — is proven in the M0 skeleton.</div>
+      </section>
+
+      <!-- 11 -->
+      <section id="slice">
+        <div class="sec-head"><span class="sec-num">§ 11</span><h2>The Vertical Slice</h2>
+          <p class="lead">Prove ONE loop is fun and moving: tend the fire while the cold, the dark, and your own rising Presence press in — and each dusk decide hearth (live) or lamp (hope), knowing the lamp is the loudest thing you own.</p></div>
+        <div class="callout"><span class="lbl">Definition of "done"</span>Validated when a first-time playtester <strong>hesitates before lighting the lamp</strong> and can <strong>narrate their own death cascade card by card</strong> afterward. Every feature must sharpen warmth-vs-quiet-vs-hope or make a death more legible, or it is cut.</div>
+        <div class="cols2">
+          <div class="scopebox in">
+            <h4>In scope</h4>
+            <ul>
+              <li>~31 CardData defs (17 authored object cards under the ~16–18 cap + 4 signal + 6 emergent status + 1 Zombie + 3 location)</li>
+              <li>9 drag recipes + 2 passive emergent recipes (Fever, Infection)</li>
+              <li>3 cascades: warmth&harr;quiet, wet&harr;cold&harr;fever, wound&harr;infection&harr;morale</li>
+              <li>Presence as a live pip-strip sum, with per-drag &Delta; and a tonight's-approach forecast before commit</li>
+              <li>Pinned auto-sorted danger list; pause + 1&times;/2&times;/4&times;; contracting day/night; one Cold Front (cold = second hunger, wet-wood flag, Day-6 Deep Freeze)</li>
+              <li>The Vigil: lamp, Solitude/Hope/derived-Morale/Depressed, both keepsakes burnable, The Road ladder, 7 degrading radio messages</li>
+              <li>Night convergence: one Zombie on the 4-state approach; breach &rarr; auto-Bite (Wound + face-down Infection?, 60h reveal)</li>
+              <li>Two timed Travel actions (Woodline 20m, Creek 15m) with Ground abandonment + 6-slot inventory</li>
+              <li>Save/load + a persistent obituary journal across runs</li>
+              <li>Ship-quality tone prose where its system lands (radio, endings, keepsake-burn, dusk telegraph)</li>
+              <li>Observability tooling front-loaded: live inspector, skip controls, set-stat/spawn console, headless batch runner</li>
+            </ul>
+          </div>
+          <div class="scopebox out">
+            <h4>Out of scope (deferred)</h4>
+            <ul>
+              <li>Combat depth: weapons table, Fight/Barricade/Bait-full/Flee, Downed states, amputation, the weighted-outcome engine (only the blind axe swing ships)</li>
+              <li>The Prowler / any wild animal, butchering, Meat, claw wounds, the Snare</li>
+              <li>Creek-freeze, Frozen Creek, Snow cards (Creek stable all week; Day-3 beat = wet firewood)</li>
+              <li>Four intermediate weather sub-states, the propagation-multiplier matrix, seeded weather replay</li>
+              <li>Hallucination / false-table cards, proxy-pet comforts, sanity beyond Depressed</li>
+              <li>On-map Turning persistence, corpse&rarr;Miasma sub-sim, horde-baiting depth</li>
+              <li>Skill trees / XP, multi-location networks, inventory weight economy</li>
+              <li>Blood integrator stat, two-body Immune math, Nausea/overeating</li>
+              <li>Save-migration logic (version field ships; on mismatch, discard and start fresh)</li>
+            </ul>
+          </div>
+        </div>
+        <div class="callout" style="border-left-color:var(--cold)"><span class="lbl" style="color:var(--cold)">Definition of fun (unprompted playtester)</span>(1) hesitates at dusk before spending the last fuel, watching The Road as the reason it matters; (2) has an "aha" cascade on their second attempt, pre-empting Wet&rarr;Cold&rarr;Fever because run one taught them; (3) narrates their own death card by card; (4) feels the ache once — choosing which keepsake to burn, or when the lamp draws the thing that ends them; and (5) says some version of <em>"one more run."</em> If a death feels random, the fix is balance and telegraphing, not more content.</div>
+      </section>
+
+      <!-- 12 -->
+      <section id="roadmap">
+        <div class="sec-head"><span class="sec-num">§ 12</span><h2>Build Roadmap</h2>
+          <p class="lead">Risk-first ordering. The Presence hook and the sim spine come before content. Amber nodes are decision gates.</p></div>
+        <div class="ms gate"><div class="mtag">M0</div><h4>Foundation skeleton + font/BBCode proof</h4><p>Godot 4.7 project; SimClock / CardDatabase / GameState / SaveManager autoloads; CardData/RecipeData/StatData resources; one Theme + serif + icon font proven rendering BBCode inside a card at 1080p; one themed card visible; live stat-inspector stubbed.</p></div>
+        <div class="ms"><div class="mtag">M1</div><h4>Drag-combine table (overlap-group matcher)</h4><p>Manual <code>_gui_input</code> dragging, Rect2 overlap gathering the group, multiset-signature RecipeMatcher, context menu with time/yield/requirement. Proves the three-card boil_water path <em>first</em>, exercising the multi-card matcher.</p></div>
+        <div class="ms gate"><div class="mtag">M2</div><h4>SimClock, needs, danger list, pause/speed <span class="gatemark">Phase-0 go / no-go</span></h4><p>Central-tick decay of survival-needs; eat/drink; pinned danger list; pause + speeds; dev skip + headless batch runner. <strong>Gate:</strong> the first "is it fun?" check on a save/reload-faithful M2. If not reached in the first block of sittings, do Godot Control-node + Resource tutorials before continuing.</p></div>
+        <div class="ms gate"><div class="mtag">M3</div><h4>Presence core — the hook</h4><p>Four docked signal cards summing to one pip strip; every recipe's Presence-&Delta; <em>and</em> tonight's-approach forecast shown before commit; the warmth loop (chop &rarr; firewood &rarr; feed fire) live. Card template + strip + danger-list structure <strong>freeze here</strong>.</p></div>
+        <div class="ms"><div class="mtag">M4</div><h4>Day/night + Cold Front + cascades 2 &amp; 3</h4><p>Contracting day/night; Cold Front ramp (cold = second hunger) + wet-wood flag; ConditionRule engine with condition_timers (Fever 30-min buffer); wounds as status cards; breach/bite face-down Infection? (60h reveal). All 3 cascades traceable in the log.</p></div>
+        <div class="ms gate"><div class="mtag">M5</div><h4>The Vigil — the beating heart, with real prose</h4><p>Signal Lamp + shared-pool Lamp Fuel; derived Morale + Solitude/Hope + Depressed spiral; both keepsakes burnable; The Road ladder; 7 real degrading radio messages. <strong>Gate:</strong> the dusk fuel-split runs with ship-quality prose, a playtester's hesitation is observed, and a never-light strategy measurably declines.</p></div>
+        <div class="ms"><div class="mtag">M6</div><h4>Night convergence + Day-7 resolution</h4><p>One Zombie on the 4-state approach reading effective Presence; DayExposure&rarr;spawn-distance; go-dark with escalating cold cost; auto-pause toggle (default off). Day-6 climax forces a keepsake-burn; Day-7 resolves to arrival / no-arrival / the-light-drew-the-horde off the visible Road rung. Honestly labeled a small new subsystem, not "wiring," with its own night-balance budget.</p></div>
+        <div class="ms gate"><div class="mtag">M6.5</div><h4>Tuning &amp; Telegraphing <span class="gatemark">the real deliverable</span></h4><p>~15–30 balance iterations, the majority via the headless batch runner (seeded do-nothing / naive-play policies dumping death_cause/day/minute), reserving full playthroughs for feel. Converge the curve so a quiet/dark night is survivable and the Day-6 burn actually bites.</p></div>
+        <div class="ms"><div class="mtag">M7</div><h4>Save/load hardening, journal, readability pass</h4><p>Semantic-equality save round-trip (int() coercion, no Resource refs in serialized containers, String keys); persistent obituary journal; version field with discard-on-mismatch; one bounded readability pass at 1080p; per-card residue flavor and prose iteration from playtest reactions.</p></div>
+      </section>
+
+      <!-- 13 -->
+      <section id="tech">
+        <div class="sec-head"><span class="sec-num">§ 13</span><h2>Technical Architecture</h2>
+          <p class="lead">Godot 4.7 stable, GDScript-first. Control nodes + custom Resources + one central deterministic tick + JSON save. No C++, shaders, physics, Timer nodes, built-in drag-and-drop, or illustration pipeline.</p></div>
+        <h3>Data model</h3>
+        <p class="prose" style="max-width:72ch">Static definitions are custom Resources (.tres), never serialized: <code>CardData</code>, <code>RecipeData</code>, <code>StatData</code>, <code>SignalData</code>, <code>ConditionRule</code>. Recipes reference cards by typed pointer so ids can't be mistyped, and the Inspector <em>is</em> the content editor. The only saved thing is <code>GameState</code> — plain scalars/dicts and an array of <code>CardInstance</code> (a RefCounted view-model with uid, def_id, zone, pos, runtime dict, docked_to). Card nodes are views bound to instances. This static/runtime split is what keeps pause, time-scale, and serialization from tangling.</p>
+        <div class="callout"><span class="lbl">Canonical ownership (contradictions resolved by the council)</span><code>survival-needs</code> owns all drain rates and the Warmth meter; <code>mind</code> owns derived Morale and the single Depressed card; the deep-hunger pool is <code>calories</code>; one Presence pip scale from <code>SignalData.tres</code> with co-located thresholds; one convergence model (the 4-state pull engine) called by <code>Sim._tick_night</code>; <code>presence_total</code> and <code>phase</code> are typed transients, never serialized.</div>
+        <h3>Key systems</h3>
+        <div class="grid g2">
+          <div class="card"><h4>SimClock + Sim.step</h4><p>One autoload accumulates real time and calls a single static <code>Sim.step(1)</code> running a fixed ~11-stage ordered pipeline, pure over GameState. Signals emit only for UI, after the step — no sim subsystem connects to a tick.</p></div>
+          <div class="card"><h4>RecipeMatcher (overlap-group)</h4><p>On release, gather all rect-intersecting cards into a group (primary target + inputs, cap 3 non-tool), build a canonical multiset signature (consumables by id/tag; tools and context as separate predicates), O(1) index lookup. The 2-argument matcher is deleted so the 2-card assumption can't leak back.</p></div>
+          <div class="card"><h4>Presence (derived, never stored)</h4><p>Recomputed each tick from docked SIGNAL <code>CardInstance.runtime.value</code> into a typed transient; anchored signals (Hearth, Lamp) dock only while adjacent. Provides <code>preview_delta</code> so tooltip, pull math, and pip strip share one source of truth.</p></div>
+          <div class="card"><h4>Threshold + ConditionRule engine</h4><p>Stat thresholds diff docked status cards each tick (mint/clear). Emergent illness evaluated against the docked-status set, timed by a <code>condition_timers</code> dict (rule_id &rarr; elapsed), idempotency derived from "is result already docked?".</p></div>
+          <div class="card"><h4>Night convergence</h4><p><code>GameState.horde = {distance_index, timer, frozen}</code>. Zombie_pull (Scent raised to ~0.9) advances the 4-state machine on a 30-min cadence; weather <code>zombie_speed_mult</code> divides cadence (Stiffened/Frozen). Breach auto-mints the Bite.</p></div>
+          <div class="card"><h4>SaveManager</h4><p>Writes only GameState to <code>user://save.json</code> (+ <code>journal.json</code>). int() coercion on integer fields; no Resource refs in serialized containers (active_crafts stores {recipe_id, input_uids, remaining_min}); String keys; semantic-equality round-trip test; version field with discard-on-mismatch.</p></div>
+        </div>
+        <h3>Godot-specific decisions</h3>
+        <ul class="clean">
+          <li>Manual dragging via <code>Card._gui_input</code> (grab/move/release), <em>not</em> <code>_get_drag_data</code>; Tableau owns all hit-testing and z-order via child order.</li>
+          <li>The Survivor is a first-class drop target pinned to a fixed anchor; on release onto it, RecipeMatcher augments the input set with the Survivor's docked instances so <em>Bandage&rarr;Wound</em> and <em>Water&rarr;Survivor</em> resolve.</li>
+          <li>One <code>current_action</code> slot (+ one queued) for survivor-occupying actions; <code>active_crafts</code> is the array of ambient/station timers only (boil = short locked setup then an unattended simmer).</li>
+          <li>Travel is a lightweight action type in the foundation (not deferred): applies outdoor cold exposure per tick and discards origin Ground cards on completion.</li>
+          <li>Theme type variations (StatusCard / SignalCard / KeepsakeCard) over per-node overrides; BBCode + embedded fonts proven in M0.</li>
+          <li>Minor weather variation as a pure hash of (day, minute, seed) so no RNG state is stored; ambient temp and phase recomputed on load, never saved.</li>
+        </ul>
+      </section>
+
+      <!-- 14 -->
+      <section id="risks">
+        <div class="sec-head"><span class="sec-num">§ 14</span><h2>Risks &amp; Mitigations</h2>
+          <p class="lead">The eight biggest ways this could fail — each surfaced by an adversarial critic, verified as real, and answered in the design above.</p></div>
+        <div class="grid g2">
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;Pure-decline motivation</h4><p>The 7-day arc only depletes, offering nothing that grows except an invisible deferred coin flip.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Concretize arrival into <strong>The Road</strong> — a visible, monotonic ladder that advances after a lit night and slips after a dark one, gating the Day-7 payoff off the rung reached. ~1 system card, no object-budget.</p></div>
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;"Never light it" dominates</h4><p>The dusk dilemma collapses because the cost is concrete/immediate and the benefit invisible/deferred, and the player has no reason to care about Maren.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Front-load Maren as load-bearing content; make go-dark bite via the Solitude&rarr;Depressed spiral (balance gate: never-lighting declines in 2–3 nights); show both dusk options felt-vs-felt; keep P(arrival) qualitative.</p></div>
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;The Presence hook feels hollow</h4><p>Consequence-free by day, solved by a rote go-dark at night, switched off on the frozen Day-6 climax.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Daytime exposure is a persistent visible forecast; go-dark's escalating cold cost is legible in its preview; Day-6 zombies are deliberately frozen so cold + the keepsake-burn is that night's star; keep "the light drew the horde" as a Day-7 ending.</p></div>
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;Repetitive logistics grind</h4><p>9 recipes learned by Day 1; minute-to-minute dominated by a water/wood grind that crowds out feeling.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Batch the dullest pipeline (boil yields 3); start Day 1 with a buffer so scarcity bites from Day 3; cut creek-freeze; make &Delta;Presence, the dusk decision and the radio live from Night 1; audit the choice-vs-wait ratio at the gates and cut a logistics step if it skews to waiting.</p></div>
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;One repeated zombie drains tension</h4><p>A single telegraphed zombie beaten by dowsing, five nights running.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Vary nights with existing levers at zero new content: DayExposure sets spawn distance; go-dark's cost escalates until it stops being a clean answer; the nightly lamp choice is the real read-and-react variable.</p></div>
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;Drift into a generic zombie game</h4><p>Combat is simultaneously cut and fully specified, and the design's heaviest energy is on how to fight.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Cut all combat depth; ship a single blind axe swing rebalanced so a won fight summons the next approach — no viable combat build. Breach &rarr; auto-Bite as an event, not a fight outcome.</p></div>
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;Over-legibility becomes a spreadsheet</h4><p>Full transparency kills the dread it should serve.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Keep the physical fairness contract, but surface the mind as a single band word, default threat auto-pause off, and render P(arrival) as bands only — legibility for the body, mystery for the mind and the dead.</p></div>
+          <div class="card"><h4><span class="tag blood">Risk</span>&nbsp;Cross-spec contradictions</h4><p>Two tick models, four Presence scales, three convergence models, double-owned Morale/Warmth, an unbuildable 2-card matcher, JSON round-trip traps.</p><p style="color:var(--green);margin-top:10px"><strong>&rarr;</strong> Name one authoritative owner per subsystem and reconcile the rest: single Sim.step; one pip-scale Presence; one 4-state convergence; survival-needs-owned Warmth; mind-owned Morale; one 0.35 time constant; the overlap-group matcher; hardened JSON rules.</p></div>
+        </div>
+      </section>
+
+      <!-- 15 -->
+      <section id="questions">
+        <div class="sec-head"><span class="sec-num">§ 15</span><h2>Open Questions</h2>
+          <p class="lead">What the council could not settle on paper — these are the M6.5 tuning targets and the decisions that need <em>your</em> playtest, not more design.</p></div>
+        <ol class="qs">
+          <li>What Warmth heat-vs-cold coefficients per day put Day 6 on a knife's edge — steady fire ≈ &plusmn;0, any lapse negative — without making earlier nights trivially safe? <em>(Primary M6.5 target.)</em></li>
+          <li>What Presence pull/threshold values make a lit-vigil night reliably reach the Door and a gone-dark night reliably retreat, while leaving room for the DayExposure spawn-distance variation to matter?</li>
+          <li>How many Road rungs (5 vs 6) and what regression rule (slip one rung vs. stall) best convey fragile hope without feeling hopeless or like a checklist? Does an unlit night ever feel too punishing?</li>
+          <li>Is a single <code>infection_progress</code> counter legible enough as an "unfair or clear" read, or does the slice need staged thresholds surfaced before considering the deferred Immune model?</li>
+          <li>Does the go-dark cold cost escalate smoothly enough across the week to read as "a different decision each night" rather than "fine until suddenly lethal"?</li>
+          <li>What is the right Day-1 starting buffer (firewood, boiled water, lamp fuel) so the teaching day has slack but scarcity bites by Day 3?</li>
+          <li>Does the 60-hour bite reveal land as dread or as a forgotten timer — and should the true/false split be fixed-deterministic or seeded per run?</li>
+          <li>Does the arrival ending read as "quiet and provisional" or accidentally "triumphant" in playtest? If triumphant, which radio/obituary lines need re-voicing?</li>
+          <li>At what real-minute ratio does the choice-vs-wait audit trip the "cut a logistics step" rule — and which step goes first if it does?</li>
+        </ol>
+      </section>
+
+      <!-- 16 -->
+      <section id="inspiration">
+        <div class="sec-head"><span class="sec-num">§ 16</span><h2>Inspirations, Mapped</h2>
+          <p class="lead">What we take from each source — and what we deliberately invert or add.</p></div>
+        <div class="insp">
+          <div class="row"><div class="src">Card Survival: Tropical Island<small>Interaction DNA</small></div><div class="take">The entire interaction model: cards <em>are</em> the world's objects, dragged together on a table to craft/eat/act, real-time-with-pause, no deck and no hand; Findable/Ground/Inventory rows with abandonment on travel; the pinned auto-sorted danger list; every action showing time/yield/requirement before commit; the "aha cascade" of learning interlocking-need chains. <strong>We invert its thirst-dominant tropical curve into a cold-dominant winter one.</strong></div></div>
+          <div class="row"><div class="src">Project Zomboid<small>Atmosphere &amp; dread</small></div><div class="take">The mundane-routine dread: flat clinical prose, the indifferent world that never celebrates you, loneliness and depression as real mechanical threats, illness that creeps rather than announces, the withdrawal you watch on a clock (power/radio dying), fair deaths you author and can trace, and the melancholy of logging empty days in a dead landscape.</div></div>
+          <div class="row"><div class="src">Vigil<small>Grafted — the heart</small></div><div class="take">The beating heart the pure attrition sim lacked: the lamp lit in the window for an absent loved one (Maren), turning hope into a chosen, costly, mechanical Presence spike; keepsakes as fuel with a fading Hope value; the radio that never truly answers as a degrading dusk ritual; Found Notes as the only other voices. <strong>We add The Road so hope is visible and climbing, not a hidden coin flip.</strong></div></div>
+          <div class="row"><div class="src">Downwind<small>Grafted — the signal economy</small></div><div class="take">Presence as a two-sided signal economy — the seed of baiting the world against itself (the lite one-decoy version ships; full horde-luring deferred) — and weather as a rule-patch on how signals propagate (kept to the single Cold Front). The corpse&rarr;Miasma sub-sim, hallucination cards, and multi-species animals are deferred hooks.</div></div>
+        </div>
+      </section>
+
+      <!-- 17 -->
+      <section id="colophon" style="border-bottom:none">
+        <div class="sec-head"><span class="sec-num">§ 17</span><h2>How This Was Made</h2></div>
+        <div class="colophon">
+          <p style="margin:0;font-family:var(--sans);font-size:15px;color:var(--ink)">This document is the synthesized output of an <strong>evaluation council</strong> run as a multi-phase agent workflow. Four analysts deconstructed <em>Card Survival</em> and <em>Project Zomboid</em>; three designers each pitched an independent concept from a different angle; a three-judge panel scored them and <strong>"The Long Quiet" won (126 pts, vs. 117 "Vigil" and 116 "Downwind")</strong>, grafting the best of the runners-up. Seven system designers then fleshed out subsystems; five adversarial critics attacked the result; every finding was independently verified; and a final synthesizer integrated the survivors into the GDD above.</p>
+          <div class="stats">
+            <div class="stat"><b>76</b><span>Agents run</span></div>
+            <div class="stat"><b>3&rarr;1</b><span>Concepts judged &amp; merged</span></div>
+            <div class="stat"><b>52</b><span>Critique findings raised</span></div>
+            <div class="stat"><b>40</b><span>Verified &amp; integrated</span></div>
+            <div class="stat"><b>9</b><span>Open questions for playtest</span></div>
+          </div>
+        </div>
+        <footer class="foot">The Long Quiet — vertical-slice design document · Godot 4.7 · text-forward survival card-sim · Generated for the <code>card-crafter</code> project.</footer>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+  (function(){
+    var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+    var map = {};
+    links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          var a = map[e.target.id];
+          if(a) a.classList.add('active');
+        }
+      });
+    }, {rootMargin:'-45% 0px -50% 0px', threshold:0});
+    document.querySelectorAll('main section[id]').forEach(function(s){ obs.observe(s); });
+  })();
+</script>
+</body>
+</html>

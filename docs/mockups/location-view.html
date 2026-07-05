@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead Air — At a Location (UI mock)</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#111922; --panel-2:#0f151d;
+    --border:#1e2b38; --border-soft:#182430;
+    --ink:#c6d2dd; --ink-strong:#e7eef4; --muted:#7d8c9a; --faint:#4c5a67;
+    --cold:#69b6d6; --cold-dim:#3f6d82;
+    --warm:#e8ad5c; --warm-soft:#f0c483;
+    --blood:#c9695e; --green:#8bb08a;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    background-image:radial-gradient(1000px 600px at 82% -10%,rgba(232,173,92,.06),transparent 60%);min-height:100vh;padding:22px}
+  .frame{max-width:1180px;margin:0 auto;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel-2);box-shadow:0 24px 70px rgba(0,0,0,.5)}
+
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:15px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#121b24,#0f151d)}
+  .tb-left{display:flex;gap:12px;align-items:center}
+  .mapicon{width:38px;height:38px;border:1px solid #7a5c2e;border-radius:9px;display:grid;place-items:center;color:var(--warm);font-size:18px}
+  .tb-title{font-family:var(--serif);font-size:19px;color:var(--ink-strong)}
+  .tb-sub{font-size:11.5px;color:var(--muted)}
+  .tb-right{text-align:right;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .when{font-size:12.5px;color:var(--ink)}.when .ov{color:var(--muted)}
+  .stagechip{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--warm);border:1px solid #7a5c2e;border-radius:20px;padding:3px 11px}
+
+  .statusstrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:11px 20px;border-bottom:1px solid var(--border-soft);background:#0d131a}
+  .stat{display:flex;align-items:center;gap:7px}
+  .stat .lab{font-size:10.5px;color:var(--muted);min-width:58px}
+  .barm{width:64px;height:6px;border-radius:4px;background:#0a0e13;border:1px solid var(--border);overflow:hidden}
+  .barm>i{display:block;height:100%}
+  .fc{background:linear-gradient(90deg,var(--cold-dim),var(--cold))}.fw{background:linear-gradient(90deg,#7a5c2e,var(--warm))}
+  .fg{background:linear-gradient(90deg,#4a6349,var(--green))}.fb{background:linear-gradient(90deg,#6e3a34,var(--blood))}
+
+  /* TRAVEL ROW — the "top row" of connected locations */
+  .travelrow{display:flex;align-items:stretch;gap:9px;padding:14px 20px;border-bottom:1px solid var(--border);background:#0c1219;overflow-x:auto}
+  .trlabel{font-family:var(--sans);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--cold);align-self:center;white-space:nowrap;margin-right:4px}
+  .loc{flex:0 0 auto;min-width:150px;border:1px solid var(--border);border-radius:9px;padding:9px 11px;background:linear-gradient(180deg,var(--panel),var(--panel-2));cursor:pointer;transition:transform .1s}
+  .loc:hover{transform:translateY(-2px)}
+  .loc .lt{display:flex;align-items:center;gap:7px}
+  .loc .lg{font-size:13px;width:16px;text-align:center;color:var(--muted)}
+  .loc .ln{font-family:var(--serif);font-size:13.5px;color:var(--ink-strong)}
+  .loc .lm{display:flex;justify-content:space-between;align-items:center;margin-top:5px;font-size:10px;color:var(--muted)}
+  .loc .dots{font-family:var(--mono);font-size:9.5px}.dots i{font-style:normal;color:var(--faint)}
+  .loc.here{border-color:var(--warm);background:radial-gradient(120% 100% at 50% 0%,rgba(232,173,92,.12),var(--panel-2))}
+  .loc.here .ln{color:var(--warm-soft)} .loc.here .lg{color:var(--warm)}
+  .loc.here .here-tag{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--warm-soft);display:flex;align-items:center;gap:5px}
+  .loc.here .here-tag .p{width:7px;height:7px;border-radius:50%;background:var(--warm);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,173,92,.55)}70%{box-shadow:0 0 0 9px rgba(232,173,92,0)}100%{box-shadow:0 0 0 0 rgba(232,173,92,0)}}
+  .loc.renew .lg{color:var(--green)}
+  .loc.locked{border-style:dashed;opacity:.6;cursor:default;display:flex;flex-direction:column;justify-content:center;min-width:132px}
+  .loc.locked .ln{color:var(--faint)}.loc.locked .hint{font-size:9.5px;color:var(--cold-dim);margin-top:3px}
+
+  .stage{display:grid;grid-template-columns:1.45fr 1fr}
+  @media(max-width:860px){.stage{grid-template-columns:1fr}}
+
+  /* location panel */
+  .locpanel{padding:20px;border-right:1px solid var(--border)}
+  .loch{font-family:var(--serif);font-size:26px;color:var(--ink-strong)}
+  .locmood{font-size:12.5px;color:var(--muted);font-style:italic;margin:3px 0 10px;max-width:52ch}
+  .looti{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+  .pill{font-size:10px;letter-spacing:.04em;border-radius:20px;padding:3px 10px;border:1px solid var(--border);color:var(--muted)}
+  .pill.threat{color:var(--green);border-color:#4a6349}
+  .pill.searched{color:var(--warm);border-color:#6b5227}
+  .pill.salv{color:var(--cold);border-color:var(--cold-dim)}
+
+  .fh{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--cold);margin:4px 0 9px}
+  .finds{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:9px}
+  .fc-card{border:1px solid var(--border);border-radius:8px;padding:9px;background:var(--panel-2);text-align:center;min-height:74px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer}
+  .fc-card .fi{font-size:17px}.fc-card .fn{font-size:11px;color:var(--ink);line-height:1.15}
+  .fc-card .fq{font-family:var(--mono);font-size:9px;color:var(--muted)}
+  .fc-card.note{border-color:#6b5227}.fc-card.note .fi{color:var(--warm)}
+  .fc-card.salv{border-color:var(--cold-dim)}.fc-card.salv .fi{color:var(--cold)}
+  .fc-card.threat{border-color:#6e3a34}.fc-card.threat .fi{color:var(--blood)}
+  .fc-card.ghost{border-style:dashed;opacity:.4;cursor:default}.fc-card.ghost .fi{color:var(--faint)}
+
+  .search{margin-top:15px;border:1px solid #6b5227;border-radius:10px;padding:13px 15px;background:linear-gradient(180deg,rgba(232,173,92,.08),var(--panel-2));display:flex;justify-content:space-between;align-items:center;gap:12px;cursor:pointer}
+  .search .sl{font-family:var(--serif);font-size:15px;color:var(--warm-soft)}
+  .search .sm{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+  /* exploration panel */
+  .xppanel{padding:20px;background:#0d131a}
+  .xph{font-family:var(--serif);font-size:17px;color:var(--ink-strong);margin-bottom:2px}
+  .xpsub{font-size:11px;color:var(--muted);margin-bottom:14px}
+  .xpwrap{position:relative;margin:0 0 6px}
+  .xpbar{height:13px;border-radius:7px;background:#0a0e13;border:1px solid var(--border);overflow:hidden}
+  .xpbar>i{display:block;height:100%;width:55%;background:linear-gradient(90deg,var(--cold-dim),var(--cold))}
+  .tick{position:absolute;top:-3px;height:19px;width:2px;background:var(--faint)}
+  .xpnow{text-align:right;font-family:var(--mono);font-size:10.5px;color:var(--cold);margin-bottom:14px}
+
+  .ms{display:flex;gap:11px;padding:11px 0;border-top:1px solid var(--border-soft)}
+  .ms .mk{flex:none;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-family:var(--mono);font-size:11px;border:1px solid var(--border);color:var(--muted)}
+  .ms.done .mk{background:rgba(139,176,138,.15);border-color:#4a6349;color:var(--green)}
+  .ms.next .mk{background:rgba(232,173,92,.15);border-color:var(--warm);color:var(--warm)}
+  .ms.locked{opacity:.55}
+  .ms .mb{min-width:0}
+  .ms .mt{font-size:13px;color:var(--ink-strong)}
+  .ms.next .mt{color:var(--warm-soft)}
+  .ms .mr{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .ms .mr b{color:var(--cold)}
+  .ms.next .mr b{color:var(--warm-soft)}
+  .mtag{font-family:var(--mono);font-size:9px;color:var(--faint);letter-spacing:.05em}
+
+  .mocknote{padding:10px 20px;font-size:10.5px;color:var(--faint);border-top:1px solid var(--border-soft);text-align:center;font-style:italic}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="tb-left">
+        <div class="mapicon">⌖</div>
+        <div><div class="tb-title">At a Location — Lordly Manor</div><div class="tb-sub">locations are cards · no map · travel to a connected place from the row below</div></div>
+      </div>
+      <div class="tb-right">
+        <div class="when">Day 12 · Late Autumn · <span class="ov">Overcast</span></div>
+        <span class="stagechip">Stage 1 · Rationing</span>
+      </div>
+    </div>
+
+    <div class="statusstrip">
+      <div class="stat"><span class="lab">Calories</span><span class="barm"><i class="fc" style="width:74%"></i></span></div>
+      <div class="stat"><span class="lab">Hydration</span><span class="barm"><i class="fc" style="width:63%"></i></span></div>
+      <div class="stat"><span class="lab">Warmth</span><span class="barm"><i class="fw" style="width:48%"></i></span></div>
+      <div class="stat"><span class="lab">Energy</span><span class="barm"><i class="fc" style="width:58%"></i></span></div>
+      <div class="stat"><span class="lab">Immune</span><span class="barm"><i class="fg" style="width:70%"></i></span></div>
+      <div class="stat"><span class="lab">Mind</span><span class="barm"><i class="fb" style="width:41%"></i></span></div>
+    </div>
+
+    <!-- TRAVEL ROW: connected locations (discovered) -->
+    <div class="travelrow">
+      <span class="trlabel">Travel →</span>
+      <div class="loc here">
+        <div class="lt"><span class="lg">⌂</span><span class="ln">Lordly Manor</span></div>
+        <div class="lm"><span class="here-tag"><span class="p"></span>you are here</span></div>
+      </div>
+      <div class="loc renew">
+        <div class="lt"><span class="lg">♣</span><span class="ln">The Forest</span></div>
+        <div class="lm"><span class="dots" style="color:var(--green)">●<i>○○○</i></span><span>↻ · ~40m</span></div>
+      </div>
+      <div class="loc">
+        <div class="lt"><span class="lg">〓</span><span class="ln">Country Lane</span></div>
+        <div class="lm"><span class="dots" style="color:var(--muted)">·</span><span>road · ~15m</span></div>
+      </div>
+      <div class="loc">
+        <div class="lt"><span class="lg">⌂</span><span class="ln">Abandoned Shack</span></div>
+        <div class="lm"><span class="dots" style="color:var(--warm)">●●<i>○○</i></span><span>~30m</span></div>
+      </div>
+      <div class="loc locked">
+        <div class="lt"><span class="lg">?</span><span class="ln">? ? ?</span></div>
+        <div class="hint">unlocks at 75% explored</div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <!-- THE LOCATION -->
+      <div class="locpanel">
+        <div class="loch">Lordly Manor</div>
+        <div class="locmood">Dust sheets over the furniture, a grandfather clock stopped at 4:10. Grand once; the damp has it now. Something shifted upstairs, or the house just settling.</div>
+        <div class="looti">
+          <span class="pill threat">● seen: 1 Rat · quiet</span>
+          <span class="pill searched">searched 40% · cans thinning</span>
+          <span class="pill salv">salvage plentiful</span>
+        </div>
+
+        <div class="fh">Found here</div>
+        <div class="finds">
+          <div class="fc-card"><span class="fi">▣</span><span class="fn">Canned Food</span><span class="fq">×3</span></div>
+          <div class="fc-card"><span class="fi">♨</span><span class="fn">Candlesticks</span><span class="fq">light</span></div>
+          <div class="fc-card salv"><span class="fi">▤</span><span class="fn">Oak Wardrobe</span><span class="fq">→ planks</span></div>
+          <div class="fc-card note"><span class="fi">✎</span><span class="fn">Dusty Ledger</span><span class="fq">note</span></div>
+          <div class="fc-card threat"><span class="fi">✦</span><span class="fn">Rat</span><span class="fq">nesting</span></div>
+          <div class="fc-card ghost"><span class="fi">?</span><span class="fn">unsearched</span></div>
+          <div class="fc-card ghost"><span class="fi">?</span><span class="fn">unsearched</span></div>
+        </div>
+
+        <div class="search">
+          <div><div class="sl">⌕ Search deeper</div><div class="sm">reveals more of the Manor</div></div>
+          <div class="sm" style="text-align:right">~30 min · +8% explored<br>+3 Noise · next milestone 75%</div>
+        </div>
+      </div>
+
+      <!-- EXPLORATION / MILESTONES -->
+      <div class="xppanel">
+        <div class="xph">Exploring the Manor</div>
+        <div class="xpsub">Milestones unlock findings, lore, and new connected places.</div>
+        <div class="xpwrap">
+          <div class="xpbar"><i></i></div>
+          <div class="tick" style="left:25%"></div><div class="tick" style="left:50%"></div><div class="tick" style="left:75%"></div>
+        </div>
+        <div class="xpnow">55% explored</div>
+
+        <div class="ms done">
+          <div class="mk">✓</div>
+          <div class="mb"><div class="mt">25% · The ground floor <span class="mtag">reached</span></div><div class="mr">Found: <b>Canned Food, Candlesticks</b></div></div>
+        </div>
+        <div class="ms done">
+          <div class="mk">✓</div>
+          <div class="mb"><div class="mt">50% · The grounds <span class="mtag">reached</span></div><div class="mr">Unlocked a way to <b>The Forest</b></div></div>
+        </div>
+        <div class="ms next">
+          <div class="mk">75</div>
+          <div class="mb"><div class="mt">75% · The cellar <span class="mtag">next — 20% to go</span></div><div class="mr">Unlocks: <b>Map to the Hidden Bunker</b> (new travel) + a <b>preserves</b> cache</div></div>
+        </div>
+        <div class="ms locked">
+          <div class="mk">100</div>
+          <div class="mb"><div class="mt">100% · Every corner</div><div class="mr">The Manor's gun safe — a <b>Hunting Rifle</b> (rare)</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mocknote">UI concept mock — locations-as-cards (CSTI model), no map: travel row of connected places + per-location exploration milestones. Not final art; values illustrative.</div>
+  </div>
+</body>
+</html>

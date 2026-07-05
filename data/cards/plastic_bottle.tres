@@ -1,0 +1,12 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "plastic_bottle"
+title = "Bottle"
+kind = "item"
+blurb = "Scuffed plastic, two litres. Light and easy to carry."
+is_container = true
+capacity = 50.0

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead Air — Map / Travel Board (UI mock)</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#111922; --panel-2:#0f151d; --board:#0c1218;
+    --border:#1e2b38; --border-soft:#182430;
+    --ink:#c6d2dd; --ink-strong:#e7eef4; --muted:#7d8c9a; --faint:#4c5a67;
+    --cold:#69b6d6; --cold-dim:#3f6d82;
+    --warm:#e8ad5c; --warm-soft:#f0c483;
+    --blood:#c9695e; --green:#8bb08a;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    background-image:radial-gradient(1000px 600px at 80% -10%,rgba(232,173,92,.06),transparent 60%);
+    min-height:100vh;padding:22px}
+  .frame{max-width:1180px;margin:0 auto;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--panel-2);box-shadow:0 24px 70px rgba(0,0,0,.5)}
+
+  /* top bar */
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:15px 20px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,#121b24,#0f151d)}
+  .tb-left{display:flex;gap:12px;align-items:center}
+  .mapicon{width:38px;height:38px;border:1px solid var(--cold-dim);border-radius:9px;display:grid;place-items:center;color:var(--cold);font-size:19px}
+  .tb-title{font-family:var(--serif);font-size:19px;color:var(--ink-strong)}
+  .tb-sub{font-size:11.5px;color:var(--muted)}
+  .tb-right{text-align:right;display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+  .when{font-size:12.5px;color:var(--ink)}.when .ov{color:var(--muted)}
+  .stagechip{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--warm);border:1px solid #7a5c2e;border-radius:20px;padding:3px 11px}
+
+  /* status strip */
+  .statusstrip{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;padding:11px 20px;border-bottom:1px solid var(--border-soft);background:#0d131a}
+  .stat{display:flex;align-items:center;gap:7px}
+  .stat .lab{font-size:10.5px;color:var(--muted);min-width:60px}
+  .bar{width:66px;height:6px;border-radius:4px;background:#0a0e13;border:1px solid var(--border);overflow:hidden}
+  .bar>i{display:block;height:100%}
+  .fill-cold{background:linear-gradient(90deg,var(--cold-dim),var(--cold))}
+  .fill-warm{background:linear-gradient(90deg,#7a5c2e,var(--warm))}
+  .fill-green{background:linear-gradient(90deg,#4a6349,var(--green))}
+  .fill-blood{background:linear-gradient(90deg,#6e3a34,var(--blood))}
+  .basenote{margin-left:auto;font-size:11px;color:var(--muted)}
+  .basenote b{color:var(--warm-soft)} .basenote .sp{color:var(--blood)}
+
+  .stage{display:grid;grid-template-columns:1fr 340px;gap:0}
+  @media(max-width:880px){.stage{grid-template-columns:1fr}}
+
+  /* board */
+  .boardwrap{padding:26px;border-right:1px solid var(--border);position:relative}
+  .board{position:relative;width:100%;max-width:600px;aspect-ratio:1/1;margin:0 auto;border-radius:50%;
+    background:radial-gradient(circle at 50% 50%,rgba(139,176,138,.07) 0%,rgba(10,14,19,0) 34%,rgba(201,105,94,.07) 92%),var(--board)}
+  .ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border:1px dashed var(--border);border-radius:50%}
+  .ring.r1{width:32%;height:32%}.ring.r2{width:58%;height:58%}.ring.r3{width:82%;height:82%}
+  .rlabel{position:absolute;left:50%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--faint);background:var(--board);padding:0 6px;white-space:nowrap}
+
+  .home{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:96px;height:96px;border-radius:50%;
+    background:radial-gradient(circle at 50% 40%,rgba(232,173,92,.28),rgba(232,173,92,.05));border:1.5px solid var(--warm);
+    display:grid;place-items:center;text-align:center;box-shadow:0 0 34px rgba(232,173,92,.35)}
+  .home .hg{font-size:20px;color:var(--warm)} .home .hl{font-size:9.5px;letter-spacing:.14em;color:var(--warm-soft);text-transform:uppercase;margin-top:1px}
+  .home .hn{font-size:10px;color:var(--ink);max-width:82px;line-height:1.1;margin-top:2px}
+  .youhere{position:absolute;left:50%;top:62%;transform:translate(-50%,-50%);font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--warm-soft);white-space:nowrap;display:flex;align-items:center;gap:6px;pointer-events:none}
+  .youhere .pip{width:8px;height:8px;border-radius:50%;background:var(--warm);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(232,173,92,.55)}70%{box-shadow:0 0 0 11px rgba(232,173,92,0)}100%{box-shadow:0 0 0 0 rgba(232,173,92,0)}}
+  .node.mine{border-left-color:var(--cold);border-color:var(--cold-dim)}
+  .node.mine .dots{color:var(--cold)}
+  .chip.mine{color:var(--cold);border:1px solid var(--cold-dim)}
+
+  .node{position:absolute;transform:translate(-50%,-50%);width:126px;background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-left-width:3px;border-radius:9px;padding:7px 9px;cursor:pointer;transition:transform .1s}
+  .node:hover{transform:translate(-50%,-50%) scale(1.04)}
+  .node .ntop{display:flex;align-items:center;gap:6px}
+  .node .g{font-size:13px;width:16px;text-align:center;flex:none}
+  .node .nn{font-family:var(--serif);font-size:13px;color:var(--ink-strong);line-height:1.05}
+  .node .nbot{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:5px}
+  .dots{font-family:var(--mono);font-size:10px;letter-spacing:.5px;white-space:nowrap}
+  .dots i{font-style:normal;color:var(--faint)}
+  .chip{font-size:9px;letter-spacing:.06em;text-transform:uppercase;border-radius:4px;padding:1px 6px;white-space:nowrap}
+  .chip.loot{color:var(--warm);border:1px solid #6b5227}
+  .chip.thin{color:var(--muted);border:1px solid var(--border)}
+  .chip.strip{color:var(--faint);border:1px dashed var(--faint)}
+  .chip.renew{color:var(--green);border:1px solid #4a6349}
+  .node.low{border-left-color:var(--green)} .node.low .dots{color:var(--green)}
+  .node.med{border-left-color:var(--warm)} .node.med .dots{color:var(--warm)}
+  .node.high{border-left-color:var(--blood)} .node.high .dots{color:var(--blood)}
+  .node.special{border-left-color:var(--blood);border-color:#6e3a34} .node.special .dots{color:var(--blood)}
+  .node.stripped{opacity:.5;border-style:dashed;border-left-style:solid;border-left-color:var(--faint)}
+  .node.sel{outline:2px solid var(--warm);outline-offset:2px;box-shadow:0 0 24px rgba(232,173,92,.3)}
+
+  /* detail panel */
+  .detail{padding:20px 20px 22px;min-width:0}
+  .d-kicker{font-family:var(--mono);font-size:10.5px;color:var(--warm);letter-spacing:.06em}
+  .d-title{font-family:var(--serif);font-size:22px;color:var(--ink-strong);margin:2px 0 2px}
+  .d-sub{font-size:11.5px;color:var(--muted);margin-bottom:14px}
+  .d-sec{border-top:1px solid var(--border-soft);padding:12px 0}
+  .d-sec:first-of-type{border-top:none}
+  .d-h{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--cold);margin-bottom:7px}
+  .threat{font-size:13px;color:var(--ink)}
+  .threat b{color:var(--blood)}
+  .lootbar{height:7px;border-radius:4px;background:#0a0e13;border:1px solid var(--border);overflow:hidden;margin:6px 0 5px}
+  .lootbar>i{display:block;height:100%;width:60%;background:linear-gradient(90deg,#7a5c2e,var(--warm))}
+  .lootlist{font-size:12px;color:var(--muted);line-height:1.5}
+  .route{display:flex;flex-direction:column;gap:7px}
+  .ropt{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--border);border-radius:8px;padding:8px 11px;font-size:12px;cursor:pointer}
+  .ropt.on{border-color:var(--warm);background:rgba(232,173,92,.06)}
+  .ropt .rn{color:var(--ink-strong)} .ropt .rm{color:var(--muted);font-family:var(--mono);font-size:11px}
+  .ropt .exp-hi{color:var(--blood)} .ropt .exp-lo{color:var(--green)}
+  .cost{font-family:var(--mono);font-size:12px;color:var(--ink);line-height:1.7}
+  .cost .neg{color:var(--blood)}
+  .away{font-size:11.5px;color:var(--muted);line-height:1.5;font-style:italic}
+  .acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+  .btn{border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;font-size:13px;color:var(--ink);cursor:pointer}
+  .btn.primary{border-color:var(--warm);color:var(--warm-soft);background:rgba(232,173,92,.08)}
+  .btn.quiet{border-color:var(--cold-dim);color:var(--cold)}
+  .btn.ghost{color:var(--muted)}
+
+  /* legend */
+  .legend{display:flex;flex-wrap:wrap;gap:8px 22px;padding:13px 20px;border-top:1px solid var(--border);background:#0d131a;font-size:11px;color:var(--muted)}
+  .legend .li{display:flex;align-items:center;gap:6px}
+  .legend .sw{font-family:var(--mono)}
+  .legend .rings{margin-left:auto;color:var(--faint)}
+  .mocknote{padding:10px 20px;font-size:10.5px;color:var(--faint);border-top:1px solid var(--border-soft);text-align:center;font-style:italic}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="topbar">
+      <div class="tb-left">
+        <div class="mapicon">▦</div>
+        <div><div class="tb-title">Map — Travel Board</div><div class="tb-sub">opened from the Map card on your table · click a location to plan a run</div></div>
+      </div>
+      <div class="tb-right">
+        <div class="when">Day 12 · Late Autumn · <span class="ov">Overcast, wind rising</span></div>
+        <span class="stagechip">Stage 1 · Rationing</span>
+      </div>
+    </div>
+
+    <div class="statusstrip">
+      <div class="stat"><span class="lab">Calories</span><span class="bar"><i class="fill-cold" style="width:74%"></i></span></div>
+      <div class="stat"><span class="lab">Hydration</span><span class="bar"><i class="fill-cold" style="width:63%"></i></span></div>
+      <div class="stat"><span class="lab">Warmth</span><span class="bar"><i class="fill-warm" style="width:48%"></i></span></div>
+      <div class="stat"><span class="lab">Energy</span><span class="bar"><i class="fill-cold" style="width:58%"></i></span></div>
+      <div class="stat"><span class="lab">Immune</span><span class="bar"><i class="fill-green" style="width:70%"></i></span></div>
+      <div class="stat"><span class="lab">Mind</span><span class="bar"><i class="fill-blood" style="width:41%"></i></span></div>
+      <div class="basenote"><b>Pantry:</b> 3 days canned (banked) · <b>Fridge:</b> <span class="sp">spoiling — grid fails soon, eat first</span></div>
+    </div>
+
+    <div class="stage">
+      <!-- RADIAL BOARD -->
+      <div class="boardwrap">
+        <div class="board">
+          <div class="ring r1"></div><div class="ring r2"></div><div class="ring r3"></div>
+          <div class="rlabel" style="top:34%">RING 1 · ~30m</div>
+          <div class="rlabel" style="top:21%">RING 2 · ~1–2h</div>
+          <div class="rlabel" style="top:9%">RING 3 · ~3–4h</div>
+
+          <!-- HOME -->
+          <div class="home"><div><div class="hg">⌂</div><div class="hl">Home</div><div class="hn">Maple St. House</div></div></div>
+          <div class="youhere"><span class="pip"></span>You are here</div>
+
+          <!-- RING 1 -->
+          <div class="node low" style="left:35%;top:55.5%">
+            <div class="ntop"><span class="g">⌂</span><span class="nn">Residential ×5</span></div>
+            <div class="nbot"><span class="dots">●<i>○○○○</i></span><span class="chip thin">thin</span></div>
+          </div>
+          <div class="node mine" style="left:65.8%;top:47.2%">
+            <div class="ntop"><span class="g">⌂</span><span class="nn">Res. No.3</span></div>
+            <div class="nbot"><span class="dots">●<i>○○○○</i></span><span class="chip mine">reinforced</span></div>
+          </div>
+          <div class="node stripped" style="left:36%;top:42%">
+            <div class="ntop"><span class="g">⌂</span><span class="nn">Neighbour</span></div>
+            <div class="nbot"><span class="dots">●<i>○○○○</i></span><span class="chip strip">Stripped</span></div>
+          </div>
+
+          <!-- RING 2 -->
+          <div class="node med" style="left:33.4%;top:26.2%">
+            <div class="ntop"><span class="g">⚒</span><span class="nn">Hardware</span></div>
+            <div class="nbot"><span class="dots">●●<i>○○○</i></span><span class="chip loot">materials</span></div>
+          </div>
+          <div class="node med" style="left:68.6%;top:27.8%">
+            <div class="ntop"><span class="g">✚</span><span class="nn">Pharmacy</span></div>
+            <div class="nbot"><span class="dots">●●<i>○○○</i></span><span class="chip loot">meds</span></div>
+          </div>
+          <div class="node high sel" style="left:78.6%;top:55%">
+            <div class="ntop"><span class="g">▦</span><span class="nn">Supermarket</span></div>
+            <div class="nbot"><span class="dots">●●●●<i>○</i></span><span class="chip loot">rich</span></div>
+          </div>
+          <div class="node med" style="left:64.5%;top:75.1%">
+            <div class="ntop"><span class="g">◧</span><span class="nn">Gas Station</span></div>
+            <div class="nbot"><span class="dots">●●<i>○○○</i></span><span class="chip loot">fuel</span></div>
+          </div>
+
+          <!-- RING 3 -->
+          <div class="node low" style="left:9%;top:48.6%">
+            <div class="ntop"><span class="g">♣</span><span class="nn">The Woods</span></div>
+            <div class="nbot"><span class="dots">●●<i>○○○</i></span><span class="chip renew">↻ regrows</span></div>
+          </div>
+          <div class="node high" style="left:29.5%;top:85.5%">
+            <div class="ntop"><span class="g">⊕</span><span class="nn">The Clinic</span></div>
+            <div class="nbot"><span class="dots">●●●●<i>○</i></span><span class="chip loot">surgical</span></div>
+          </div>
+          <div class="node special" style="left:86.2%;top:69.2%">
+            <div class="ntop"><span class="g">⚠</span><span class="nn">The Cordon</span></div>
+            <div class="nbot"><span class="dots">●●●●●</span><span class="chip loot">military</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DETAIL PANEL -->
+      <aside class="detail">
+        <div class="d-kicker">RING 2 · SUPERMARKET</div>
+        <div class="d-title">Supermarket</div>
+        <div class="d-sub">The bulk food &amp; water run — your pantry-restock before the grid drops.</div>
+
+        <div class="d-sec">
+          <div class="d-h">Threat — seen on arrival</div>
+          <div class="threat">You spot a <b>Cluster</b> + 3 Shamblers grazing by the tills. Loot around them; <b>breaking glass alerts the whole crowd.</b></div>
+        </div>
+
+        <div class="d-sec">
+          <div class="d-h">Loot · non-renewable</div>
+          <div class="lootbar"><i style="width:58%"></i></div>
+          <div class="lootlist">Bulk food · bottled water · bleach · camping gear · batteries — <span style="color:var(--warm-soft)">~58% remaining</span>, thinning each visit.</div>
+        </div>
+
+        <div class="d-sec">
+          <div class="d-h">Route</div>
+          <div class="route">
+            <div class="ropt"><span class="rn">Roads</span><span class="rm">~45m · <span class="exp-hi">Exposure High</span></span></div>
+            <div class="ropt on"><span class="rn">Back-ways</span><span class="rm">~1h10 · <span class="exp-lo">Exposure Low</span></span></div>
+          </div>
+        </div>
+
+        <div class="d-sec">
+          <div class="d-h">Projected cost · round trip</div>
+          <div class="cost"><span class="neg">−18</span> Calories · <span class="neg">−22</span> Hydration · <span class="neg">−16</span> Energy · 6-slot pack</div>
+        </div>
+
+        <div class="d-sec">
+          <div class="d-h">While you're away</div>
+          <div class="away">The hearth burns down · the rain barrel gains +2 · a lit window may draw a wanderer to an empty house.</div>
+        </div>
+
+        <div class="acts">
+          <div class="btn quiet">Enter Quietly</div>
+          <div class="btn primary">Enter</div>
+          <div class="btn ghost">Turn back — free, nothing has seen you</div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="legend">
+      <span class="li"><span class="sw" style="color:var(--green)">●○○</span> low threat</span>
+      <span class="li"><span class="sw" style="color:var(--warm)">●●○</span> medium</span>
+      <span class="li"><span class="sw" style="color:var(--blood)">●●●●●</span> lethal</span>
+      <span class="li"><span class="chip renew">↻ regrows</span> renewable (the Woods)</span>
+      <span class="li"><span class="chip strip">Stripped</span> picked dry — still shelter/salvage</span>
+      <span class="li"><span class="chip mine">reinforced</span> your secured sites — reinforce/cache/claim a building &amp; it graduates to its own node</span>
+      <span class="li"><span style="color:var(--warm-soft)">◉ you are here</span> current position — HOME, or the area you're in</span>
+      <span class="li"><span style="color:var(--warm)">⌂ HOME</span> rings are distance from here — relocate &amp; they recompute</span>
+    </div>
+    <div class="mocknote">UI concept mock — text-forward radial travel board per §09. Not final art; positions &amp; values illustrative.</div>
+  </div>
+</body>
+</html>

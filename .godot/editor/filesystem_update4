@@ -1,0 +1,5 @@
+res://card.gd
+res://main.gd
+res://autoload/game.gd
+res://main.tscn
+res://data/card_data.gd

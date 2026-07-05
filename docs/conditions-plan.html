@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead Air — Conditions System Plan</title>
+<style>
+  :root{
+    --bg:#0a0e13;--panel:#111922;--panel-2:#0f151d;--border:#1e2b38;--border-soft:#182430;
+    --ink:#c6d2dd;--ink-strong:#e7eef4;--muted:#7d8c9a;--faint:#586674;
+    --cold:#69b6d6;--cold-dim:#3f6d82;--warm:#e8ad5c;--warm-soft:#f0c483;--blood:#c9695e;--green:#8bb08a;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:17px;line-height:1.68;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 600px at 80% -10%,rgba(232,173,92,.07),transparent 60%),radial-gradient(900px 700px at -5% 0%,rgba(105,182,214,.045),transparent 55%);background-attachment:fixed;}
+  .wrap{max-width:900px;margin:0 auto;padding:0 clamp(20px,5vw,40px) 120px}
+  header.hero{padding:80px 0 40px;border-bottom:1px solid var(--border-soft)}
+  .eyebrow{font-family:var(--sans);font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--cold);margin-bottom:18px}
+  h1{font-size:clamp(38px,6vw,58px);line-height:1;margin:0 0 18px;color:var(--ink-strong);font-weight:600;letter-spacing:-.5px}
+  h1 .glow{color:var(--warm);text-shadow:0 0 44px rgba(232,173,92,.45)}
+  .tagline{font-size:19px;color:#aebdc7;font-style:italic;max-width:52ch}
+  .readnote{margin-top:22px;padding:13px 17px;border:1px dashed var(--border);border-radius:8px;background:rgba(105,182,214,.04);font-family:var(--sans);font-size:12.5px;color:var(--muted);line-height:1.6}
+  .readnote b{color:var(--cold)}
+  section{padding:52px 0;border-bottom:1px solid var(--border-soft)}
+  .sec-num{font-family:var(--mono);font-size:12px;color:var(--warm);letter-spacing:.1em}
+  h2{font-size:clamp(26px,4vw,34px);margin:.2em 0 .5em;color:var(--ink-strong);font-weight:600}
+  h3{font-size:18px;color:var(--ink-strong);margin:28px 0 8px}
+  p{margin:0 0 15px}
+  strong{color:var(--ink-strong)}
+  code{font-family:var(--mono);font-size:.85em;background:rgba(105,182,214,.09);border:1px solid var(--border-soft);border-radius:4px;padding:1px 5px;color:var(--cold)}
+  .callout{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--warm);border-radius:8px;padding:18px 22px;margin:20px 0;font-size:15.5px}
+  .callout.cold{border-left-color:var(--cold)}
+  .callout .lbl{font-family:var(--sans);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--warm);display:block;margin-bottom:6px}
+  .callout.cold .lbl{color:var(--cold)}
+  .grid{display:grid;gap:15px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--border);border-radius:11px;padding:20px 22px}
+  .card h4{margin:0 0 8px;font-size:16.5px;color:var(--ink-strong);font-family:var(--serif);font-weight:600;display:flex;gap:9px;align-items:baseline;flex-wrap:wrap}
+  .card p{font-size:14.5px;color:var(--ink);margin:0 0 8px}
+  .card p:last-child{margin-bottom:0}
+  .card .k{font-family:var(--sans);font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--cold)}
+  .tag{font-family:var(--sans);font-size:10px;text-transform:uppercase;letter-spacing:.08em;border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .tag.minor{color:var(--green);border:1px solid #4a6349}
+  .tag.serious{color:var(--warm);border:1px solid #7a5c2e}
+  .tag.lethal{color:var(--blood);border:1px solid #6e3a34}
+  .tag.backlog{color:var(--faint);border:1px dashed var(--faint)}
+  .tag.free{color:var(--cold);border:1px solid var(--cold-dim)}
+  ul.clean{margin:8px 0 0;padding:0;list-style:none}
+  ul.clean li{position:relative;padding:6px 0 6px 20px;font-size:15px}
+  ul.clean li::before{content:"";position:absolute;left:2px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--cold-dim)}
+  .ladder{list-style:none;margin:0;padding:0;counter-reset:t}
+  .ladder li{counter-increment:t;position:relative;padding:0 0 18px 44px;border-left:1px solid var(--border);margin-left:14px}
+  .ladder li:last-child{border-left-color:transparent;padding-bottom:0}
+  .ladder li::before{content:counter(t);position:absolute;left:-14px;top:-4px;width:28px;height:28px;border-radius:50%;background:var(--panel);border:1px solid var(--border);color:var(--warm);font-family:var(--mono);font-size:12px;display:grid;place-items:center}
+  .ladder b{color:var(--ink-strong)}
+  .flow{list-style:none;margin:0;padding:0}
+  .flow li{padding:12px 0;border-top:1px solid var(--border-soft);font-size:14.5px;color:var(--ink)}
+  .flow li:first-child{border-top:none}
+  .ex{background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:14px}
+  .ex .s{font-family:var(--serif);font-size:16px;color:var(--ink-strong);margin-bottom:8px}
+  .ex .c{font-size:14px;color:var(--muted);font-family:var(--sans);line-height:1.6}
+  .phase{position:relative;padding-left:32px;margin-bottom:20px;border-left:2px solid var(--border)}
+  .phase::before{content:"";position:absolute;left:-8px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--cold)}
+  .phase.p1::before{border-color:var(--warm);background:rgba(232,173,92,.15)}
+  .phase .pt{font-family:var(--mono);font-size:12px;color:var(--cold)}
+  .phase.p1 .pt{color:var(--warm)}
+  .phase h4{margin:2px 0 6px;font-size:16.5px;color:var(--ink-strong)}
+  .phase p{font-size:14px;color:var(--muted);margin:0;font-family:var(--sans)}
+  ol.qs{counter-reset:q;list-style:none;margin:0;padding:0}
+  ol.qs li{counter-increment:q;position:relative;padding:13px 0 13px 42px;border-top:1px solid var(--border-soft);font-size:14.5px}
+  ol.qs li:first-child{border-top:none}
+  ol.qs li::before{content:"Q" counter(q);position:absolute;left:0;top:13px;font-family:var(--mono);font-size:12px;color:var(--warm)}
+  footer{padding:34px 0 10px;color:var(--faint);font-family:var(--sans);font-size:12.5px}
+  .commit{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin-top:8px}
+  .commit .c2{border:1px solid var(--border);border-radius:9px;padding:14px 16px;background:var(--panel-2)}
+  .commit .c2 b{color:var(--warm-soft);display:block;font-family:var(--sans);font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:5px}
+  .commit .c2 span{font-size:13.5px;color:var(--muted);font-family:var(--sans)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Dead Air · Design &amp; Phased Plan</div>
+    <h1>The <span class="glow">Conditions</span> System</h1>
+    <p class="tagline">A calm six-slider dashboard on the surface; a small, deterministic, traceable illness simulation hidden underneath — surfaced only when the body would feel it.</p>
+    <div class="readnote"><b>How to read this.</b> This is a <b>plan</b>, not implemented code — produced by a design workflow so you can steer the depth before we build. Nothing here is in the game yet. Numbers are provisional. The intent is <b>reasonable, legible depth that makes deaths reconstructable</b>, explicitly <b>not</b> a medical sim; the whole first slice is ~1 resource + ~60 lines.</div>
+  </header>
+
+  <section>
+    <div class="sec-num">§ 01</div><h2>Philosophy — dashboard, not simulation</h2>
+    <p>The visible six sliders (Calories, Hydration, Warmth, Energy, Immune, Mental) are a <strong>dashboard, not the simulation</strong>. Beneath them sit a small set of hidden float accumulators the player never sees as a gauge and never edits directly. A hidden gauge does exactly two things: it <strong>bends the rate of a visible slider</strong>, and — when it crosses a breakpoint — it <strong>surfaces as a named condition card</strong> docked to the Survivor. No hidden variable ever gets its own bar.</p>
+    <p>Complexity lives <em>under</em> the dashboard so the panel stays calm: a healthy Survivor shows six sliders and <strong>zero cards</strong>. Medical depth only appears on screen when something is actually wrong — and even the reveal teaches, because a plain-language "tell" always precedes the card.</p>
+    <div class="commit">
+      <div class="c2"><b>1 · Deterministic, not rolled</b><span>A known action that hurts you hurts by a fixed amount every time (honoring the GDD's "no disease is ever rolled"). The only randomness is which forage <em>type</em> you find — never whether eating it sickens you.</span></div>
+      <div class="c2"><b>2 · Traceability is the contract</b><span>Nothing may incapacitate or kill until it has docked a named card and passed a warned stage. The cause action is stamped onto the condition, so the obituary can name it even after the 6-line day log has scrolled.</span></div>
+      <div class="c2"><b>3 · Scope is capped</b><span>The prototype target is a deliberately tiny set — gut pathogen, gut illness, fever, plus the free existing band-flags. The wider catalogue is backlog, added one at a time only if it earns its keep in playtest.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 02</div><h2>The reveal ladder</h2>
+    <p class="callout cold"><span class="lbl">The one-line rule</span>Show it when the body would <em>feel</em> it, name it when it changes what you can <em>do</em>, and never let it <strong>kill</strong> you before it's <strong>named</strong>.</p>
+    <ol class="ladder">
+      <li><p><b>Latent.</b> Inside the ignore band — no UI, no log. The body doesn't notice, so neither do you.</p></li>
+      <li><p><b>Tell.</b> The first breakpoint fires a single grounded first-person line in the day log (<em>"Your stomach tightens and gurgles."</em>) — no card, no name, no number. The fair warning.</p></li>
+      <li><p><b>Card.</b> The symptomatic breakpoint docks a named condition card that now actively bends the sim.</p></li>
+      <li><p><b>Stage.</b> The card advances stages as the gauge climbs (<em>Loose Stool → Dysentery</em>), worsening its multipliers with a qualitative readout — never a raw number.</p></li>
+      <li><p><b>Crisis.</b> The incapacitation/death breakpoint — <strong>never reachable</strong> without tier 3+ having been on screen first.</p></li>
+    </ol>
+    <h3>Four mechanisms that make the ladder actually work</h3>
+    <ul class="clean">
+      <li><strong>Asymmetric hysteresis.</strong> Each stage has a higher <em>enter</em> and lower <em>exit</em> threshold (surface at 72, resolve at ~58), and the breakpoint must be <em>held</em> ~30 in-game minutes before it fires — so a gauge parked near a breakpoint doesn't flicker enter→exit and spam the log.</li>
+      <li><strong>Trajectory, never hidden.</strong> A docked card always shows <em>worsening / holding / healing</em> (a glyph from the gauge's cached delta). Numbers stay hidden; direction never does. This is the whole fairness promise — the difference between "diagnostic" and "feels like a bug."</li>
+      <li><strong>Cause stamp.</strong> When a bump crosses a stage, the authoring action + day + minute are stamped onto the condition and rendered on the card (<em>"The Runs — unboiled water, Day 2 09:15"</em>). Survives the day log scrolling; the obituary reads from it.</li>
+      <li><strong>Sticky while active.</strong> A docked card stays until its gauge falls back through the exit threshold, then resolves with a line (<em>"The cramps have passed"</em>) and re-submerges.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 03</div><h2>Hidden state — the gauges under the dashboard</h2>
+    <div class="grid g2">
+      <div class="card"><h4>gut_pathogen <span class="k">incubator</span></h4><p>The dose you've swallowed but haven't felt yet — a delayed-onset buffer that converts slowly into gut_bug (and feeds fever) over hours, so you drink at dawn and sicken by dusk.</p><p><span class="k">Driven by</span> fixed doses from drinking unboiled water and eating unidentified forage. Boiling and identifying remove the source entirely.</p><p><span class="k">Surfaces</span> never — it has no card. Pure latent substrate; its only visible consequence is the cards it later spawns.</p></div>
+      <div class="card"><h4>gut_bug</h4><p>The gut-illness reservoir under Calories + Hydration. Rises as pathogen converts; decays toward 0 with clean intake, rest, and time.</p><p><span class="k">Surfaces</span> as <strong>Loose Stool</strong> at mid level, advancing to <strong>Dysentery</strong> at high sustained level. Its bite is a rising multiplier on the visible Hydration drain — that's the readout.</p></div>
+      <div class="card"><h4>fever_load</h4><p>Systemic fever intensity — emergent, not authored. A separate gauge so multiple sources (dysentery, later wound infection) can all feed one fever.</p><p><span class="k">Surfaces</span> as <strong>Feverish → High Fever (Delirium)</strong>. Bite is composed multipliers on Hydration &amp; Energy drain plus a Mental tick.</p></div>
+      <div class="card"><h4>Shared lethal sink = Hydration <span class="tag free">no new gauge</span></h4><p>The prototype deliberately does <em>not</em> add a hidden blood-volume reservoir. Dysentery, vomiting, and fever all raise <strong>Hydration's drain multiplier</strong>, so many small problems converge on <em>one legible bar</em>. Death is Hydration bottoming out, gated behind the named Dehydrated countdown. The reservoirs interlock instead of multiplying meters.</p></div>
+      <div class="card"><h4>cold_exposure <span class="tag backlog">backlog</span></h4><p>Minutes spent Cold <em>and</em> Wet — the reservoir under Warmth, driving hypothermia and chest illness. Listed so the model is complete; added only if the Warmth slider alone under-teaches cold death.</p></div>
+      <div class="card"><h4>fatigue_debt <span class="tag backlog">backlog</span></h4><p>Sleep-debt reservoir under Energy — raises the Energy floor so you can't fully refill, erodes Immune, sags Mental. Backlog until an energy-management loop earns it.</p></div>
+    </div>
+    <p class="callout"><span class="lbl">Hard guardrail</span>≤ ~6 hidden gauges for the <em>whole game</em>. No body-part maps, no pharmacokinetics, no rules DSL — conditions stay plain dicts like the action table.</p>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 04</div><h2>The condition catalogue</h2>
+    <div class="grid g2">
+      <div class="card"><h4>Queasy → Nausea <span class="tag minor">minor · teacher</span></h4><p><span class="k">Cause</span> rising gut pathogen/bug, or a fresh bite of unidentified forage. Deterministic.</p><p><span class="k">Effects</span> the free early warning — appetite loss, small Mental tick, mild ×1.1 action time. It exists to teach the lesson before it turns serious.</p><p><span class="k">Resolution</span> passes in a few hours if the cause stops; clean water speeds it.</p></div>
+      <div class="card"><h4>Loose Stool → Dysentery ★ <span class="tag lethal">serious → lethal</span></h4><p><span class="k">Cause</span> unboiled dirty water &amp; contaminated food, via pathogen → gut_bug. <em>The required dirty-water example lives here.</em></p><p><span class="k">Effects</span> a persistent Hydration-drain multiplier + a calorie-absorption penalty; Dysentery heavies it and adds Pain — composing with any fever onto the single Hydration sink toward the Dehydrated countdown. The classic traceable dirty-water death.</p><p><span class="k">Resolution</span> <strong>boil water</strong> (needs fire = Noise/Light cost), rehydrate, rest; severe stage needs finite antibiotics. Fully preventable by boiling.</p></div>
+      <div class="card"><h4>Food Poisoning (Vomiting) <span class="tag serious">serious</span></h4><p><span class="k">Cause</span> unidentified forage with a high fixed toxin dose, or spoiled stock. Deterministic spike. <em>The required unknown-forage example.</em></p><p><span class="k">Effects</span> purges the stomach — you lose most recent Calories/Hydration; the Hydration multiplier spikes for the bout. The danger is fluid loss, not the poison.</p><p><span class="k">Resolution</span> ride it out with boiled water + rest. Prevented by <strong>identifying</strong> forage first — the skill.</p></div>
+      <div class="card"><h4>Feverish → High Fever (Delirium) <span class="tag lethal">serious → lethal</span></h4><p><span class="k">Cause</span> fever_load fed by dysentery/high pathogen (backlog: wound infection).</p><p><span class="k">Effects</span> composed ×Hydration and ×Energy multipliers + a Mental tick — it accelerates the very dehydration gut illness is already driving. Delirium adds mishap chance.</p><p><span class="k">Resolution</span> rest + fluids + <strong>treat the underlying source</strong> (fever clears once its ingredient is gone). Fever-reducers only mask the readout.</p></div>
+      <div class="card"><h4>Dehydrated (Collapse-risk) <span class="tag lethal">lethal endpoint</span></h4><p><span class="k">Cause</span> Hydration driven low — by ordinary thirst but <em>accelerated</em> by the composed multipliers from Dysentery, Vomiting, and Fever. This is where most gut/fever chains actually kill.</p><p><span class="k">Effects</span> at ≤25 docks the card (<em>"dizzy when you stand"</em>); at ≤8 starts a named 90-minute Collapse countdown that always shows its trajectory.</p><p><span class="k">Resolution</span> drink boiled water <em>and</em> treat the source — fixing thirst alone won't save you if the source keeps pulling.</p></div>
+      <div class="card"><h4>Collapsing <span class="tag serious">P1 terminal stub</span></h4><p><span class="k">Cause</span> any visible meter hitting 0 — which today has <em>no</em> consequence at all.</p><p><span class="k">Effects</span> gives Phase 1 real stakes: docks a stub with a countdown and writes one assembled cause-of-death line — <em>"You black out. — dehydration, following The Runs (unboiled water, Day 2 09:15)."</em> Closes the traceability loop end to end.</p><p><span class="k">Later</span> becomes the proper staged, treatable countdown in Phase 3.</p></div>
+      <div class="card"><h4>Malnourished / Cold band-flags <span class="tag free">existing · free</span></h4><p>Read straight off the sliders (Malnourished at Calories &lt; 30; Cold bands off Warmth). No hidden gauge needed.</p><p><span class="k">Effects</span> force-multiplier ingredients — Malnourished enables Wound→Infection and slows healing; Cold bands add ×1.2/×1.4 Calorie drain and feed fever. They turn many cards above from minor to serious.</p></div>
+      <div class="card"><h4>Chest Cold · Nutrient Deficiency · Despair · Sprain · Frostbite <span class="tag backlog">backlog</span></h4><p>Each is a self-contained force-multiplier documented in the full catalogue, added via the <em>same</em> pipeline once its driving gauge exists — one at a time, only if a playtest shows the current set under-teaches. Explicitly deferred so the prototype doesn't balloon.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 05</div><h2>How it interlocks</h2>
+    <ul class="flow">
+      <li><strong>One drain mechanism, composed multiplicatively.</strong> Active conditions each contribute to a per-meter multiplier map applied once to the existing drain table. Dysentery ×1.4 · fever ×1.5 compose predictably — replacing flat additive ticks that were trivial near full and stacked illegibly.</li>
+      <li><strong>Reservoirs interlock, they don't fog.</strong> Dysentery, fever, and vomiting all drive the <em>same</em> Hydration slider, so many minor problems converge on one legible cause of death instead of spawning independent meters. The core anti-medical-sim move.</li>
+      <li><strong>Delayed onset is the signature.</strong> Pathogen incubates over hours before converting, separating cause (dawn's drink) from effect (dusk's Dysentery card) — which is exactly why the cause stamp and a persistent health log are mandatory.</li>
+      <li><strong>Band-flags multiply the cards.</strong> Malnourished and Cold bands turn a minor card serious — a cold snap is simultaneously a food crisis, and low Immune makes any infection advance faster.</li>
+      <li><strong>Prevention lives in the fiction, at a collapse-era cost.</strong> Boiling water beats Dysentery but needs fire = Noise/Light = detectability. The health system and the stealth system share a wall through the fire.</li>
+      <li><strong>Identification is the real skill vs poisoning.</strong> Unidentified forage adds a fixed toxin dose every time; identifying it flips a known/unknown flag that removes the source. You learn the rule, you don't gamble.</li>
+      <li><strong>Treatments target the source, not the slider.</strong> Antibiotics knock down the bug, rest lowers gut_bug/fever, rehydration refills Hydration but won't save you if the source still pulls. Fever-reducers and painkillers <em>mask</em> the readout without curing — relief is not cure.</li>
+      <li><strong>Guardrails.</strong> Band-tax and condition-tax both scale the same drain, so they compose in one documented ordered pass (no silent double-counting), with a cap on the total stacked multiplier to prevent an unfair 10-second death.</li>
+      <li><strong>Action-driven countdowns.</strong> Time only passes on an action, so "do nothing" is a legal stall — the countdown card must make its ticking legible on every action so the timer is felt without a real-time process.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 06</div><h2>Worked examples</h2>
+    <div class="ex"><div class="s">The canonical dirty-water death — traceable across a scrolled log</div><div class="c">Day 2 08:10 — Drink unboiled: pathogen +dose, latent, no UI. → hours of other actions; the 6-line log has scrolled away. → ~12:40 tell: "Your stomach tightens and gurgles." → 13:20 <b>Loose Stool</b> docks, stamped "unboiled water, Day 2 08:10"; Hydration drain multiplier turns on; you see it falling faster than you drink and the glyph shows <b>worsening</b>. → you keep working → <b>Dysentery</b>. → Hydration ≤25 docks <b>Dehydrated</b>. → still no boil/rest → ≤8 arms the 90-min Collapse → Collapse. Obituary reads from the stamp: <b>"Died of dehydration, following Dysentery — drank unboiled water, Day 2, 08:10."</b></div></div>
+    <div class="ex"><div class="s">Deterministic unknown-forage poisoning — no roll, learnable</div><div class="c">Day 3 — Forage returns unidentified berries. Eat (unknown): fixed toxin dose + a <b>Queasy</b> warning. You eat two more unknown handfuls — each the same fixed dose, cumulative — crossing the vomit threshold → <b>Food Poisoning</b>: recent Calories/Hydration purged. The lesson is unambiguous: it wasn't unlucky, it was three unknown handfuls. Next run you <b>identify</b> forage first; the same three handfuls are harmless — mastery, not dice.</div></div>
+    <div class="ex"><div class="s">The near-miss recovery — the system is fair, not a spiral</div><div class="c">Day 4 — <b>Loose Stool</b> docks, glyph worsening. This time you read it: add firewood to the hearth (accept the Noise/Light cost), boil the next canister, drink boiled water, rest. The pathogen source is cut; gut_bug decays; the glyph flips to <b>healing</b>; after the hold buffer it resolves: "The cramps have passed." Hydration never reached the Dehydrated band. You paid a detectability cost and a day — but you lived, and you learned.</div></div>
+    <div class="ex"><div class="s">Two small problems converging on one sink</div><div class="c">Dysentery is active (Hydration ×1.4). Later fever_load crosses band and <b>Feverish</b> docks (×1.5 Hydration, ×1.3 Energy). The two multipliers <b>compose</b> on the single Hydration slider, which plummets — neither alone would have killed, but together they reach the countdown. Obituary: "Died of dehydration, following Dysentery and Fever — unboiled water, Day 2." One legible cause, not a fog of meters.</div></div>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 07</div><h2>UI surfacing</h2>
+    <p><strong>Honest framing:</strong> the log/tell surface already exists; the condition-card surface does <em>not</em> and must be built. Today the left panel is a hardcoded "YOU" + a "CONDITION" header on the six bars.</p>
+    <div class="callout"><span class="lbl">Phase 1 UI</span>A compact <strong>chip tray</strong> under the existing CONDITION header, rebuilt in the pure-view <code>_refresh()</code> from the conditions list, rendering <em>only</em> conditions whose current stage is not hidden. Each chip: the stage name tinted by severity, a <strong>trajectory glyph</strong> (worsening/holding/healing), and the cause stamp on hover. Latent gauges draw nothing. A newly docked chip pulses once and drops a log line. Condition ticks fold into <code>advance_time</code> like drain, so they deliberately <em>don't</em> pop a +/− diff label — the erosion should feel like an unexplained slide you must diagnose from the card.</div>
+    <div class="callout cold"><span class="lbl">The mandatory second surface</span>A <strong>persistent health log</strong> (separate from the 6-line day ring) that timestamps condition enters/exits + their cause action, so causality survives the day log scrolling. Given delayed onset, this isn't optional — it's the traceability contract made visible.</div>
+    <p><strong>Phase 3 UI:</strong> promote the bespoke portrait into a real <strong>Survivor card</strong> with a <strong>condition CardRow</strong> docked to it — matching the GDD's "afflictions are cards on the character," and giving the later detectability trailing-cards somewhere to dock. <strong>Never add a slider for a hidden gauge; the card is the only readout.</strong></p>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 08</div><h2>Phased implementation</h2>
+    <div class="phase p1"><div class="pt">PHASE 1</div><h4>Prove the pipeline end-to-end — with stakes</h4><p>Repeated unboiled drinking surfaces "The Runs", Hydration visibly bleeds via a composed multiplier, a cause-stamped chip with a trajectory glyph appears, and hitting 0 docks a "Collapsing" stub that writes a real cause-of-death line. <b>Scope:</b> a <code>condition_def.gd</code> Resource + one <code>gut_bug.tres</code> (3 stages); in game.gd a conditions map + stage/hold timers, <code>add_condition</code>, <code>_tick_conditions</code> as one line in <code>advance_time</code>, composed multipliers on the drain; the persistent health log; a minimal terminal check + assembled obituary; a <code>cond</code> key in <code>_perform</code>; the chip tray. ~1 resource + ~60 lines.</p></div>
+    <div class="phase"><div class="pt">PHASE 2</div><h4>Delay + a second path</h4><p>Consequences stagger across hours and stay traceable: a dawn drink sickens you by dusk; unknown forage deterministically loads toward Food Poisoning. <b>Scope:</b> the hidden <code>gut_pathogen</code> incubator that converts in <code>_tick_conditions</code>; a <code>fever.tres</code>; hook forage with a deterministic fixed toxin dose + a known/unknown flag so identifying removes the source. Randomness only in which forage <em>type</em> spawns.</p></div>
+    <div class="phase"><div class="pt">PHASE 3</div><h4>Cards, capacity loss, authored death</h4><p>Conditions become tokens on a real Survivor card; being sick makes you slower; death produces a dated, fully-reconstructed obituary; and there are <em>answers</em> (boil/rest/meds) so it's fair. <b>Scope:</b> Survivor CardIcon + condition CardRow; a stage activity-multiplier scaling action time/yield; upgrade the stub into staged treatable countdowns; add the Boil-water recipe, Rest action, and finite antibiotics — each targeting a source gauge.</p></div>
+    <div class="phase"><div class="pt">PHASE 4</div><h4>Breadth — only via the same pipeline, only if it earns its keep</h4><p>One additional condition at a time, each a self-contained <code>ConditionDef</code> + action hook, zero new systems: hypothermia, wound infection, exhaustion, chest cold, and the rest — added only where a playtest shows the current set under-teaches.</p></div>
+  </section>
+
+  <section style="border-bottom:none">
+    <div class="sec-num">§ 09</div><h2>Open questions — your calls</h2>
+    <ol class="qs">
+      <li><strong>Two-layer hunger.</strong> The GDD defines Satiation (fast) over Calories (slow, lethal reservoir); the prototype flattened it to one Calories meter. Restore the pairing (it's a free worked example of the exact hidden-reservoir motif) or keep it flat — but stop the doc and code disagreeing.</li>
+      <li><strong>Countdown semantics.</strong> Time only passes on an action, so a "90-minute" countdown only advances when you act. Is "do nothing" an intended legal stall, or must an idle player still feel pressure? How is the timer legible each action without a real-time tick?</li>
+      <li><strong>Multiplier cap.</strong> With band-tax and condition-tax both scaling drain, what's the maximum stacked Hydration multiplier before it feels like an unfair instant death? Need a documented cap + compose order.</li>
+      <li><strong>Hysteresis tuning.</strong> Enter/exit gap and hold-buffer (~30m?) that kills flicker without making a genuinely worsening condition feel unresponsive under coarse 5–45m actions.</li>
+      <li><strong>Meds economy.</strong> How many antibiotics/painkillers/fever-reducers on the map? Too few and dysentery is unfair; too many and boiling water (the intended lesson) is bypassed.</li>
+      <li><strong>Trajectory glyph granularity.</strong> Three states (worsening/holding/healing) vs finer — does more precision leak the hidden number and undercut diagnose-it-yourself?</li>
+      <li><strong>Health-log placement.</strong> The 3-column layout has no obvious home for a scrollable health/event log distinct from the day panel — right column, a toggle, or the Survivor card's inspection?</li>
+      <li><strong>Forage identification UX.</strong> How do you identify forage to flip the known/unknown flag — a dedicated action, a skill threshold, a field-guide item? The entire skill against poisoning, currently unspecified.</li>
+    </ol>
+  </section>
+
+  <footer>Conditions System — design &amp; phased plan for Dead Air · produced by a 5-agent design workflow (3 designers → adversarial critic → synthesizer), critique fixes integrated · a plan to steer, not yet built.</footer>
+</div>
+</body>
+</html>

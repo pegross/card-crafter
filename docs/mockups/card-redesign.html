@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead Air — Card Redesign</title>
+<style>
+  :root{
+    --bg:#0a0e13; --panel:#14202a; --panel2:#0e151d; --border:#22303e; --border-soft:#1a2632;
+    --ink:#e7eef4; --muted:#7d8c9a; --faint:#586674;
+    --cold:#69b6d6; --cold-dim:#3f6d82; --warm:#e8ad5c; --green:#8bb08a; --murk:#756a4d;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    background-image:radial-gradient(900px 500px at 85% -10%,rgba(232,173,92,.06),transparent 60%);min-height:100vh}
+  .wrap{max-width:1080px;margin:0 auto;padding:34px clamp(16px,4vw,34px) 80px}
+  h1{font-family:var(--serif);font-size:30px;margin:0 0 6px;color:var(--ink);font-weight:600}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 26px;max-width:64ch;line-height:1.6}
+  .sub b{color:var(--cold)}
+
+  /* the surrounding "area" panel — note the TIGHTER margins */
+  .area{background:rgba(14,21,29,.55);border:1px solid var(--border-soft);border-radius:14px;
+    padding:12px 12px 14px;margin-bottom:18px}
+  .area-head{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--cold);
+    padding:2px 4px 10px;font-weight:600}
+  .area-head .dot{color:var(--faint);margin:0 8px}
+  .row{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 6px}
+
+  /* THE CARD — bigger, image-forward */
+  .card{flex:0 0 172px;width:172px;height:290px;background:linear-gradient(180deg,var(--panel),#101922);
+    border:1px solid var(--border);border-top:3px solid var(--accent,var(--muted));
+    border-radius:13px;padding:11px 12px 13px;display:flex;flex-direction:column;gap:8px;
+    box-shadow:0 6px 18px rgba(0,0,0,.32)}
+  .tag{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent,var(--muted));
+    font-weight:700;display:flex;align-items:center;gap:5px;min-height:13px}
+  .tag.here{color:var(--green)} .tag.travel{color:var(--cold-dim)}
+  /* the IMAGE — the big new breathing room */
+  .art{height:132px;border-radius:9px;border:1px solid var(--border);
+    background:radial-gradient(120% 90% at 50% 18%,#16212c,#0b1219 78%);
+    display:grid;place-items:center;position:relative;overflow:hidden;flex:0 0 auto}
+  .art .mono{font-family:var(--serif);font-size:64px;font-weight:600;color:var(--accent,var(--muted));opacity:.20;line-height:1}
+  .art::after{content:"image";position:absolute;bottom:6px;right:8px;font-size:8px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--faint);opacity:.5}
+  .title{font-family:var(--serif);font-size:18px;color:var(--ink);font-weight:600;line-height:1.1}
+  .blurb{font-size:11.5px;color:var(--muted);line-height:1.42;flex:1 1 auto;overflow:hidden}
+  .meter{margin-top:auto}
+  .meter .lbl{font-size:9.5px;letter-spacing:.04em;color:var(--muted);margin-bottom:3px;text-transform:uppercase}
+  .bar{height:7px;border-radius:4px;background:#0a0f15;border:1px solid var(--border);overflow:hidden}
+  .bar > i{display:block;height:100%;border-radius:4px;background:var(--accent,var(--cold))}
+
+  .notes{margin-top:26px;background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:18px 22px}
+  .notes h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--warm);margin:0 0 12px}
+  .notes ul{margin:0;padding-left:18px}
+  .notes li{font-size:13.5px;color:#b7c4cf;line-height:1.7;margin-bottom:5px}
+  .notes li b{color:var(--ink)}
+  .k{color:var(--cold)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Card redesign — room for the image to shine</h1>
+  <p class="sub">Bigger cards (172 × 290), an <b>image area more than 2× larger</b> for when real art lands, and <b>tighter margins</b> around the card areas to pay for it. Kept exactly as you asked: the <b>area headers</b>, the <b>category tag</b> (You Are Here / Travel / Resource / Item…), the terse title, the description, and the state bar.</p>
+
+  <div class="area">
+    <div class="area-head">On the Ground <span class="dot">·</span> what's lying around here</div>
+    <div class="row">
+      <div class="card" style="--accent:var(--muted)">
+        <div class="tag">Resource</div>
+        <div class="art"><span class="mono">L</span></div>
+        <div class="title">Log</div>
+        <div class="blurb">A whole trunk. Hard work to split down.</div>
+        <div class="meter"><div class="lbl">Wood 66%</div><div class="bar"><i style="width:66%;background:var(--warm)"></i></div></div>
+      </div>
+      <div class="card" style="--accent:var(--muted)">
+        <div class="tag">Item</div>
+        <div class="art"><span class="mono">P</span></div>
+        <div class="title">Plastic Bottle</div>
+        <div class="blurb">A scuffed two-litre bottle. Small, but it carries water.</div>
+        <div class="meter"><div class="lbl">Dirty Water 100%</div><div class="bar"><i style="width:100%;background:var(--murk)"></i></div></div>
+      </div>
+      <div class="card" style="--accent:var(--muted)">
+        <div class="tag">Item</div>
+        <div class="art"><span class="mono">C</span></div>
+        <div class="title">Canned Food</div>
+        <div class="blurb">Dented, label gone. Whatever's inside is still food.</div>
+      </div>
+      <div class="card" style="--accent:var(--muted)">
+        <div class="tag">Resource</div>
+        <div class="art"><span class="mono">F</span></div>
+        <div class="title">Firewood</div>
+        <div class="blurb">Split and dry-ish. Burns loud and bright.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="area">
+    <div class="area-head">Out There <span class="dot">·</span> Lordly Manor</div>
+    <div class="row">
+      <div class="card" style="--accent:var(--green)">
+        <div class="tag here">▸ You Are Here</div>
+        <div class="art"><span class="mono" style="color:var(--cold)">L</span></div>
+        <div class="title">Lordly Manor</div>
+        <div class="blurb">Cold rooms, tall windows. It was grand once.</div>
+        <div class="meter"><div class="lbl">Explored 55%</div><div class="bar"><i style="width:55%;background:var(--green)"></i></div></div>
+      </div>
+      <div class="card" style="--accent:var(--cold-dim)">
+        <div class="tag travel">Travel →</div>
+        <div class="art"><span class="mono" style="color:var(--cold)">W</span></div>
+        <div class="title">Woods</div>
+        <div class="blurb">The tree line. Quiet, mostly.</div>
+        <div class="meter"><div class="lbl">Explored 40%</div><div class="bar"><i style="width:40%;background:var(--green)"></i></div></div>
+      </div>
+      <div class="card" style="--accent:var(--warm)">
+        <div class="tag">Station</div>
+        <div class="art"><span class="mono">H</span></div>
+        <div class="title">Hearth</div>
+        <div class="blurb">A cold grate. It wants fuel and a spark.</div>
+      </div>
+      <div class="card" style="--accent:var(--warm)">
+        <div class="tag">Station</div>
+        <div class="art"><span class="mono">R</span></div>
+        <div class="title">Rain Barrel</div>
+        <div class="blurb">Cold, brackish rainwater. Best boiled.</div>
+        <div class="meter"><div class="lbl">Water 80%</div><div class="bar"><i style="width:80%;background:var(--cold)"></i></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h2>What changed</h2>
+    <ul>
+      <li><b>Image area ~132px tall</b> (was 44) — the card is now image-forward, so dropped-in art has real space. Placeholder shows a faint monogram + an "image" marker.</li>
+      <li><b>Card grew to 172 × 290</b> from 140 × 214 — more presence, and the description still gets 2–3 comfortable lines under the art.</li>
+      <li><b>Tighter area margins</b>: the section padding, the gap between cards, and the row insets all shrank, so bigger cards don't cost the layout its breathing room.</li>
+      <li><b>Kept</b>: area headers (<span class="k">On the Ground</span>, <span class="k">Out There · Lordly Manor</span>), the category tag, terse titles, and the state bar with its <span class="k">%</span>.</li>
+      <li><b>Accent stripe</b> on the top edge already encodes the category by color (cold = place, amber = station/fixture, grey = item/resource, green = you-are-here) — reinforcing the tag.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
