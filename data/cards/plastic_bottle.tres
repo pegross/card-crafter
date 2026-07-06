@@ -10,3 +10,4 @@ kind = "item"
 blurb = "Scuffed plastic, two litres. Light and easy to carry."
 is_container = true
 capacity = 50.0
+sealable = true

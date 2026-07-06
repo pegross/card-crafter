@@ -18,6 +18,11 @@ const BLOOD := Color(0.788, 0.412, 0.369)
 const GREEN := Color(0.545, 0.690, 0.541)
 
 const INV_CAP := 6
+const SIP := 25.0  ## a standard mouthful of liquid, in fill units — drinks pull this much (or the last of it)
+const PLAYER_STRIKE := 10.0  ## unarmed damage per Strike (deterministic)
+var ENEMIES := {
+	"rat": {"name": "Rat", "hp": 8.0, "damage": 6.0, "flee_hit": 2.0, "verb": "bites", "mins": 5},
+}
 
 const CARD_FILES := {
 	"hearth": "res://data/cards/hearth.tres",
@@ -40,6 +45,10 @@ const CARD_FILES := {
 	"lighter": "res://data/cards/lighter.tres",
 	"tinder": "res://data/cards/tinder.tres",
 	"burning_tinder": "res://data/cards/burning_tinder.tres",
+	"herbs": "res://data/cards/herbs.tres",
+	"herbal_remedy": "res://data/cards/herbal_remedy.tres",
+	"antibiotics": "res://data/cards/antibiotics.tres",
+	"rat": "res://data/cards/rat.tres",
 }
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
@@ -47,9 +56,9 @@ var LOCATIONS := {
 	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["hearth", "rain_barrel"], "connections": {"the_woods": 45},
 		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}], "renewable": []}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"lordly_manor": 45},
-		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}]}},
+		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
 	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5},
-		"pool": {"finite": [{"kind": "ground", "id": "canned_food", "milestone": 40}, {"kind": "ground", "id": "gas_canister", "milestone": 75, "content": "fuel", "fill": 50.0}], "renewable": []}},
+		"pool": {"finite": [{"kind": "ground", "id": "canned_food", "milestone": 40}, {"kind": "ground", "id": "gas_canister", "milestone": 75, "content": "fuel", "fill": 50.0}, {"kind": "ground", "id": "antibiotics", "milestone": 60}], "renewable": [{"kind": "ground", "id": "rat", "max": 1}]}},
 }
 
 ## What's lying around on the ground at each location to begin with (mutated as you play).
@@ -64,44 +73,57 @@ var ACTIONS := {
 		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands."},
 	],
 	"oak_tree": [
-		{"label": "Fell the tree (25m)", "mins": 25, "fx": {"Energy": -8.0}, "state_delta": 20.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
+		{"label": "Fell the tree (30m)", "mins": 30, "fx": {"Energy": -8.0, "Calories": -7.0, "Hydration": -6.0, "Warmth": 5.0}, "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
 	],
 	"the_woods": [
-		{"label": "Forage (40m)", "mins": 40, "fx": {"Energy": -6.0, "Mental": 2.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
+		{"label": "Forage (45m)", "mins": 45, "fx": {"Energy": -6.0, "Mental": 2.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 3.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
 	],
 	"lordly_manor": [
 		{"label": "Search the Manor (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
 	],
 	"rain_barrel": [
-		{"label": "Drink from the barrel (5m)", "mins": 5, "fx": {"Hydration": 18.0, "Immune": -6.0}, "state_delta": -20.0, "cond": {"gut_bug": 20.0}, "cond_cause": "unboiled water", "log": "You cup the cold water and drink. Unboiled - your gut may regret it."},
+		{"label": "Drink from the barrel (5m)", "mins": 5, "drink": true, "clean": false},
 	],
 	"stream": [
-		{"label": "Drink from the stream (5m)", "mins": 5, "fx": {"Hydration": 18.0, "Immune": -6.0}, "cond": {"gut_bug": 20.0}, "cond_cause": "unboiled water", "log": "You drink straight from the stream. Achingly cold, and unboiled."},
+		{"label": "Drink from the stream (5m)", "mins": 5, "drink": true, "clean": false},
 	],
 	"canned_food": [
-		{"label": "Eat cold (20m)", "mins": 20, "fx": {"Calories": 30.0, "Mental": 1.0}, "consume": true, "log": "You eat cold from the tin. It helps, a little."},
+		{"label": "Eat cold (15m)", "mins": 15, "fx": {"Calories": 30.0, "Mental": 1.0}, "consume": true, "log": "You eat cold from the tin. It helps, a little."},
 	],
 	"wool_blanket": [
 		{"label": "Wrap up (30m)", "mins": 30, "fx": {"Warmth": 12.0, "Mental": 2.0}, "log": "You pull the blanket close. Quiet warmth - the kind that draws nothing."},
 	],
 	"cellar": [
-		{"label": "Search the cellar (25m)", "mins": 25, "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
+		{"label": "Search the cellar (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
 	],
 	"forage_food": [
 		{"label": "Eat (10m)", "mins": 10, "fx": {"Calories": 15.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
 	],
 	"log": [
-		{"label": "Split for firewood (20m)", "mins": 20, "fx": {"Energy": -6.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
+		{"label": "Split for firewood (15m)", "mins": 15, "fx": {"Energy": -6.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 4.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
+	],
+	"herbal_remedy": [
+		{"label": "Drink the remedy (5m)", "mins": 5, "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
+	],
+	"antibiotics": [
+		{"label": "Take antibiotics (5m)", "mins": 5, "cure": {"gut_bug": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine - and not much left."},
+	],
+	"bandage": [
+		{"label": "Bind your wounds (10m)", "mins": 10, "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
+	],
+	"rat": [
+		{"label": "Deal with it (5m)", "fight": true},
 	],
 }
 
 ## Two-card (drag item onto target) recipes: item_id -> target_id -> {label, mins}.
 var RECIPES := {
 	"firewood": {"hearth": {"label": "Add fuel", "mins": 10}},
-	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 2}, "plastic_bottle": {"label": "Pour into bottle", "mins": 2}},
-	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 2}, "gas_canister": {"label": "Pour into canister", "mins": 2}},
-	"lighter": {"tinder": {"label": "Light the tinder", "mins": 1}},
-	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 1}},
+	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 3}, "plastic_bottle": {"label": "Pour into bottle", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
+	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 3}, "gas_canister": {"label": "Pour into canister", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
+	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3}},
+	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3}},
+	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15}},
 }
 
 var rows := {}
@@ -112,6 +134,11 @@ var top_head: Label
 var log_label: Label
 var inv_head: Label
 var cond_tray: VBoxContainer
+var fatigue_bar: ProgressBar
+var weight_bar: ProgressBar
+var weight_fill: StyleBoxFlat
+var weather_label: Label
+var _collapsing: bool = false
 var _locations_initial: Dictionary
 var _death_shown: bool = false
 var death_layer: Control
@@ -127,21 +154,62 @@ var menu_vbox: VBoxContainer
 var _menu_card: CardIcon
 var _menu_actions: Array = []
 var _dragging: CardIcon = null
+var combat_layer: Control
+var combat_title: Label
+var combat_hp_bar: ProgressBar
+var combat_hp_fill: StyleBoxFlat
+var combat_blurb: Label
+var combat_log_label: Label
+var combat_wound_label: Label
+var _combat_id: String = ""
+var _combat_card: CardIcon = null
+var _combat_hp: float = 0.0
+var _combat_hp_max: float = 0.0
+var _combat_log: Array = []
+var _combat_resolving: bool = false
+var hurt_flash: ColorRect
+var _shake_tween: Tween
+var time_layer: Control
+var _clock_face: ClockFace
+var _clock_dur: Label
+var _clock_sub: Label
+var _time_tween: Tween
 
 func _ready() -> void:
 	randomize()
 	_locations_initial = LOCATIONS.duplicate(true)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_build_tooltip_theme()
 	_build_background()
 	_build_ui()
 	_build_overlay()
+	_build_time_popup()
 	_build_menu()
 	_build_death()
+	_build_combat()
+	_build_hurt_flash()
 	_populate()
 	Game.changed.connect(_refresh)
 	Game.add_log("Day 1. The power is still on, for now. Outside, it is very quiet.")
 	_refresh()
 	on_layout_changed()
+
+func _build_tooltip_theme() -> void:
+	# global styling for hover tooltips: a solid, readable panel instead of the faint default
+	var th := Theme.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.086, 0.125, 0.165, 0.98)
+	sb.border_color = Color(0.235, 0.337, 0.435)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 10.0
+	sb.content_margin_right = 10.0
+	sb.content_margin_top = 8.0
+	sb.content_margin_bottom = 8.0
+	th.set_stylebox("panel", "TooltipPanel", sb)
+	th.set_color("font_color", "TooltipLabel", Color(0.863, 0.894, 0.925))
+	th.set_font_size("font_size", "TooltipLabel", 13)
+	theme = th
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
@@ -208,23 +276,67 @@ func _build_left() -> Control:
 	var portrait := PanelContainer.new()
 	portrait.custom_minimum_size = Vector2(0, 148)
 	portrait.add_theme_stylebox_override("panel", _flat(PANEL2, BORDER, 10))
+	portrait.mouse_filter = Control.MOUSE_FILTER_STOP
+	portrait.gui_input.connect(_on_portrait_input)
 	var cc := CenterContainer.new()
+	cc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portrait.add_child(cc)
+	var pvb := VBoxContainer.new()
+	pvb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cc.add_child(pvb)
 	var you := _label("YOU", WARM, 24)
 	you.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cc.add_child(you)
+	you.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pvb.add_child(you)
+	var phint := _label("click to rest or sleep", MUTED, 10)
+	phint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	phint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pvb.add_child(phint)
 	vb.add_child(portrait)
 
 	clock_label = _label("", INK_STRONG, 18)
 	vb.add_child(clock_label)
 	temp_label = _label("", COLD, 14)
 	vb.add_child(temp_label)
-	vb.add_child(_label("Overcast, still.", MUTED, 12))
+	weather_label = _label("Overcast, still.", MUTED, 12)
+	vb.add_child(weather_label)
 
 	vb.add_child(HSeparator.new())
 	vb.add_child(_label("CONDITION", COLD, 11))
 	for m in ["Calories", "Hydration", "Warmth", "Energy", "Immune", "Mental"]:
 		vb.add_child(_make_meter(m))
+	var fbox := VBoxContainer.new()
+	fbox.add_theme_constant_override("separation", 4)
+	fbox.add_child(_label("Sleep-debt", INK, 12))
+	fatigue_bar = ProgressBar.new()
+	fatigue_bar.min_value = 0.0
+	fatigue_bar.max_value = 100.0
+	fatigue_bar.show_percentage = false
+	fatigue_bar.custom_minimum_size = Vector2(0, 11)
+	fatigue_bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 5))
+	var ffill := StyleBoxFlat.new()
+	ffill.bg_color = WARM
+	ffill.set_corner_radius_all(5)
+	fatigue_bar.add_theme_stylebox_override("fill", ffill)
+	fatigue_bar.tooltip_text = Game.need_desc("Sleep-debt")
+	fbox.add_child(fatigue_bar)
+	vb.add_child(fbox)
+	var wbox := VBoxContainer.new()
+	wbox.add_theme_constant_override("separation", 4)
+	wbox.add_child(_label("Weight", INK, 12))
+	weight_bar = ProgressBar.new()
+	weight_bar.min_value = 0.0
+	weight_bar.max_value = 100.0
+	weight_bar.show_percentage = false
+	weight_bar.custom_minimum_size = Vector2(0, 11)
+	weight_bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 5))
+	weight_fill = StyleBoxFlat.new()
+	weight_fill.bg_color = GREEN
+	weight_fill.set_corner_radius_all(5)
+	weight_bar.add_theme_stylebox_override("fill", weight_fill)
+	weight_bar.tooltip_text = Game.need_desc("Weight")
+	wbox.add_child(weight_bar)
+	vb.add_child(wbox)
 	cond_tray = VBoxContainer.new()
 	cond_tray.add_theme_constant_override("separation", 5)
 	vb.add_child(cond_tray)
@@ -273,6 +385,41 @@ func _make_chip(cname: String, traj: String, severity: int) -> Control:
 	panel.add_theme_stylebox_override("panel", sb)
 	panel.add_child(_label("%s   ·   %s" % [cname, traj], col, 11))
 	return panel
+
+func _make_cond_bar(id: String, cname: String, level: float, severity: int, traj: String) -> Control:
+	var col := WARM
+	if severity >= 3:
+		col = BLOOD
+	elif severity == 1:
+		col = GREEN
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	box.mouse_filter = Control.MOUSE_FILTER_STOP
+	box.tooltip_text = Game.condition_desc(id)
+	var head := HBoxContainer.new()
+	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var lbl := _label(cname, col, 11)
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(lbl)
+	var tj := _label(traj, MUTED, 10)
+	tj.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(tj)
+	box.add_child(head)
+	var bar := ProgressBar.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.min_value = 0.0
+	bar.max_value = 100.0
+	bar.value = level
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 9)
+	bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 5))
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = col
+	fill.set_corner_radius_all(5)
+	bar.add_theme_stylebox_override("fill", fill)
+	box.add_child(bar)
+	return box
 
 func _build_center() -> Control:
 	var vb := VBoxContainer.new()
@@ -346,6 +493,78 @@ func _build_overlay() -> void:
 	overlay.add_child(hint_box)
 	hint_label = _label("", WARM_SOFT, 13)
 	_pad(hint_box, 8).add_child(hint_label)
+
+func _build_time_popup() -> void:
+	time_layer = Control.new()
+	time_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	time_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(time_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.0, 0.0, 0.0, 0.4)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	time_layer.add_child(center)
+	var box := VBoxContainer.new()
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 8)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	center.add_child(box)
+	_clock_face = ClockFace.new()
+	_clock_face.custom_minimum_size = Vector2(104, 104)
+	_clock_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(_clock_face)
+	_clock_sub = _label("", INK_STRONG, 30)
+	_clock_sub.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_clock_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clock_sub.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(_clock_sub)
+	_clock_dur = _label("", MUTED, 14)
+	_clock_dur.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_clock_dur.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_clock_dur.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	box.add_child(_clock_dur)
+	time_layer.modulate.a = 0.0
+	time_layer.visible = false
+
+func _hide_time_layer() -> void:
+	if time_layer:
+		time_layer.visible = false
+		time_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE  # release the input block
+
+func _dur_text(mins: int) -> String:
+	if mins < 60:
+		return "%d min" % mins
+	@warning_ignore("integer_division")
+	var h := mins / 60
+	var m := mins % 60
+	return ("%d hr" % h) if m == 0 else ("%dh %02dm" % [h, m])
+
+func _show_time_passing(mins: int) -> void:
+	if mins <= 0 or _clock_face == null or Game.dead:
+		return
+	_clock_dur.text = _dur_text(mins)
+	_clock_sub.text = Game.hhmm()
+	_clock_face.set_sweep(0.0)
+	time_layer.visible = true
+	time_layer.mouse_filter = Control.MOUSE_FILTER_STOP  # block input for the length of the wait
+	if _time_tween and _time_tween.is_valid():
+		_time_tween.kill()
+	var hold: float = clampf(0.15 + float(mins) * 0.006, 0.2, 0.6)
+	var turns: float = clampf(float(mins) / 60.0, 0.15, 1.0)
+	_time_tween = create_tween()
+	_time_tween.tween_property(time_layer, "modulate:a", 1.0, 0.08)
+	_time_tween.parallel().tween_method(_clock_face.set_sweep, 0.0, turns, hold).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	_time_tween.tween_property(time_layer, "modulate:a", 0.0, 0.16)
+	_time_tween.tween_callback(_hide_time_layer)
+	if clock_label:
+		clock_label.pivot_offset = clock_label.size * 0.5
+		clock_label.scale = Vector2(1.16, 1.16)
+		var lt := create_tween()
+		lt.tween_property(clock_label, "scale", Vector2.ONE, 0.4).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 func _build_menu() -> void:
 	menu_layer = Control.new()
@@ -444,6 +663,212 @@ func _build_death() -> void:
 	death_badge.pressed.connect(_show_death_modal)
 	holder.add_child(death_badge)
 
+func _build_combat() -> void:
+	combat_layer = Control.new()
+	combat_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(combat_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.0, 0.0, 0.0, 0.6)
+	combat_layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	combat_layer.add_child(center)
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", _flat(PANEL, BORDER, 10))
+	panel.custom_minimum_size = Vector2(460, 0)
+	center.add_child(panel)
+	var pad := MarginContainer.new()
+	pad.add_theme_constant_override("margin_left", 18)
+	pad.add_theme_constant_override("margin_right", 18)
+	pad.add_theme_constant_override("margin_top", 16)
+	pad.add_theme_constant_override("margin_bottom", 16)
+	panel.add_child(pad)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 10)
+	pad.add_child(vb)
+	combat_title = _label("", INK_STRONG, 22)
+	vb.add_child(combat_title)
+	combat_hp_bar = ProgressBar.new()
+	combat_hp_bar.show_percentage = false
+	combat_hp_bar.custom_minimum_size = Vector2(0, 14)
+	combat_hp_bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 5))
+	combat_hp_fill = StyleBoxFlat.new()
+	combat_hp_fill.bg_color = BLOOD
+	combat_hp_fill.set_corner_radius_all(5)
+	combat_hp_bar.add_theme_stylebox_override("fill", combat_hp_fill)
+	vb.add_child(combat_hp_bar)
+	combat_blurb = _label("", MUTED, 12)
+	combat_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	combat_blurb.custom_minimum_size = Vector2(420, 0)
+	vb.add_child(combat_blurb)
+	vb.add_child(HSeparator.new())
+	combat_log_label = _label("", INK, 13)
+	combat_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	combat_log_label.custom_minimum_size = Vector2(420, 76)
+	combat_log_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	vb.add_child(combat_log_label)
+	combat_wound_label = _label("", WARM, 13)
+	vb.add_child(combat_wound_label)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	vb.add_child(row)
+	var strike_btn := Button.new()
+	strike_btn.text = "Strike"
+	strike_btn.custom_minimum_size = Vector2(120, 34)
+	strike_btn.pressed.connect(_combat_strike)
+	row.add_child(strike_btn)
+	var flee_btn := Button.new()
+	flee_btn.text = "Flee"
+	flee_btn.custom_minimum_size = Vector2(120, 34)
+	flee_btn.pressed.connect(_combat_flee)
+	row.add_child(flee_btn)
+	combat_layer.visible = false
+
+func _combat_tail() -> PackedStringArray:
+	var out: Array = []
+	var start: int = maxi(0, _combat_log.size() - 4)
+	for i in range(start, _combat_log.size()):
+		out.append(_combat_log[i])
+	return PackedStringArray(out)
+
+func _refresh_combat() -> void:
+	if _combat_id == "" or not ENEMIES.has(_combat_id):
+		return
+	var e: Dictionary = ENEMIES[_combat_id]
+	combat_title.text = str(e["name"])
+	if _combat_card:
+		combat_blurb.text = str(_combat_card.data.blurb)
+	combat_hp_bar.max_value = _combat_hp_max
+	combat_hp_bar.value = maxf(0.0, _combat_hp)
+	combat_wound_label.text = "Your wounds: %d%%" % int(round(Game.conditions.get("wound", 0.0)))
+	combat_log_label.text = "\n".join(_combat_tail())
+
+func _start_combat(card: CardIcon) -> void:
+	if Game.dead or not ENEMIES.has(card.data.id):
+		return
+	_combat_id = card.data.id
+	_combat_card = card
+	_combat_hp_max = float(ENEMIES[_combat_id]["hp"])
+	_combat_hp = _combat_hp_max
+	_combat_log = []
+	_combat_say("A %s, and it has seen you." % str(ENEMIES[_combat_id]["name"]).to_lower())
+	combat_layer.visible = true
+	_refresh_combat()
+
+func _build_hurt_flash() -> void:
+	hurt_flash = ColorRect.new()
+	hurt_flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	hurt_flash.color = Color(0.75, 0.12, 0.12, 0.0)
+	hurt_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(hurt_flash)
+
+func _screen_shake(intensity: float) -> void:
+	if _shake_tween and _shake_tween.is_valid():
+		_shake_tween.kill()  # one shake at a time — no overlapping jitter-fight
+	_shake_tween = create_tween()
+	for i in 4:
+		var damp := 1.0 - float(i) / 4.0
+		_shake_tween.tween_property(self, "position", Vector2(randf_range(-intensity, intensity), randf_range(-intensity, intensity)) * damp, 0.045)
+	_shake_tween.tween_property(self, "position", Vector2.ZERO, 0.05)
+
+func _flash_hurt() -> void:
+	if hurt_flash == null:
+		return
+	hurt_flash.color = Color(0.75, 0.12, 0.12, 0.42)
+	var t := create_tween()
+	t.tween_property(hurt_flash, "color:a", 0.0, 0.4)
+
+func _combat_say(line: String) -> void:
+	# combat lines go to the popup log AND the persistent day log, so they're readable
+	# after the fight; quiet (no changed.emit) so refresh/death only fire when it resolves
+	_combat_log.push_back(line)
+	Game.log_quiet(line)
+
+func _strike_roll() -> Dictionary:
+	# combat is NOT deterministic — a swing can miss, glance, land solid, or land hard
+	var r := randf()
+	if r < 0.10:
+		return {"dmg": 0.0, "q": "miss"}
+	elif r < 0.32:
+		return {"dmg": PLAYER_STRIKE * 0.6, "q": "glance"}
+	elif r < 0.84:
+		return {"dmg": PLAYER_STRIKE, "q": "solid"}
+	return {"dmg": PLAYER_STRIKE * 1.6, "q": "good"}
+
+func _combat_strike() -> void:
+	if not combat_layer.visible or _combat_resolving:
+		return
+	var e: Dictionary = ENEMIES[_combat_id]
+	var enemy_name: String = str(e["name"]).to_lower()
+	var roll := _strike_roll()
+	var dmg: float = float(roll["dmg"])
+	_combat_hp -= dmg
+	match str(roll["q"]):
+		"miss":
+			_combat_say("You swing at the %s and miss." % enemy_name)
+		"glance":
+			_combat_say("A glancing blow catches the %s." % enemy_name)
+		"good":
+			_combat_say("You catch the %s clean and hard." % enemy_name)
+		_:
+			_combat_say("You strike the %s." % enemy_name)
+	if dmg > 0.0:
+		_screen_shake(3.0 + dmg * 0.35)
+	if _combat_hp <= 0.0:
+		_combat_say("The %s drops, and does not get up." % enemy_name)
+		_refresh_combat()
+		_combat_end("win")
+		return
+	var edmg: float = float(e["damage"]) * randf_range(0.6, 1.4)
+	Game.take_wound(edmg)
+	_flash_hurt()
+	_screen_shake(6.0 + edmg * 0.25)
+	_combat_say("The %s %s you." % [enemy_name, str(e.get("verb", "hits"))])
+	if e.has("bite_infection"):
+		Game.add_condition("infection", float(e["bite_infection"]) * randf_range(0.7, 1.3), "a bite")
+	_refresh_combat()
+	if Game.conditions.get("wound", 0.0) >= 80.0:
+		_combat_say("You are torn open. Your legs go from under you.")
+		_refresh_combat()
+		_combat_end("downed")
+
+func _combat_flee() -> void:
+	if not combat_layer.visible or _combat_resolving:
+		return
+	var e: Dictionary = ENEMIES[_combat_id]
+	var hit: float = float(e.get("flee_hit", 0.0)) * randf_range(0.6, 1.4)
+	Game.take_wound(hit)
+	if hit > 0.0:
+		_flash_hurt()
+		_screen_shake(6.0)
+	_combat_say("You break away. It gets a piece of you as you go.")
+	_combat_end("flee")
+
+func _combat_end(outcome: String) -> void:
+	_combat_resolving = true
+	var e: Dictionary = ENEMIES[_combat_id]
+	var mins: int = int(e.get("mins", 5))
+	_refresh_combat()
+	await get_tree().create_timer(0.7).timeout
+	combat_layer.visible = false
+	if outcome == "win":
+		if _combat_card:
+			_consume_card(_combat_card)
+		Game.add_log("You put the %s down." % str(e["name"]).to_lower())
+	elif outcome == "flee":
+		Game.add_log("You back off from the %s." % str(e["name"]).to_lower())
+	else:
+		Game.add_log("The %s has the better of you." % str(e["name"]).to_lower())
+	_combat_card = null
+	_combat_id = ""
+	var before := Game.meters.duplicate()
+	Game.advance_time(mins)
+	_show_time_passing(mins)
+	_animate_meters(before, {})
+	on_layout_changed()
+	_combat_resolving = false
+
 func _show_death() -> void:
 	if death_obit_label:
 		death_obit_label.text = Game.obituary
@@ -471,6 +896,12 @@ func _restart() -> void:
 	death_dim.visible = true
 	death_badge.visible = false
 	_populate()
+	for m in bars:
+		var d: Dictionary = bars[m]
+		if d.has("tw") and d["tw"] != null:
+			(d["tw"] as Tween).kill()
+			d["tw"] = null
+		d["bar"].value = Game.meters[m]
 	Game.add_log("Day 1. The power is still on, for now. Outside, it is very quiet.")
 	_refresh()
 	on_layout_changed()
@@ -523,6 +954,7 @@ func _travel_to(dest: String, mins: int) -> void:
 	Game.current_location = dest
 	Game.location_indoor = bool(LOCATIONS[dest].get("indoor", true))
 	Game.advance_time(mins)
+	_show_time_passing(mins)
 	Game.add_log("You set out. You reach %s as the light thins." % _place_prose(dest))
 	_animate_meters(before, {})
 	_rebuild_out_there()
@@ -551,11 +983,21 @@ func _process_reveals(loc: String, old_pct: float, new_pct: float) -> void:
 	var renew: Array = pool.get("renewable", [])
 	for j in renew.size():
 		var e2: Dictionary = renew[j]
-		var cnt: int = int(st["renew"].get(j, 0))
 		var mx: int = int(e2.get("max", 1))
-		if cnt < mx and _roll_renewable(new_pct):
-			if _reveal(e2):
-				st["renew"][j] = cnt + 1
+		# cap on what's CURRENTLY present (gathering frees a slot to restock),
+		# not how many were ever revealed — the latter makes "renewable" run dry.
+		if _renew_present(loc, e2) < mx and _roll_renewable(new_pct):
+			_reveal(e2)
+
+func _renew_present(loc: String, e: Dictionary) -> int:
+	if e.get("kind", "") == "fixture":
+		return 1 if e["id"] in LOCATIONS.get(loc, {}).get("fixtures", []) else 0
+	var n := 0
+	if rows.has("middle"):
+		for c in rows["middle"].get_children():
+			if c is CardIcon and c.data.id == e["id"]:
+				n += 1
+	return n
 
 func _entry_threshold(i: int, e: Dictionary, st: Dictionary) -> float:
 	if e.has("milestone"):
@@ -722,21 +1164,31 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			target.set_state(1.0)
 		_consume_card(src)
 		Game.add_log("You feed the burning tinder in. The fire takes - warm light, and a beacon.")
+	elif src.data.id == "herbs" and target.data.id == "hearth":
+		if not Game.is_fire_lit():
+			Game.add_log("You need a live fire to steep them.")
+			on_drag_end()
+			return
+		_consume_card(src)
+		_spawn("herbal_remedy", "middle")
+		Game.add_log("You steep the herbs over the fire into a bitter, cloudy tea.")
 	elif src.data.is_container and target.data.id == "lighter":
 		if src.content != "fuel" or src.state_value <= 0.0:
 			Game.add_log("There's no fuel in the %s to draw from." % src.data.title.to_lower())
 			on_drag_end()
 			return
-		target.set_state(100.0)
-		src.drain_content(10.0)
+		var room: float = 100.0 - target.state_value
+		if room <= 0.0:
+			Game.add_log("The lighter is already full.")
+			on_drag_end()
+			return
+		var moved: float = minf(room, src.state_value)
+		target.set_state(target.state_value + moved)
+		src.drain_content(moved)
 		Game.add_log("You top the lighter up from the %s." % src.data.title.to_lower())
 	elif src.data.is_container and target.data.is_container:
 		if src.content == "":
 			Game.add_log("The %s is empty." % src.data.title.to_lower())
-			on_drag_end()
-			return
-		if target.content != "" and target.content != src.content:
-			Game.add_log("You can't mix %s and %s." % [src._content_display(target.content).to_lower(), src._content_display(src.content).to_lower()])
 			on_drag_end()
 			return
 		var room: float = target.data.capacity - target.state_value
@@ -745,21 +1197,56 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			on_drag_end()
 			return
 		var moved: float = minf(src.state_value, room)
-		target.fill_with(src.content, moved)
+		var poured: String = src.content
+		var target_was: String = target.content
+		if not target.fill_with(src.content, moved):
+			Game.add_log("You can't mix %s and %s." % [target._content_display(target.content).to_lower(), src._content_display(src.content).to_lower()])
+			on_drag_end()
+			return
 		src.drain_content(moved)
-		Game.add_log("You pour %s into the %s." % [src._content_display(src.content).to_lower(), target.data.title.to_lower()])
+		if target.content == "dirty_water" and (target_was == "water" or poured == "water"):
+			Game.add_log("The clean water clouds as it meets the dirty. It needs boiling again.")
+		else:
+			Game.add_log("You pour %s into the %s." % [src._content_display(poured).to_lower(), target.data.title.to_lower()])
+	elif src.data.is_container and target.data.id == "hearth":
+		if src.content != "dirty_water" or src.state_value <= 0.0:
+			Game.add_log("There's no dirty water in the %s to boil." % src.data.title.to_lower())
+			on_drag_end()
+			return
+		if not Game.is_fire_lit():
+			Game.add_log("You need a live fire to boil it.")
+			on_drag_end()
+			return
+		src.boil()
+		Game.add_log("You set the %s by the fire until it steams. The water runs clean." % src.data.title.to_lower())
 	elif src.data.is_container and (target.data.id == "stream" or target.data.id == "rain_barrel"):
-		if src.content != "" and src.content != "dirty_water":
+		var room: float = src.data.capacity - src.state_value
+		if room <= 0.0:
+			Game.add_log("The %s is already full." % src.data.title.to_lower())
+			on_drag_end()
+			return
+		var avail: float = target.state_value if target.data.state_kind == "water" else room
+		var moved2: float = minf(room, avail)
+		if moved2 <= 0.0:
+			Game.add_log("The %s is empty." % target.data.title.to_lower())
+			on_drag_end()
+			return
+		var src_was: String = src.content
+		if not src.fill_with("dirty_water", moved2):
 			Game.add_log("The %s already holds %s." % [src.data.title.to_lower(), src._content_display(src.content).to_lower()])
 			on_drag_end()
 			return
-		src.fill_with("dirty_water", src.data.capacity)
 		if target.data.state_kind == "water":
-			target.set_state(target.state_value - 25.0)
-		Game.add_log("You fill the %s with cold, clouded water." % src.data.title.to_lower())
+			target.set_state(target.state_value - moved2)
+		if src_was == "water":
+			Game.add_log("The clean water in the %s clouds with dirt. It needs boiling again." % src.data.title.to_lower())
+		else:
+			Game.add_log("You fill the %s with cold, clouded water." % src.data.title.to_lower())
 	for k in fx:
 		Game.modify(k, fx[k])
-	Game.advance_time(int(rec.get("mins", 10)))
+	var rmins := int(rec.get("mins", 10))
+	Game.advance_time(rmins)
+	_show_time_passing(rmins)
 	on_drag_end()
 	_animate_meters(before, fx)
 	on_layout_changed()
@@ -768,10 +1255,42 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 func _container_actions(card: CardIcon) -> Array:
 	# Any container holding a drinkable liquid can be drunk from.
 	if card.content == "dirty_water":
-		return [{"label": "Drink (5m)", "mins": 5, "fx": {"Hydration": 18.0, "Immune": -6.0}, "drain_content": 25.0, "cond": {"gut_bug": 20.0}, "cond_cause": "unboiled water", "log": "You drink it unboiled - cold and gritty. Your gut may regret it."}]
+		return [{"label": "Drink (5m)", "mins": 5, "drink": true, "clean": false}]
 	elif card.content == "water":
-		return [{"label": "Drink (5m)", "mins": 5, "fx": {"Hydration": 20.0}, "drain_content": 25.0, "log": "Clean water, boiled and left to cool. It goes down easy."}]
+		return [{"label": "Drink (5m)", "mins": 5, "drink": true, "clean": true}]
 	return []
+
+func _do_drink(card: CardIcon, clean: bool, mins: int) -> void:
+	# every drink pulls one SIP (or the last of what's there, for less hydration)
+	var infinite := card.data.id == "stream"  # a flowing stream doesn't deplete; weather-gating is deferred
+	var avail: float = SIP if infinite else card.state_value
+	if not infinite and avail <= 0.0:
+		Game.add_log("The %s is empty." % card.data.title.to_lower())
+		return
+	var drunk: float = minf(SIP, avail)
+	var frac: float = drunk / SIP
+	var before := Game.meters.duplicate()
+	var fx := {"Hydration": (20.0 if clean else 18.0) * frac}
+	if not clean:
+		fx["Immune"] = -6.0 * frac
+	for k in fx:
+		Game.modify(k, fx[k])
+	if not clean:
+		Game.add_condition("gut_bug", 20.0 * frac, "unboiled water")
+	if not infinite:
+		if card.data.is_container:
+			card.drain_content(drunk)
+		else:
+			card.set_state(card.state_value - drunk)
+	Game.advance_time(mins)
+	_show_time_passing(mins)
+	var partial := drunk < SIP - 0.01
+	if clean:
+		Game.add_log("You get a last clean mouthful before it runs dry." if partial else "Clean water, boiled and left to cool. It goes down easy.")
+	else:
+		Game.add_log("You drain the last gritty dregs, barely a mouthful." if partial else "You drink it unboiled, cold and gritty. Your gut may regret it.")
+	_animate_meters(before, fx)
+	on_layout_changed()
 
 func on_card_clicked(card: CardIcon) -> void:
 	_menu_card = card
@@ -790,6 +1309,9 @@ func on_card_clicked(card: CardIcon) -> void:
 		else:
 			Game.add_log("There is nothing to do with the %s just now." % card.data.title.to_lower())
 		return
+	_open_menu()
+
+func _open_menu() -> void:
 	for c in menu_vbox.get_children():
 		menu_vbox.remove_child(c)
 		c.queue_free()
@@ -824,6 +1346,56 @@ func on_card_clicked(card: CardIcon) -> void:
 	menu_layer.visible = true
 	_clamp_menu.call_deferred()
 
+func _open_char_menu() -> void:
+	if Game.dead:
+		return
+	_menu_card = null
+	_menu_actions = [
+		{"label": "Rest (15m)", "mins": 15, "fx": {"Mental": 3.0}, "log": "You sit a while, eyes shut. Not sleep, but it steadies you a little."},
+		{"label": "Sleep until rested", "sleep": true},
+	]
+	_open_menu()
+
+func _on_portrait_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		_open_char_menu()
+
+func _sleep() -> void:
+	var before := Game.meters.duplicate()
+	var guard := 0
+	var _t0 := Game.day * 1440 + Game.minute
+	while guard < 48 and not Game.dead and Game.fatigue > 0.0:
+		guard += 1
+		Game.advance_time(30, true)
+		if Game.meters["Hydration"] < 10.0 or Game.meters["Calories"] < 10.0 or Game.meters["Warmth"] < 10.0:
+			Game.add_log("You jolt awake - cold, or parched, or worse. A ruined night.")
+			break
+	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
+	if not Game.dead and Game.fatigue <= 0.0:
+		Game.add_log("You sleep hard and wake clear-headed. The debt is paid.")
+	_animate_meters(before, {})
+	on_layout_changed()
+
+func _collapse_sleep() -> void:
+	if Game.dead:
+		return
+	_collapsing = true
+	var before := Game.meters.duplicate()
+	Game.add_log("Your legs go. You are asleep before you hit the floor.")
+	var guard := 0
+	var _t0 := Game.day * 1440 + Game.minute
+	while guard < 48 and not Game.dead and Game.fatigue > 0.0:
+		guard += 1
+		Game.advance_time(30, true)
+		if Game.meters["Hydration"] < 5.0 or Game.meters["Calories"] < 5.0 or Game.meters["Warmth"] < 5.0:
+			break  # wake before a cold/thirst/hunger collapse turns lethal
+	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
+	if not Game.dead:
+		Game.meters["Energy"] = maxf(Game.meters["Energy"], 20.0)
+	_animate_meters(before, {})
+	on_layout_changed()
+	_collapsing = false
+
 func _clamp_menu() -> void:
 	var vp := get_viewport_rect().size
 	var pos := menu_panel.position
@@ -847,11 +1419,20 @@ func _on_menu_pick(i: int) -> void:
 func _perform(card: CardIcon, act: Dictionary) -> void:
 	if Game.dead:
 		return
+	if act.has("sleep"):
+		_sleep()
+		return
 	if act.has("travel_to"):
 		_travel_to(act["travel_to"], int(act.get("mins", 30)))
 		return
 	if act.get("needs_fire", false) and not Game.is_fire_lit():
 		Game.add_log("There is no fire lit.")
+		return
+	if act.has("drink"):
+		_do_drink(card, bool(act.get("clean", false)), int(act.get("mins", 5)))
+		return
+	if act.has("fight"):
+		_start_combat(card)
 		return
 	if act.has("state_delta"):
 		var d: float = act["state_delta"]
@@ -861,6 +1442,14 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		if d > 0.0 and card.data.state_kind == "fell" and card.state_value >= 100.0:
 			Game.add_log("The %s is already felled." % card.data.title.to_lower())
 			return
+	if act.has("cure"):
+		var any_active := false
+		for cid in act["cure"]:
+			if Game.conditions.get(cid, 0.0) > 0.0:
+				any_active = true
+		if not any_active:
+			Game.add_log("There's nothing it would help right now.")
+			return
 	var before := Game.meters.duplicate()
 	var fx: Dictionary = act.get("fx", {})
 	for k in fx:
@@ -868,7 +1457,14 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 	if act.has("cond"):
 		for cid in act["cond"]:
 			Game.add_condition(cid, float(act["cond"][cid]), str(act.get("cond_cause", "")))
-	Game.advance_time(int(act.get("mins", 30)))
+	if act.has("cure"):
+		for cid in act["cure"]:
+			Game.cure_condition(cid, float(act["cure"][cid]))
+	var _mins := int(act.get("mins", 30))
+	if float(fx.get("Energy", 0.0)) < 0.0:
+		_mins = int(round(float(_mins) * Game.weight_toll()))  # overweight = physical work runs longer
+	Game.advance_time(_mins)
+	_show_time_passing(_mins)
 	if act.has("log"):
 		Game.add_log(act["log"])
 	if act.has("state_delta"):
@@ -881,8 +1477,6 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		elif card.data.state_kind == "wood" and card.state_value <= 0.0:
 			Game.add_log("The %s is split down to the last of it." % card.data.title.to_lower())
 			_consume_card(card)
-	if act.has("drain_content"):
-		card.drain_content(act["drain_content"])
 	if act.has("spawn"):
 		_spawn(act["spawn"], "middle")
 	if act.get("consume", false):
@@ -946,7 +1540,19 @@ func _refresh() -> void:
 		elif v < 45.0:
 			c = WARM
 		bars[m]["fill"].bg_color = c
+		bars[m]["bar"].tooltip_text = Game.need_tooltip(m)
 		bars[m]["bar"].queue_redraw()
+	if fatigue_bar:
+		fatigue_bar.value = Game.fatigue
+	if weight_bar:
+		weight_bar.value = Game.weight
+		var wc := GREEN
+		if Game.weight < 20.0 or Game.weight > 85.0:
+			wc = BLOOD
+		elif Game.weight < 30.0 or Game.weight > 78.0:
+			wc = WARM
+		weight_fill.bg_color = wc
+		weight_bar.queue_redraw()
 	if log_label:
 		log_label.text = "\n".join(PackedStringArray(Game.log_lines))
 	# keep card state bars (e.g. the hearth fuel burning down) in sync with the model
@@ -964,7 +1570,13 @@ func _refresh() -> void:
 			if cst <= 0:
 				continue
 			var stg: Dictionary = Game.CONDITIONS[id]["stages"][cst]
-			cond_tray.add_child(_make_chip(str(stg["name"]), Game.cond_trajectory(id), cst))
+			cond_tray.add_child(_make_cond_bar(id, str(stg["name"]), float(Game.conditions[id]), cst, Game.cond_trajectory(id)))
+	if weather_label:
+		weather_label.text = Game.weather_line()
+	if Game.force_sleep and not Game.dead:
+		Game.force_sleep = false
+		if not _collapsing:
+			_collapse_sleep.call_deferred()
 	if Game.dead and not _death_shown:
 		_death_shown = true
 		_show_death()

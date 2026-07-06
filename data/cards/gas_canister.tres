@@ -10,3 +10,4 @@ kind = "item"
 blurb = "A dented steel jerrycan. Holds a good few litres."
 is_container = true
 capacity = 100.0
+sealable = true

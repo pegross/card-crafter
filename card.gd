@@ -204,7 +204,7 @@ func sync_state() -> void:
 func _state_word() -> String:
 	match data.state_kind:
 		"explore": return "Explored"
-		"water": return "Water"
+		"water": return "Dirty Water"
 		"fell": return "Felled"
 		"wood": return "Wood"
 		"fuel": return "Fuel"
@@ -212,7 +212,7 @@ func _state_word() -> String:
 
 func _state_color() -> Color:
 	match data.state_kind:
-		"water": return COLD
+		"water": return Color(0.46, 0.42, 0.30)
 		"explore": return GREEN
 		"fell": return WARM
 		"wood": return WARM
@@ -254,10 +254,19 @@ func _refresh_container() -> void:
 		else:
 			_state_label.text = "Empty"
 
+func _is_water(c: String) -> bool:
+	return c == "water" or c == "dirty_water"
+
 func fill_with(content_id: String, amount: float) -> bool:
-	if content != "" and content != content_id:
-		return false  # no mixing
-	content = content_id
+	if content_id == "fuel" and not data.sealable:
+		return false  # only sealable containers (bottle/jerry) hold fuel
+	if content == "":
+		content = content_id
+	elif content != content_id:
+		if _is_water(content) and _is_water(content_id):
+			content = "dirty_water"  # clean + dirty always contaminates to dirty
+		else:
+			return false  # water and fuel do not mix
 	state_value = clampf(state_value + amount, 0.0, data.capacity)
 	_persist_container()
 	_refresh_container()
@@ -269,6 +278,13 @@ func drain_content(amount: float) -> void:
 		content = ""
 	_persist_container()
 	_refresh_container()
+
+func boil() -> void:
+	# dirty water boiled clean; fuel or empty containers are unaffected
+	if content == "dirty_water":
+		content = "water"
+		_persist_container()
+		_refresh_container()
 
 func set_location_badge(mode: String) -> void:
 	if _kind_label == null:

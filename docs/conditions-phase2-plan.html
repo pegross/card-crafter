@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dead Air — Conditions Phase 2</title>
+<style>
+  :root{
+    --bg:#0a0e13;--panel:#111922;--panel-2:#0f151d;--border:#1e2b38;--border-soft:#182430;
+    --ink:#c6d2dd;--ink-strong:#e7eef4;--muted:#7d8c9a;--faint:#586674;
+    --cold:#69b6d6;--cold-dim:#3f6d82;--warm:#e8ad5c;--warm-soft:#f0c483;--blood:#c9695e;--green:#8bb08a;--violet:#a68bc0;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--serif);font-size:17px;line-height:1.68;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(1100px 600px at 82% -10%,rgba(201,105,94,.07),transparent 60%),radial-gradient(900px 700px at -5% 0%,rgba(105,182,214,.05),transparent 55%);background-attachment:fixed;}
+  .wrap{max-width:920px;margin:0 auto;padding:0 clamp(20px,5vw,40px) 120px}
+  header.hero{padding:78px 0 38px;border-bottom:1px solid var(--border-soft)}
+  .eyebrow{font-family:var(--sans);font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--cold);margin-bottom:16px}
+  h1{font-size:clamp(36px,6vw,56px);line-height:1;margin:0 0 16px;color:var(--ink-strong);font-weight:600;letter-spacing:-.5px}
+  h1 .glow{color:var(--blood);text-shadow:0 0 44px rgba(201,105,94,.4)}
+  .tagline{font-size:19px;color:#aebdc7;font-style:italic;max-width:56ch}
+  .readnote{margin-top:20px;padding:13px 17px;border:1px dashed var(--border);border-radius:8px;background:rgba(105,182,214,.04);font-family:var(--sans);font-size:12.5px;color:var(--muted);line-height:1.6}
+  .readnote b{color:var(--cold)}
+  section{padding:50px 0;border-bottom:1px solid var(--border-soft)}
+  .sec-num{font-family:var(--mono);font-size:12px;color:var(--warm);letter-spacing:.1em}
+  h2{font-size:clamp(25px,4vw,33px);margin:.2em 0 .5em;color:var(--ink-strong);font-weight:600}
+  h3{font-size:16px;color:var(--warm-soft);margin:26px 0 8px;font-family:var(--sans);letter-spacing:.02em;text-transform:uppercase;font-weight:600}
+  p{margin:0 0 14px}
+  strong{color:var(--ink-strong)}
+  em{color:var(--warm-soft);font-style:italic}
+  code{font-family:var(--mono);font-size:.82em;background:rgba(105,182,214,.09);border:1px solid var(--border-soft);border-radius:4px;padding:1px 5px;color:var(--cold)}
+  .frozen{background:linear-gradient(180deg,rgba(232,173,92,.09),rgba(232,173,92,.03));border:1px solid #6b5327;border-radius:11px;padding:20px 24px;margin:22px 0}
+  .frozen h4{margin:0 0 12px;font-family:var(--sans);font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--warm)}
+  .frozen table{width:100%;border-collapse:collapse;font-size:14px}
+  .frozen td{padding:6px 10px;border-top:1px solid var(--border-soft);vertical-align:top}
+  .frozen td:first-child{color:var(--ink-strong);white-space:nowrap;font-family:var(--sans);font-size:12.5px}
+  .frozen td code{font-size:12.5px}
+  .callout{background:var(--panel);border:1px solid var(--border);border-left:3px solid var(--cold);border-radius:8px;padding:16px 20px;margin:18px 0;font-size:15.5px}
+  .callout.blood{border-left-color:var(--blood)} .callout.warm{border-left-color:var(--warm)} .callout.green{border-left-color:var(--green)}
+  .callout .lbl{font-family:var(--sans);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--cold);display:block;margin-bottom:6px}
+  .callout.blood .lbl{color:var(--blood)} .callout.warm .lbl{color:var(--warm)} .callout.green .lbl{color:var(--green)}
+  .grid{display:grid;gap:14px}.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--border);border-radius:11px;padding:16px 18px;border-top-width:2px}
+  .card.a{border-top-color:var(--cold)} .card.b{border-top-color:var(--blood)} .card.c{border-top-color:var(--faint)}
+  .card h4{margin:0 0 4px;font-size:16px;color:var(--ink-strong);font-family:var(--serif);font-weight:600;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+  .card .tier{font-family:var(--sans);font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+  .card p{font-size:13.5px;color:var(--ink);margin:6px 0 0}
+  .card .k{font-family:var(--sans);font-size:10px;text-transform:uppercase;letter-spacing:.09em;color:var(--cold)}
+  ul.clean{margin:6px 0 0;padding:0;list-style:none}
+  ul.clean li{position:relative;padding:6px 0 6px 20px;font-size:14.5px}
+  ul.clean li::before{content:"";position:absolute;left:2px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--cold-dim)}
+  .flow{list-style:none;margin:0;padding:0}
+  .flow li{padding:11px 0;border-top:1px solid var(--border-soft);font-size:14px;color:var(--ink)}
+  .flow li:first-child{border-top:none}
+  .flow .arrow{color:var(--blood);font-weight:700}
+  .phase{position:relative;padding-left:30px;margin-bottom:18px;border-left:2px solid var(--border)}
+  .phase::before{content:"";position:absolute;left:-8px;top:2px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--cold)}
+  .phase.p0::before{border-color:var(--warm);background:rgba(232,173,92,.15)}
+  .phase .pt{font-family:var(--mono);font-size:12px;color:var(--cold)}.phase.p0 .pt{color:var(--warm)}
+  .phase h4{margin:2px 0 5px;font-size:16px;color:var(--ink-strong)}
+  .phase .d{font-size:13.5px;color:var(--warm-soft);margin:0 0 5px;font-family:var(--sans)}
+  .phase p{font-size:13px;color:var(--muted);margin:0;font-family:var(--sans)}
+  ol.qs{counter-reset:q;list-style:none;margin:0;padding:0}
+  ol.qs li{counter-increment:q;position:relative;padding:12px 0 12px 40px;border-top:1px solid var(--border-soft);font-size:14px}
+  ol.qs li:first-child{border-top:none}
+  ol.qs li::before{content:"Q" counter(q);position:absolute;left:0;top:12px;font-family:var(--mono);font-size:12px;color:var(--warm)}
+  footer{padding:32px 0 10px;color:var(--faint);font-family:var(--sans);font-size:12.5px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow">Dead Air · Conditions — Phase 2</div>
+    <h1>A <span class="glow">Simulation</span> of Sorts</h1>
+    <p class="tagline">A fixed, hand-authored cross-influence graph on the Phase-1 pipeline — long-lasting interacting conditions, a rest/sleep/fatigue split that can't be gamed, and gauges that quietly bend each other. Not a rules engine.</p>
+    <div class="readnote"><b>How to read this.</b> A refined <b>plan</b> — nothing built yet. It extends only three things: a fatter <code>CONDITIONS</code> dict, a re-ordered <code>advance_time</code> pass, and one ordered <code>_apply_influences()</code> edge-list. It resolves both live issues you flagged (too-fast gut decay, rest-gives-energy). Numbers below are the <b>frozen contract</b> — a builder implements the values, not "the vibe."</div>
+  </header>
+
+  <section>
+    <div class="sec-num">§ 01</div><h2>Philosophy &amp; the frozen contract</h2>
+    <p>The three Phase-1 commitments stay inviolable: <strong>deterministic</strong> (fixed per-hour rates, no rolls — only <em>which</em> forage type you find is random; edibility is authored per plant), <strong>traceable</strong> (every insult, incubation dose, and stage carries a cause-stamp to the obituary; nothing kills without a named condition), and <strong>legible</strong> (the panel is the 6 permanent bars + however many condition bars are active <em>right now</em> — every driver is a real bar you can watch, never a hidden chip).</p>
+    <p>The council's four drafts contradicted each other on numbers, so the synthesis froze <strong>one source of truth</strong>. This is the table a builder implements:</p>
+    <div class="frozen">
+      <h4>◆ Frozen number table</h4>
+      <table>
+        <tr><td>Energy ceiling</td><td><code>100 − 0.6 × fatigue</code> — sleep-debt literally caps how energetic you can be</td></tr>
+        <tr><td>Fatigue accrual</td><td><code>4.5/hr × exertion</code> (rest 0.4 / normal 1.0 / heavy 1.6); never self-heals; cleared only by sleep at <code>14/hr × sleep_quality</code></td></tr>
+        <tr><td>Gut decay (per stage)</td><td>Queasy <code>1.2</code> / Loose Stool <code>0.9</code> / Dysentery <code>0.6</code> per hr — <em>worse is stickier</em></td></tr>
+        <tr><td>Incubation</td><td>instant full-dose dump at maturation (no ramp); drink-time cause-stamp preserved verbatim</td></tr>
+        <tr><td>Drain multiplier cap</td><td>composed mult on any single meter <code>≤ 1.8</code>; illness Hydration drain <em>suspended while sleeping</em></td></tr>
+        <tr><td>One widget</td><td>every affliction renders as its <strong>own bar</strong> while active (below the six needs) and vanishes when cleared — <strong>no chips</strong>; the bars are the simulation</td></tr>
+        <tr><td>Signature meters</td><td>gut→Hydration · fatigue→Energy(+its one Mental edge) · hypothermia→its own gauge · fever→Hydration. Mental ≤ 2 named drivers, with a per-tick "biggest mover" log line</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 02</div><h2>The gauges — three tiers</h2>
+    <h3>Tier A · permanent sliders (always visible)</h3>
+    <div class="grid g2">
+      <div class="card a"><h4>Calories</h4><p>Fuel, drain 4.5/hr. Up: eating. Down: exertion surcharge + gut malabsorption. <span class="k">&lt;20 halves sleep quality; &lt;10 jolts you awake.</span></p></div>
+      <div class="card a"><h4>Hydration</h4><p>Water, drain 5.0/hr — the <em>signature</em> meter of gut illness &amp; fever. The axis you must out-drink to survive illness (mult ≤1.8, suspended asleep).</p></div>
+      <div class="card a"><h4>Warmth <span class="tier">special</span></h4><p>Body temp — driven only by the ambient lerp, never the mult table. Exertion pushes it up; Wet steepens cold loss. <span class="k">Any mult:{Warmth} is a silent no-op — conditions touch it additively.</span></p></div>
+      <div class="card a"><h4>Energy</h4><p>Same-day stamina, drain 4.0/hr — signature of fatigue. <strong>Hard-capped at 100 − 0.6×fatigue.</strong> →0 = "sheer exhaustion" death.</p></div>
+      <div class="card a"><h4>Immune</h4><p>Resistance, tiny 0.2/hr base. <span class="k">&lt;40 → gut illness recovers ×0.6 and enters faster</span> — the master illness-progression modulator (watched, reversible).</p></div>
+      <div class="card a"><h4>Mental <span class="tier">≤2 drivers</span></h4><p>Steadiness. Down from fatigue (primary) + gut illness <em>at Dysentery only</em> (the "sickness makes you sad" edge). Low Mental → worse sleep → more fatigue → the watched spiral.</p></div>
+    </div>
+    <h3>Tier B · condition bars (appear when active, below the six needs)</h3>
+    <div class="grid g2">
+      <div class="card b"><h4>Gut Illness <span class="tier">→ Hydration</span></h4><p>Waterborne, per-stage decay 1.2/0.9/0.6. Dysentery lingers <strong>2–3 in-game days</strong>. Fed by matured incubation doses; drives Fever at ≥Loose Stool; slowed by low Immune.</p></div>
+      <div class="card b"><h4>Hypothermia <span class="tier">own lethal</span></h4><p>Rises only when <strong>Warmth-low AND Wet</strong> both hold — rate ~(35−Warmth)×(1+Wet/100). Stage-3 "Deep" fires its <em>own</em> collapse stamped "the cold" — never mislabeled exhaustion.</p></div>
+    </div>
+    <h3>Tier C · driven bars &amp; hidden inputs</h3>
+    <div class="grid g2">
+      <div class="card c"><h4>Fatigue <span class="tier">own bar → Energy cap</span></h4><p>Sleep-debt, the multi-day arc. Shows as <strong>its own bar</strong> (rising = more debt) and also <em>caps Energy</em> at 100−0.6×fatigue (a notch on the Energy bar). Only sleep clears it.</p></div>
+      <div class="card c"><h4>Wet <span class="tier">input bar</span></h4><p>Rain/wading/sweat up; fire/indoors dries. Steepens the Warmth cold-loss line and is the AND-half that spawns Hypothermia. A bar while you're wet, gone when dry.</p></div>
+      <div class="card c"><h4>Fever <span class="tier">driven</span></h4><p>No direct cause — driven by gut illness ≥Loose Stool. Hits Hydration (sweating) + Energy. <strong>Fever→Warmth is cosmetic only</strong>, so you can never get sick to stay warm or mask the cold.</p></div>
+      <div class="card c"><h4>Incubation <span class="tier">invisible</span></h4><p>A queue of pending doses {id, amt, ready_min, cause}. A dawn unboiled drink hatches into gut illness by dusk — full dose dumped instantly, the <em>drink-time</em> cause preserved. No chip by design.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 03</div><h2>The influence web</h2>
+    <p>One new ordered <code>_apply_influences()</code> pass, reading last-tick values (<code>_prev</code>) so it's deterministic and can't feed-back explode. The load-bearing edges:</p>
+    <ul class="flow">
+      <li><strong>Action exertion</strong> <span class="arrow">→</span> Calories− (burn) · Hydration− (thirst) · Energy− · Warmth+ (metabolic heat) · fatigue+. <em>One scalar</em> makes "activity → calories/thirst/body-temp" all true at once.</li>
+      <li><strong>Rain / wading / sweat</strong> <span class="arrow">→</span> Wet+ ; fire or indoors <span class="arrow">→</span> Wet− (dries).</li>
+      <li><strong>Warmth-low AND Wet</strong> <span class="arrow">→</span> Hypothermia+ (AND-gate). Stage-3 <span class="arrow">→</span> own lethal collapse, "the cold".</li>
+      <li><strong>Gut illness</strong> <span class="arrow">→</span> Hydration− (capped 1.8, suspended asleep) · Mental− <em>at Dysentery only</em> · Fever+ at ≥Loose Stool.</li>
+      <li><strong>Fever</strong> <span class="arrow">→</span> Hydration− (sweating) + Energy−. Warmth effect cosmetic only.</li>
+      <li><strong>Fatigue</strong> <span class="arrow">→</span> Energy ceiling (100−0.6×fatigue) · Mental− (primary) · Exhausted → Immune−. Only sleep clears it.</li>
+      <li><strong>Low Mental / cold / sick nights</strong> <span class="arrow">→</span> sleep_quality− (clear less debt) — the fairness lever: hold the basics and you recover.</li>
+      <li><strong>Immune &lt;40</strong> <span class="arrow">→</span> gut recovery ×0.6 &amp; faster enter; Hydration&gt;60 &amp; rested <span class="arrow">→</span> gut decay ×1.4. The master resistance modulator.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 04</div><h2>Rest · Sleep · Fatigue</h2>
+    <p>Three distinct layers make Rest <strong>non-substitutable</strong> for Sleep. <strong>Energy</strong> is gas in the tank now. <strong>Fatigue</strong> (hidden) is sleep-debt, the multi-day arc. The load-bearing rule: <code>energy_cap = 100 − 0.6 × fatigue</code> — high sleep-debt means you literally cannot be energetic, not with food, not with rest, because <em>only sleep lowers fatigue and thus raises the ceiling.</em></p>
+    <div class="callout warm"><span class="lbl">Rest (rewritten)</span><strong>Energy +0</strong> (removed entirely — the whole point). Exertion 0.4 so needs barely drain, Mental +3 (capped 60, diminishing on repeats), and <strong>no</strong> illness-decay bonus (moved to sleep-only, so Rest can't spam-heal a gut bug). Rest steadies your nerves; it can never touch fatigue or the ceiling — so rest-spam only delays and worsens.</div>
+    <div class="callout green"><span class="lbl">Sleep (the only true reset)</span>All recovery moves <em>inside</em> <code>advance_time(mins, exertion, sleeping)</code>: clear fatigue <strong>first</strong> (14/hr × quality), <em>then</em> raise Energy toward the freshly-risen ceiling. <span style="color:var(--muted)">(This deletes the current <code>_sleep()</code> bug where <code>modify("Energy",15)</code> ran <em>before</em> advance_time and clamped to the pre-sleep low ceiling — which is exactly why sleep felt weak.)</span> You wake naturally at fatigue 0, or jolt awake if a critical meter crosses &lt;10 — "You wake shivering, the fire dead": a ruined night, never an unforeseeable death.</div>
+    <p><code>sleep_quality = clamp(0.35 + 0.45×Warmth/100 + 0.20×Mental/100, 0.3, 1.0)</code>, hard-capped at 0.5 if Calories or Hydration &lt;20. Cold/hungry/despairing nights clear as little as ~5/hr — the deterministic, traceable spiral if you can't hold the basics.</p>
+    <div class="callout blood"><span class="lbl">Exploit table (why nothing is free)</span><strong>rest-spam</strong> → 0 Energy / 0 fatigue relief, self-defeating · <strong>eat-your-way-out</strong> → food clamps to the ceiling, never lowers fatigue · <strong>nap-spam</strong> → every chunk drains all meters + burns fuel + a bad-condition sleep clears almost nothing · <strong>oversleep-to-heal</strong> → forced wake at fatigue 0, extra sleep is pure loss. No action both passes time cheaply <em>and</em> restores — the only real recovery is a prepared, vulnerable sleep.</div>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 05</div><h2>Illness, made to linger</h2>
+    <p>Illness must be a real cost you accept only when necessary — the opposite of today's 8/hr clear-in-an-hour. Four mechanisms, all dict-only + one small queue:</p>
+    <ul class="clean">
+      <li><strong>Per-stage decay</strong> replaces the flat 8/hr. A single unboiled sip (→Queasy) clears in a few hours (fair for the common case); <strong>Dysentery takes 2–3 days</strong> on its own — brutal, so you <em>treat</em> it. <code>recovery_mod</code> bends it: ×1.4 when hydrated &amp; rested, ×0.6 when Immune &lt;40.</li>
+      <li><strong>Delayed onset</strong> via the pending-dose queue — a drink enqueues <code>{amt, ready_min = now + 4–8h, cause}</code>; maturation dumps the full dose and copies the <em>drink-time</em> cause verbatim, so a Day-5 death still reads "Dysentery (unboiled water, Day 3 06:10)."</li>
+      <li><strong>Fairness cap</strong> (the "unwinnable Dysentery" fix): composed mult capped at 1.8 (Dysentery bites ~9/hr awake — out-drinkable with banked boiled water), and the illness Hydration drain is <em>suspended while prone</em>, so a water-banked night is always survivable.</li>
+      <li><strong>Med economy</strong> as fixed constants: Broth −8 (scarce salt), Charcoal −30 (finite), Antibiotics −50 (finite, severe). A hard cap of <strong>one dose / stage / day</strong> with steep diminishing returns stops broth-spam. Boiled water doesn't cure — it only refills what the bug drains, burning your clean-water/fuel stock.</li>
+    </ul>
+    <p><strong>Deterministic forage poisoning:</strong> only which type you find is random; edibility is authored (wood-sorrel edible, lords-leaves tox 35, death-cap tox 95 = a fixed lethal mistake, never bad luck). Eating unknown offers <em>Eat-blind</em> (full nutrition + full toxin, IDs it), <em>Cautious taste-test</em> (fractional both, IDs — the smart hedge), or <em>Field guide</em> (safe ID). Knowledge is permanent per playthrough — accrued, never rolled.</p>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 06</div><h2>UI — one widget, calm by default</h2>
+    <p><strong>No chips — every gauge is a real bar.</strong> The six needs are always-visible bars; each condition (gut illness, fatigue, hypothermia, fever, wet…) renders as <em>its own bar</em> in a conditions section directly below them, appearing when it becomes active and <em>vanishing</em> when it returns to zero. The bar's fill is its severity, tinted by how bad it is, with a small rising/steady/easing tick beside it. Panel = 6 need-bars + however many condition-bars are active; healthy = just the six. The bars <em>are</em> the simulation: you watch a rising illness bar bend a falling Hydration bar in real time.</p>
+    <p><strong>Fatigue</strong> gets its own bar (sleep-debt) <em>and</em> notches the Energy bar at its ceiling (100−0.6×fatigue), so you see both the debt climbing and the lid it puts on Energy. <strong>Live legibility:</strong> a per-need hover tooltip decomposes the current drain into base + each condition's named contribution this tick, so a falling need-bar always maps to the exact condition-bars pulling it down. Plus a per-tick "biggest Mental mover: X" log line so even a multi-source despair death names its cause.</p>
+  </section>
+
+  <section>
+    <div class="sec-num">§ 07</div><h2>Build order</h2>
+    <div class="phase p0"><div class="pt">2.0</div><h4>Freeze the source of truth</h4><p class="d">A committed constants block above <code>CONDITIONS</code> fixing every number the drafts disagreed on.</p><p>~0 logic — this is the contract, and it prevents four-way ambiguity before any behavior lands.</p></div>
+    <div class="phase"><div class="pt">2a</div><h4>Long illness + incubation — highest payoff, smallest diff</h4><p class="d">An 08:00 sip → nothing; ~16:00 Queasy surfaces; persists a day+.</p><p>Per-stage <code>decay_per_hour</code> array; a <code>cond_pending</code> queue + maturation flush before <code>_tick_conditions</code>; drink-time cause preserved; <code>recovery_mod</code>. ~20 lines, no UI change. Ship first.</p></div>
+    <div class="phase"><div class="pt">2b</div><h4>Rest fix + fatigue gauge — exploit closure</h4><p class="d">Rest-spam can't hold Energy; only sleep resets it; the <code>_sleep</code> clamp bug is gone.</p><p>Fatigue accrual archetype; <code>energy_cap()</code> clamp; <code>advance_time(mins, exertion, sleeping)</code>; move all sleep recovery inside it (clear fatigue first, then raise Energy). ~25 lines.</p></div>
+    <div class="phase"><div class="pt">2c</div><h4>Condition-bar UI + influence skeleton + tooltip</h4><p class="d">Illness visibly drags Mental; condition bars appear/vanish below the needs; falling bars decompose on hover.</p><p>A <code>_make_cond_bar</code> (a <code>_make_meter</code>-style bar) rendered for each active condition below the six needs; <code>_apply_influences()</code> skeleton with the first edge (gut→Mental); per-need tooltip; the fatigue bar + its Energy-ceiling notch. ~30 lines.</p></div>
+    <div class="phase"><div class="pt">2d</div><h4>Wet + Hypothermia + cold-wet gate + lethal collapse</h4><p class="d">Wet + cold outdoors → Hypothermia climbs; fire dries; a frozen death reads "the cold".</p><p>Wet (chip) + hypo (bar) entries; wet push on the Warmth line; the AND-gate; per-stage <code>lethal:true / death_as:"Warmth"</code> in <code>_check_collapse</code>; fever driven node. ~35 lines. <em>Depends on a minimal weather/rain source (open question).</em></p></div>
+    <div class="phase"><div class="pt">2e</div><h4>Exertion tags + fairness cap + med economy</h4><p class="d">Felling a tree costs more thirst/calories &amp; warms you; Dysentery is survivable-with-prep; meds are finite.</p><p>Per-action exertion coefficients (rest 0.4 / forage 1.0 / fell 1.6); enforce the 1.8 cap + sleeping-suspend; pin finite charcoal/antibiotics + scarce salt + the one-dose-per-day cap; forage profiles + <code>known_forage</code> + taste-test. ~40 lines + card data.</p></div>
+  </section>
+
+  <section style="border-bottom:none">
+    <div class="sec-num">§ 08</div><h2>Open questions — your calls</h2>
+    <ol class="qs">
+      <li><strong>Med economy constants.</strong> How many charcoal/antibiotic doses per run, how scarce is salt? "Long-lasting illness" only means something once these sit between consequence-free and unwinnable.</li>
+      <li><strong>Is the 1.8 multiplier cap right?</strong> It must make Dysentery out-drinkable awake yet still threatening — needs tuning against real clean-water/fuel throughput once the boil loop is timed.</li>
+      <li><strong>Weather dependency.</strong> Wet/Hypothermia need a rain/exposure source that doesn't exist (<code>outdoor_temp</code> is static, no rain). Phase 2d needs at least a minimal weather driver — where does it live?</li>
+      <li><strong>Malnutrition</strong> needs a diet-monotony tracker (foods eaten over N days) — deferred, but forage-ID in 2e should probably start recording variety to feed it.</li>
+      <li><strong>Fatigue→Mental strength:</strong> is a stage mult on the tiny 0.3/hr base enough to feel, or does it need an additive term? A 2-line playtest branch.</li>
+      <li><strong>Obituary aggregation:</strong> is the per-tick "biggest Mental mover" line enough, or should the obituary aggregate multiple simultaneous contributors (it currently names one)?</li>
+      <li><strong>Jolt-awake survivability:</strong> does waking from a ruined night leave enough fatigue-clearance to fix the emergency, or can a Dysentery night + dead fire still checkmate a prepared player? Needs a concrete survivability trace.</li>
+      <li><strong>Exertion calibration:</strong> one scalar drives fatigue, Calories/Hydration surcharge, and Warmth heat at once — are 0.4/1.0/1.6 balanced across all three, or do they need decoupling?</li>
+    </ol>
+  </section>
+
+  <footer>Conditions Phase 2 — refined plan for Dead Air · produced by a 6-agent design workflow (4 designers → adversarial critic → synthesizer), critique fixes integrated · a contract to steer, not yet built. Pairs with <code>docs/conditions-plan.html</code> (Phase 1).</footer>
+</div>
+</body>
+</html>

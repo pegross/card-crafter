@@ -11,6 +11,7 @@ extends Resource
 @export var becomes: String = ""  ## on completion (e.g. a felled tree -> a log)
 @export var is_container: bool = false  ## holds one liquid/resource at a time, with a fill %
 @export var capacity: float = 100.0  ## container volume (size): a plastic bottle < a gas canister
+@export var sealable: bool = false  ## container subcategory: sealable (bottle/jerry) can hold fuel; open ones only water
 @export var is_fire_source: bool = false  ## a hearth/campfire: its Fuel can be lit and burns down
 @export_multiline var blurb_lit: String = ""  ## fire source: shown while burning
 @export_multiline var blurb_fueled: String = ""  ## fire source: shown when fuelled but unlit

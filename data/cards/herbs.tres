@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1")
-id = "stream"
-title = "Stream"
-kind = "station"
-blurb = "Cold and clear. Needs boiling, and it won't run forever."
+id = "herbs"
+title = "Herbs"
+kind = "item"
+blurb = "Wild yarrow and mint. Steeped over a fire, they settle the gut."
