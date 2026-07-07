@@ -149,6 +149,7 @@ func _accent() -> Color:
 		"location": return COLD
 		"station", "fixture": return WARM
 		"character": return GREEN
+		"creature": return BLOOD
 		_: return MUTED
 
 func set_state(v: float) -> void:
