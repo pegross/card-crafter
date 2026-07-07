@@ -16,6 +16,7 @@ const MUTED := Color(0.490, 0.549, 0.604)
 const WARM := Color(0.910, 0.678, 0.361)
 const COLD := Color(0.412, 0.714, 0.839)
 const GREEN := Color(0.545, 0.690, 0.541)
+const BLOOD := Color(0.788, 0.412, 0.369)
 
 const CARD_SIZE := Vector2(176, 230)
 
