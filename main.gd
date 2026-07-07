@@ -19,9 +19,11 @@ const GREEN := Color(0.545, 0.690, 0.541)
 
 const INV_CAP := 6
 const SIP := 25.0  ## a standard mouthful of liquid, in fill units — drinks pull this much (or the last of it)
-const PLAYER_STRIKE := 10.0  ## unarmed damage per Strike (deterministic)
+const PLAYER_STRIKE := 10.0  ## unarmed base damage per Strike (varies: miss/glance/solid/good)
+const COMBAT_ROUND_MINS := 3  ## in-game minutes each combat swing/round takes
 var ENEMIES := {
 	"rat": {"name": "Rat", "hp": 8.0, "damage": 6.0, "flee_hit": 2.0, "verb": "bites", "mins": 5},
+	"zombie": {"name": "Zombie", "hp": 34.0, "damage": 15.0, "flee_hit": 9.0, "verb": "tears at", "bite_infection": 20.0, "mins": 10},
 }
 
 const CARD_FILES := {
@@ -49,6 +51,7 @@ const CARD_FILES := {
 	"herbal_remedy": "res://data/cards/herbal_remedy.tres",
 	"antibiotics": "res://data/cards/antibiotics.tres",
 	"rat": "res://data/cards/rat.tres",
+	"zombie": "res://data/cards/zombie.tres",
 }
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
@@ -56,7 +59,7 @@ var LOCATIONS := {
 	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["hearth", "rain_barrel"], "connections": {"the_woods": 45},
 		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}], "renewable": []}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"lordly_manor": 45},
-		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
+		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}, {"kind": "ground", "id": "zombie", "milestone": 45}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
 	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5},
 		"pool": {"finite": [{"kind": "ground", "id": "canned_food", "milestone": 40}, {"kind": "ground", "id": "gas_canister", "milestone": 75, "content": "fuel", "fill": 50.0}, {"kind": "ground", "id": "antibiotics", "milestone": 60}], "renewable": [{"kind": "ground", "id": "rat", "max": 1}]}},
 }
@@ -106,13 +109,16 @@ var ACTIONS := {
 		{"label": "Drink the remedy (5m)", "mins": 5, "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
 	],
 	"antibiotics": [
-		{"label": "Take antibiotics (5m)", "mins": 5, "cure": {"gut_bug": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine - and not much left."},
+		{"label": "Take antibiotics (5m)", "mins": 5, "cure": {"gut_bug": -50.0, "infection": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine - and not much left."},
 	],
 	"bandage": [
 		{"label": "Bind your wounds (10m)", "mins": 10, "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
 	],
 	"rat": [
-		{"label": "Deal with it (5m)", "fight": true},
+		{"label": "Deal with it", "fight": true},
+	],
+	"zombie": [
+		{"label": "Fight it", "fight": true},
 	],
 }
 
@@ -166,6 +172,7 @@ var _combat_card: CardIcon = null
 var _combat_hp: float = 0.0
 var _combat_hp_max: float = 0.0
 var _combat_log: Array = []
+var _combat_before: Dictionary = {}
 var _combat_resolving: bool = false
 var hurt_flash: ColorRect
 var _shake_tween: Tween
@@ -398,6 +405,10 @@ func _make_cond_bar(id: String, cname: String, level: float, severity: int, traj
 	box.tooltip_text = Game.condition_desc(id)
 	var head := HBoxContainer.new()
 	head.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_theme_constant_override("separation", 5)
+	var title_lbl := _label(str(Game.CONDITIONS[id].get("title", id.capitalize())), INK, 11)
+	title_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(title_lbl)
 	var lbl := _label(cname, col, 11)
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -751,6 +762,7 @@ func _start_combat(card: CardIcon) -> void:
 	_combat_card = card
 	_combat_hp_max = float(ENEMIES[_combat_id]["hp"])
 	_combat_hp = _combat_hp_max
+	_combat_before = Game.meters.duplicate()
 	_combat_log = []
 	_combat_say("A %s, and it has seen you." % str(ENEMIES[_combat_id]["name"]).to_lower())
 	combat_layer.visible = true
@@ -815,22 +827,32 @@ func _combat_strike() -> void:
 			_combat_say("You strike the %s." % enemy_name)
 	if dmg > 0.0:
 		_screen_shake(3.0 + dmg * 0.35)
-	if _combat_hp <= 0.0:
+	var killed := _combat_hp <= 0.0
+	if killed:
 		_combat_say("The %s drops, and does not get up." % enemy_name)
-		_refresh_combat()
-		_combat_end("win")
-		return
-	var edmg: float = float(e["damage"]) * randf_range(0.6, 1.4)
-	Game.take_wound(edmg)
-	_flash_hurt()
-	_screen_shake(6.0 + edmg * 0.25)
-	_combat_say("The %s %s you." % [enemy_name, str(e.get("verb", "hits"))])
-	if e.has("bite_infection"):
-		Game.add_condition("infection", float(e["bite_infection"]) * randf_range(0.7, 1.3), "a bite")
+	else:
+		var edmg: float = float(e["damage"]) * randf_range(0.6, 1.4)
+		Game.take_wound(edmg)
+		_flash_hurt()
+		_screen_shake(6.0 + edmg * 0.25)
+		_combat_say("The %s %s you." % [enemy_name, str(e.get("verb", "hits"))])
+		if e.has("bite_infection"):
+			# cap the infection a single fight can seed below the lethal threshold, so it
+			# surfaces and festers (a treatable emergency) instead of maturing straight to death
+			var seeded := 0.0
+			for dose in Game.cond_pending:
+				if str(dose.get("id", "")) == "infection":
+					seeded += float(dose.get("amt", 0.0))
+			var add: float = minf(float(e["bite_infection"]) * randf_range(0.7, 1.3), maxf(0.0, 55.0 - seeded))
+			if add > 0.0:
+				Game.add_condition("infection", add, "a bite")
+	# each swing costs time — the survival sim ticks for the round (may turn a wound
+	# or a low need lethal); death is surfaced by _combat_end, not mid-swing
+	Game.advance_time(COMBAT_ROUND_MINS)
 	_refresh_combat()
-	if Game.conditions.get("wound", 0.0) >= 80.0:
-		_combat_say("You are torn open. Your legs go from under you.")
-		_refresh_combat()
+	if killed:
+		_combat_end("win")
+	elif Game.dead:
 		_combat_end("downed")
 
 func _combat_flee() -> void:
@@ -843,12 +865,16 @@ func _combat_flee() -> void:
 		_flash_hurt()
 		_screen_shake(6.0)
 	_combat_say("You break away. It gets a piece of you as you go.")
-	_combat_end("flee")
+	Game.advance_time(COMBAT_ROUND_MINS)
+	_refresh_combat()
+	if Game.dead:
+		_combat_end("downed")
+	else:
+		_combat_end("flee")
 
 func _combat_end(outcome: String) -> void:
 	_combat_resolving = true
 	var e: Dictionary = ENEMIES[_combat_id]
-	var mins: int = int(e.get("mins", 5))
 	_refresh_combat()
 	await get_tree().create_timer(0.7).timeout
 	combat_layer.visible = false
@@ -862,10 +888,9 @@ func _combat_end(outcome: String) -> void:
 		Game.add_log("The %s has the better of you." % str(e["name"]).to_lower())
 	_combat_card = null
 	_combat_id = ""
-	var before := Game.meters.duplicate()
-	Game.advance_time(mins)
-	_show_time_passing(mins)
-	_animate_meters(before, {})
+	# time already passed per round; settle the bars to their post-fight values. combat is
+	# hidden now, so the add_log above already let _refresh surface any death / forced sleep.
+	_animate_meters(_combat_before, {})
 	on_layout_changed()
 	_combat_resolving = false
 
@@ -1573,10 +1598,10 @@ func _refresh() -> void:
 			cond_tray.add_child(_make_cond_bar(id, str(stg["name"]), float(Game.conditions[id]), cst, Game.cond_trajectory(id)))
 	if weather_label:
 		weather_label.text = Game.weather_line()
-	if Game.force_sleep and not Game.dead:
+	if Game.force_sleep and not Game.dead and (not combat_layer or not combat_layer.visible):
 		Game.force_sleep = false
 		if not _collapsing:
 			_collapse_sleep.call_deferred()
-	if Game.dead and not _death_shown:
+	if Game.dead and not _death_shown and (not combat_layer or not combat_layer.visible):
 		_death_shown = true
 		_show_death()

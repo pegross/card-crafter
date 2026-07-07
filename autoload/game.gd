@@ -55,6 +55,7 @@ const CONDITIONS := {
 	"gut_bug": {
 		"decay_per_hour": 8.0,
 		"incubation_hours": 6.0,
+		"title": "Gut Illness",
 		"desc": "A waterborne gut infection. Unboiled water is the usual cause.",
 		"stages": [
 			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 1.5},
@@ -65,6 +66,7 @@ const CONDITIONS := {
 	},
 	"hypo": {
 		"decay_per_hour": 0.0,
+		"title": "Hypothermia",
 		"desc": "Your core is losing heat faster than your body can replace it.",
 		"stages": [
 			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 0.0},
@@ -75,6 +77,7 @@ const CONDITIONS := {
 	},
 	"wound": {
 		"decay_per_hour": 1.2,
+		"title": "Wound",
 		"desc": "Torn flesh from a fight. Bind it before it turns bad.",
 		"stages": [
 			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 1.2},
@@ -85,12 +88,25 @@ const CONDITIONS := {
 	},
 	"dehydration": {
 		"decay_per_hour": 0.0,
+		"title": "Dehydration",
 		"desc": "Your body is running dry. You need water, and soon.",
 		"stages": [
 			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 0.0},
-			{"name": "Thirsty", "enter": 20.0, "exit": 12.0, "tell": "Your mouth is dry and your head has started to ache.", "mult": {}, "decay": 0.0},
-			{"name": "Parched", "enter": 50.0, "exit": 38.0, "tell": "Cracked lips, a pounding skull. You need water badly.", "mult": {"Mental": 1.3}, "decay": 0.0},
-			{"name": "Failing", "enter": 82.0, "exit": 68.0, "tell": "Your body is shutting down for want of water.", "mult": {"Mental": 1.5}, "decay": 0.0, "lethal": true, "death": "thirst"},
+			{"name": "Parched", "enter": 18.0, "exit": 10.0, "tell": "Cracked lips, a pounding skull. You need water badly.", "mult": {"Mental": 1.3}, "decay": 0.0},
+			{"name": "Delirious", "enter": 50.0, "exit": 38.0, "tell": "Your thoughts swim. The thirst is all there is.", "mult": {"Mental": 1.5}, "decay": 0.0},
+			{"name": "Failing", "enter": 82.0, "exit": 68.0, "tell": "Your body is shutting down for want of water.", "mult": {"Mental": 1.6}, "decay": 0.0, "lethal": true, "death": "thirst"},
+		],
+	},
+	"infection": {
+		"decay_per_hour": 0.0,
+		"incubation_hours": 8.0,
+		"title": "Infection",
+		"desc": "A bite gone bad. Heat and swelling, and it is spreading.",
+		"stages": [
+			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 0.0},
+			{"name": "Feverish", "enter": 20.0, "exit": 12.0, "tell": "The bite is hot and swollen, and a fever creeps in.", "mult": {"Immune": 1.3}, "decay": 0.0},
+			{"name": "Septic", "enter": 55.0, "exit": 42.0, "tell": "Red lines climb from the wound. This is turning bad.", "mult": {"Immune": 1.6, "Mental": 1.3}, "decay": 0.0},
+			{"name": "Blood Poisoning", "enter": 82.0, "exit": 68.0, "tell": "Fever burns through you and your thoughts scatter. It is in your blood now.", "mult": {"Immune": 1.8}, "decay": 0.0, "lethal": true, "death": "the infection"},
 		],
 	},
 }
@@ -309,15 +325,19 @@ func _apply_influences(hours: float) -> void:
 		dh -= 10.0 * hours
 	conditions["dehydration"] = clampf(dh, 0.0, 100.0)
 	_eval_stage("dehydration")
+	# INFECTION festers and spreads on its own until antibiotics clear it
+	if conditions.get("infection", 0.0) > 0.0:
+		conditions["infection"] = clampf(float(conditions["infection"]) + 1.5 * hours, 0.0, 100.0)
+		_eval_stage("infection")
 
 func need_desc(m: String) -> String:
 	match m:
 		"Calories":
 			return "Fuel in the tank. Spent as you act,\nrefilled by eating. Hitting empty won't\nkill you; it burns your Weight instead."
 		"Hydration":
-			return "Body water. Drops faster when you're ill\nor working hard. Run it dry and you die\nof thirst, and fast."
+			return "Body water. Drops faster when you're ill\nor working hard. Let it run low and\ndehydration takes hold."
 		"Warmth":
-			return "Body heat. Cold, wet, and time outdoors\nbleed it away; fire and shelter bring it back.\nReaching zero kills you."
+			return "Body heat. Cold, wet, and time outdoors\nbleed it away; fire and shelter bring it back.\nLet it fall far and hypothermia sets in."
 		"Energy":
 			return "What you have left in you. Spent by action,\nand capped by your sleep-debt. At zero you\ncollapse into sleep where you stand."
 		"Immune":
@@ -425,6 +445,10 @@ func _eval_stage(id: String) -> void:
 				msg = "The shivering fades; warmth creeps back."
 			elif id == "wound":
 				msg = "The bleeding has stopped. The wound is closing."
+			elif id == "infection":
+				msg = "The fever breaks and the swelling goes down."
+			elif id == "dehydration":
+				msg = "The thirst loosens its grip."
 			add_log(msg)
 	cond_stage[id] = cur
 
