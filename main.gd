@@ -1610,6 +1610,7 @@ func _load_ground(loc: String) -> void:
 			c.spoil_at = int(entry.get("spoil_at", -1))  # keep perishables aging on absolute time
 		else:
 			_spawn(str(entry), "middle")
+	_rot_food()  # catch anything that spoiled here while you were away, on arrival
 
 func _save_ground(loc: String) -> void:
 	var ids: Array = []
