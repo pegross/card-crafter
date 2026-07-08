@@ -203,6 +203,26 @@ func sync_state() -> void:
 		state_value = Game.card_state.get(data.id, data.state_start)
 		_refresh_state()
 
+# --- summaries for the card detail view ---
+func current_blurb() -> String:
+	if data.is_fire_source:
+		if Game.is_lit(data.id) and data.blurb_lit != "":
+			return data.blurb_lit
+		elif state_value > 0.0 and data.blurb_fueled != "":
+			return data.blurb_fueled
+	return data.blurb
+
+func state_summary() -> String:
+	if data.is_container:
+		return "Empty" if content == "" else "%s  %d%%" % [_content_display(content), int(round(state_value))]
+	if data.is_fire_source:
+		if Game.is_lit(data.id):
+			return "Burning  %d%%" % int(round(state_value))
+		return ("Unlit  %d%%" % int(round(state_value))) if state_value > 0.0 else "Cold"
+	if data.state_kind != "":
+		return "%s  %d%%" % [_state_word(), int(round(state_value))]
+	return ""
+
 func _state_word() -> String:
 	match data.state_kind:
 		"explore": return "Explored"

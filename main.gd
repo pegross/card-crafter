@@ -162,6 +162,9 @@ var menu_vbox: VBoxContainer
 var _menu_card: CardIcon
 var _menu_actions: Array = []
 var _dragging: CardIcon = null
+var detail_layer: Control
+var detail_panel: PanelContainer
+var detail_body: VBoxContainer
 var combat_layer: Control
 var combat_title: Label
 var combat_hp_bar: ProgressBar
@@ -194,6 +197,7 @@ func _ready() -> void:
 	_build_overlay()
 	_build_time_popup()
 	_build_menu()
+	_build_detail()
 	_build_death()
 	_build_combat()
 	_build_hurt_flash()
@@ -221,6 +225,11 @@ func _build_tooltip_theme() -> void:
 	theme = th
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
+		if detail_layer and detail_layer.visible:
+			_hide_detail()
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F11:
 		var m := DisplayServer.window_get_mode()
 		if m == DisplayServer.WINDOW_MODE_FULLSCREEN:
@@ -698,6 +707,91 @@ func _build_menu() -> void:
 	menu_vbox = VBoxContainer.new()
 	menu_vbox.add_theme_constant_override("separation", 2)
 	_pad(menu_panel, 3).add_child(menu_vbox)
+
+# ---------- card detail view (left-click) ----------
+func _build_detail() -> void:
+	detail_layer = Control.new()
+	detail_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	detail_layer.visible = false
+	add_child(detail_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.0, 0.0, 0.0, 0.45)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	dim.gui_input.connect(_on_detail_dim_input)
+	detail_layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	detail_layer.add_child(center)
+	detail_panel = PanelContainer.new()
+	detail_panel.custom_minimum_size = Vector2(440, 0)
+	detail_panel.add_theme_stylebox_override("panel", _flat(PANEL, BORDER, 14))
+	detail_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	center.add_child(detail_panel)
+	detail_body = VBoxContainer.new()
+	detail_body.add_theme_constant_override("separation", 9)
+	_pad(detail_panel, 22).add_child(detail_body)
+
+func _detail_category(card: CardIcon) -> String:
+	if card.data.kind == "location":
+		return "PLACE"
+	return str(card.data.kind).to_upper()
+
+func _detail_action_btn(txt: String) -> Button:
+	var b := _btn(txt)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	return b
+
+func _open_detail() -> void:
+	for c in detail_body.get_children():
+		detail_body.remove_child(c)
+		c.queue_free()
+	var card := _menu_card
+	detail_body.add_child(_label("YOU" if card == null else _detail_category(card), COLD, 11))
+	detail_body.add_child(_label("You" if card == null else card.data.title, INK_STRONG, 22))
+	var desc := "Rest to steady your nerves, or sleep off the day's weariness." if card == null else card.current_blurb()
+	var d := _label(desc, MUTED, 13)
+	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	d.custom_minimum_size = Vector2(396, 0)
+	detail_body.add_child(d)
+	if card != null:
+		var st := card.state_summary()
+		if st != "":
+			detail_body.add_child(_label(st, WARM_SOFT, 12))
+	detail_body.add_child(HSeparator.new())
+	if _menu_actions.is_empty():
+		var hint := "Nothing to do with it just now."
+		if card != null:
+			if RECIPES.has(card.data.id):
+				hint = "Drag it onto a target to use it."
+			elif _is_recipe_target(card.data.id):
+				hint = "Drag the right item onto it to use it."
+		detail_body.add_child(_label(hint, MUTED, 12))
+	else:
+		for i in _menu_actions.size():
+			var b := _detail_action_btn(str(_menu_actions[i]["label"]))
+			b.pressed.connect(_on_detail_pick.bind(i))
+			detail_body.add_child(b)
+	var closeb := _detail_action_btn("Close")
+	closeb.pressed.connect(_hide_detail)
+	detail_body.add_child(closeb)
+	detail_panel.reset_size()
+	detail_layer.visible = true
+
+func _on_detail_pick(i: int) -> void:
+	_hide_detail()
+	if i >= 0 and i < _menu_actions.size():
+		_perform(_menu_card, _menu_actions[i])
+
+func _hide_detail() -> void:
+	if detail_layer:
+		detail_layer.visible = false
+
+func _on_detail_dim_input(e: InputEvent) -> void:
+	if e is InputEventMouseButton and e.pressed:
+		_hide_detail()
 
 func _btn_sb(bg: Color) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
@@ -1435,15 +1529,7 @@ func on_card_clicked(card: CardIcon) -> void:
 		_menu_actions = _container_actions(card)
 	else:
 		_menu_actions = ACTIONS.get(card.data.id, [])
-	if _menu_actions.is_empty():
-		if RECIPES.has(card.data.id):
-			Game.add_log("Drag the %s onto a target to use it." % card.data.title.to_lower())
-		elif _is_recipe_target(card.data.id):
-			Game.add_log("Drag the right item onto the %s to use it." % card.data.title.to_lower())
-		else:
-			Game.add_log("There is nothing to do with the %s just now." % card.data.title.to_lower())
-		return
-	_open_menu()
+	_open_detail()
 
 func _open_menu() -> void:
 	for c in menu_vbox.get_children():
@@ -1488,7 +1574,7 @@ func _open_char_menu() -> void:
 		{"label": "Rest (15m)", "mins": 15, "fx": {"Mental": 3.0}, "log": "You sit a while, eyes shut. Not sleep, but it steadies you a little."},
 		{"label": "Sleep until rested", "sleep": true},
 	]
-	_open_menu()
+	_open_detail()
 
 func _on_portrait_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
