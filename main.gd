@@ -59,7 +59,7 @@ var ACTIONS := {
 		{"label": "Search the grounds (15m)", "mins": 15, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
 	],
 	"broken_hearth": [
-		{"label": "Rebuild the hearth (1h)", "mins": 60, "repair": {"cost": {"stone": 3}, "into": "hearth"}, "log": "You clear the fallen-in stone and set it back, course by course. The firebox will take a flame again."},
+		{"label": "Rebuild the hearth", "buildsite": "manor_hearth"},
 	],
 	"spoiled_meat": [
 		{"label": "Choke it down (10m)", "mins": 10, "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will turn on you for it."},
@@ -1133,6 +1133,10 @@ func _do_build_phase(id: String) -> void:
 	if phase.has("log"):
 		Game.add_log(str(phase["log"]))
 	Game.complete_build_phase(id)
+	# a finished project can swap a board fixture in place (the broken hearth becomes the working one)
+	if Game.build_done(id) and Game.CONSTRUCTION[id].has("on_done_swap"):
+		var sw: Array = Game.CONSTRUCTION[id]["on_done_swap"]
+		_swap_fixture(str(sw[0]), str(sw[1]))
 	_animate_meters(before, fx)
 	on_layout_changed()
 	if detail_layer and detail_layer.visible:
@@ -1618,15 +1622,8 @@ func _load_ground(loc: String) -> void:
 			c.spoil_at = int(entry.get("spoil_at", -1))  # keep perishables aging on absolute time
 		else:
 			_spawn(str(entry), "middle")
-	# surface renewable ground up to what has regrown, so regrowth is visible the moment you arrive
-	for id in _renewable_ground_ids(loc):
-		var present := 0
-		for c in row.get_children():
-			if c is CardIcon and str((c as CardIcon).data.id) == id:
-				present += 1
-		while present < Game.stock_count(loc, id):
-			_spawn(id, "middle")
-			present += 1
+	# renewables are NOT laid out on arrival; they are found only by SEARCHING (see _process_reveals),
+	# which surfaces up to floor(stock). The stock is what is there to find, not scenery on the ground.
 	_rot_food()  # catch anything that spoiled here while you were away, on arrival
 
 func _save_ground(loc: String) -> void:
@@ -2359,29 +2356,8 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		_animate_meters(rbefore, rfx)
 		on_layout_changed()
 		return
-	if act.has("repair"):
-		var rep: Dictionary = act["repair"]
-		var cost: Dictionary = rep.get("cost", {})
-		for mid in cost:
-			if _count_available(str(mid)) < int(cost[mid]):
-				Game.add_log("You would need %d %s to make that good." % [int(cost[mid]), _card_title(str(mid)).to_lower()])
-				return
-		for mid in cost:
-			_consume_materials(str(mid), int(cost[mid]))
-		var rmins2 := int(act.get("mins", 60))
-		var rbefore2 := Game.meters.duplicate()
-		var rfx2 := {"Energy": -8.0, "Calories": -5.0, "Hydration": -5.0}  # heavy work
-		for k in rfx2:
-			Game.modify(k, rfx2[k])
-		Game.advance_time(rmins2)
-		_show_time_passing(rmins2)
-		Game.gain_skill("crafting", 3.0)
-		if act.has("log"):
-			Game.add_log(str(act["log"]))
-		if card != null:
-			_swap_fixture(card.data.id, str(rep.get("into", "")))
-		_animate_meters(rbefore2, rfx2)
-		on_layout_changed()
+	if act.has("buildsite"):
+		_open_buildsite(str(act["buildsite"]))  # a fixture built through the construction popup, in phases
 		return
 	if act.has("state_delta"):
 		var d: float = act["state_delta"]

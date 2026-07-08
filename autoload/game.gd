@@ -133,6 +133,21 @@ const CONSTRUCTION := {
 			 "log": "You hang the shutters and fit a bar across each. They close out the cold."}
 		]
 	},
+	"manor_hearth": {
+		"shelter": "lordly_manor",
+		"label": "Rebuild the hearth",
+		"broken_desc": "The hearth has fallen in, soot-black stone and cold ash. Rebuilt, it would take a fire again.",
+		"done_label": "Hearth",
+		"done_desc": "The firebox is sound again, laid stone on stone. It will hold a flame.",
+		"done_log": "The hearth is whole again. It only wants a light now.",
+		"on_done_swap": ["broken_hearth", "hearth"],
+		"phases": [
+			{"label": "Clear the ruin, lay the base", "materials": {"stone": 2}, "work_mins": 60,
+			 "log": "You haul out the fallen stone and lay a level base."},
+			{"label": "Build up the firebox", "materials": {"stone": 1}, "work_mins": 45,
+			 "log": "You raise the firebox course by course and set the lintel."}
+		]
+	},
 	"manor_workbench": {
 		"shelter": "lordly_manor",
 		"requires_research": "r_workbench",
