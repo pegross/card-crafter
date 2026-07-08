@@ -28,6 +28,16 @@ var weather: String = "overcast"  ## clear / overcast / rain
 var wet: float = 0.0  ## 0..100; rises outdoors in rain, dries indoors/by fire
 var force_sleep: bool = false  ## set when Energy hits 0 -> main triggers a collapse-sleep
 
+## EVENT DIRECTOR — deterministic, telegraphed "worse times".
+var scheduled_events: Array = []    ## upcoming instances: {id, day, telegraphed, fired, waves?}
+var active_events: Array = []       ## live effects: {id, ends_day, temp_drop}
+var _schedule_seeded_year: int = 0  ## highest year already seeded (endless generator)
+## RADIO — the telegraph channel and the title.
+var radio_powered: bool = true          ## mains power; fails permanently at grid_failure
+var radio_last_broadcast_day: int = 0   ## last day a broadcast was drawn (repeat-listen = static)
+## SIEGE bridge — set by the Director, consumed by main.gd like force_sleep.
+var pending_siege: int = 0  ## zombie waves queued for the shelter (0 = none)
+
 ## SKILLS (0..100, learn-by-doing) and background RESEARCH (progresses in waking time).
 var skills := {"woodworking": 0.0, "cooking": 0.0, "crafting": 0.0, "tailoring": 0.0}
 const SKILL_LABEL := {"woodworking": "Woodworking", "cooking": "Cooking", "crafting": "Crafting", "tailoring": "Tailoring"}
@@ -103,6 +113,85 @@ const CONSTRUCTION := {
 		]
 	}
 }
+
+## EVENT DIRECTOR data. Events are mechanical here; all prose lives in EVENT_FLAVOR and is
+## picked at runtime. category drives the radio: "weather" forecasts, "threat" warns, "power" = soft clock.
+const EVENTS := {
+	"cold_snap":    {"category": "weather", "telegraph_days": 2, "duration_days": 3, "temp_drop": -7.0, "winter_bonus": -4.0},
+	"drought":      {"category": "weather", "telegraph_days": 3, "duration_days": 5, "stream_drain_per_hour": 10.0},
+	"horde_surge":  {"category": "threat",  "telegraph_days": 2, "duration_days": 1, "base_waves": 1},
+	"grid_failure": {"category": "power",   "telegraph_days": 3, "duration_days": 0},
+}
+## The authored year-0 spine, by absolute day. First Winter = days 7-12, first Summer = 19-24.
+const EVENT_SPINE := [
+	{"id": "grid_failure", "day": 8},   ## early first winter: the power goes for good
+	{"id": "cold_snap",    "day": 9},   ## first winter bites
+	{"id": "horde_surge",  "day": 11},  ## the first siege, a fixed day of the first winter
+	{"id": "drought",      "day": 21},  ## first summer: the stream slows, the barrel dries
+]
+const EVENT_FLAVOR := {
+	"cold_snap_telegraph": [
+		"The light goes thin and hard, and the air tastes of iron.",
+		"A stillness settles. The cold is coming, and the sky has already gone quiet for it."],
+	"cold_snap_onset": [
+		"The cold arrives without a sound and takes the warmth out of everything.",
+		"Frost creeps up the inside of the glass. The world has locked shut."],
+	"cold_snap_end": [
+		"The cold loosens its grip. You can feel your hands again.",
+		"The freeze breaks at last, and the air softens by a degree."],
+	"cold_snap_radio": [
+		"a front, moving down out of the north, colder air behind it, expect...",
+		"hard freeze warning for, the name is lost, overnight and into the."],
+	"drought_telegraph": [
+		"The sky has been bare for days and the ground is going pale and cracked.",
+		"No dew this morning, no damp in the air. The wet is draining out of the land."],
+	"drought_onset": [
+		"The last of the puddles are gone. Everything is dust and dry wind.",
+		"The dry has set in properly now. The taps sigh and give nothing."],
+	"drought_end": [
+		"The air turns heavy and damp again. Rain cannot be far off.",
+		"The dry spell breaks. You smell wet earth for the first time in days."],
+	"drought_radio": [
+		"a dry spell holding, no cloud, the reader sounds tired, unbroken for some days.",
+		"clear and dry through the week, the automated tone repeats it, dry, dry."],
+	"horde_surge_telegraph": [
+		"The birds go up all at once, far off, and do not come back down.",
+		"A sound reaches you, low and many and shapeless, and it is getting nearer.",
+		"The quiet before them is the worst part. You can feel it coming through the floor."],
+	"horde_surge_onset": [
+		"They are here. The dark outside is full of slow, shuffling movement.",
+		"The roamers have found the house. There is no outrunning this many."],
+	"horde_surge_radio": [
+		"movement reported along the, the road name breaks up, do not travel by night.",
+		"a large group pushing through the low ground, keep off the streets, keep quiet, keep.",
+		"numbers on the move to the, the direction is swallowed, seek a hard door."],
+	"horde_surge_away": [
+		"You come back to claw marks gouged in the door and the frame sprung. Something worked hard to get in while you were gone."],
+	"grid_failure_telegraph": [
+		"The lights dip, hold, dip again. The power will not last much longer.",
+		"A brownout, then another. Whatever keeps the grid alive is losing the fight."],
+	"grid_failure_onset": [
+		"The power dies for good. A hum you had long stopped hearing is gone, and the house goes truly quiet."],
+	"grid_failure_radio": [
+		"rolling blackouts across the, the grid failing region by, expect to lose power in your."],
+}
+const RADIO_STATIC := [
+	"Static, and under it nothing. You listen anyway, the way you listen for rain.",
+	"A flat carrier hum, steady as a held breath. No one is speaking behind it.",
+	"For a moment the hiss thins, and you lean in. Then it closes over again.",
+	"A scrap of an old station ident, three notes looping, worn to a ghost of themselves.",
+	"The channel that carried a voice yesterday is only white noise now.",
+	"The signal surges, fades, surges. Weather, or someone very far away, or nothing.",
+	"Somewhere in the wash of it you think you hear a word. You know you did not.",
+	"The dial finds the same grey sea at every number. You turn it slowly all the same.",
+	"A dead hum, warm and empty. It sounds almost like company.",
+	"Silence with a shape to it, patient on the air, waiting for a voice that does not come.",
+]
+const RADIO_DEAD := [
+	"The set is dark and silent. No power reaches it now.",
+	"You thumb the dial out of old habit. Nothing answers. The grid is gone, and the radio with it.",
+]
+const STREAM_DRY_LINE := "The stream has slowed to a dirty trickle, barely enough to wet a hand."
 
 ## Continuous needs, 0..100 (the CSTI-style sliders). Provisional values.
 var meters := {
@@ -206,6 +295,9 @@ var fatigue: float = 0.0  ## sleep-debt 0..100; accrues awake, cleared only by s
 var mental_driver: String = ""  ## biggest current Mental drain source (for tooltip + obituary)
 var weight: float = 55.0  ## body mass 0..100 (~50 ideal); Calorie surplus feeds it, deficit burns it
 var weight_warned: bool = false  ## one-shot "wasting away" tell latch
+
+func _ready() -> void:
+	_seed_schedule()  # lay down the deterministic event spine for a fresh game (reset() re-seeds)
 
 func is_fire_lit() -> bool:
 	return is_lit("hearth")
@@ -359,6 +451,128 @@ func shelter_damp() -> float:
 		d -= 0.12
 	return maxf(0.15, d)
 
+# ---------- EVENT DIRECTOR ----------
+const RADIO_THREAT_HORIZON := 4   ## days ahead the radio can warn of a coming horde
+const RADIO_WEATHER_HORIZON := 3  ## days ahead the radio forecasts weather / the grid dying
+
+func _pick(arr: Array) -> String:
+	return str(arr[randi() % arr.size()]) if not arr.is_empty() else ""
+
+func _event_line(id: String, phase: String) -> String:
+	return _pick(EVENT_FLAVOR.get(id + "_" + phase, []))
+
+func _seed_schedule() -> void:
+	scheduled_events.clear()
+	for e in EVENT_SPINE:
+		scheduled_events.append({"id": str(e["id"]), "day": int(e["day"]), "telegraphed": false, "fired": false})
+	_schedule_seeded_year = 1
+
+func _extend_schedule(year: int) -> void:
+	# endless sandbox: deterministically append a winter surge + snap and a summer drought per year
+	if year <= _schedule_seeded_year:
+		return
+	var winter_start := year * 4 * SEASON_LENGTH + SEASON_LENGTH + 1
+	var summer_start := year * 4 * SEASON_LENGTH + 3 * SEASON_LENGTH + 1
+	scheduled_events.append({"id": "cold_snap",   "day": winter_start + 2, "telegraphed": false, "fired": false})
+	scheduled_events.append({"id": "horde_surge", "day": winter_start + 4, "telegraphed": false, "fired": false, "waves": 1 + year})
+	scheduled_events.append({"id": "drought",     "day": summer_start + 2, "telegraphed": false, "fired": false})
+	_schedule_seeded_year = year
+
+func _event_active(id: String) -> bool:
+	for a in active_events:
+		if str(a["id"]) == id:
+			return true
+	return false
+
+func _event_temp_offset() -> float:
+	var t := 0.0
+	for a in active_events:
+		t += float(a.get("temp_drop", 0.0))
+	return t
+
+func _director_tick() -> void:
+	_extend_schedule(int(float(day - 1) / float(4 * SEASON_LENGTH)) + 1)
+	# end any active event whose window has closed
+	var still: Array = []
+	for a in active_events:
+		if day >= int(a["ends_day"]):
+			var el := _event_line(str(a["id"]), "end")
+			if el != "":
+				add_log(el)
+		else:
+			still.append(a)
+	active_events = still
+	# telegraph and fire scheduled events
+	for ev in scheduled_events:
+		if bool(ev["fired"]):
+			continue
+		var def: Dictionary = EVENTS[str(ev["id"])]
+		var due: int = int(ev["day"])
+		if not bool(ev["telegraphed"]) and day >= due - int(def["telegraph_days"]):
+			ev["telegraphed"] = true
+			var tl := _event_line(str(ev["id"]), "telegraph")
+			if tl != "":
+				add_log(tl)
+		if day >= due:
+			ev["fired"] = true
+			_fire_event(ev)
+
+func _fire_event(ev: Dictionary) -> void:
+	var id: String = str(ev["id"])
+	var def: Dictionary = EVENTS[id]
+	var ol := _event_line(id, "onset")
+	if ol != "":
+		add_log(ol)
+	match id:
+		"cold_snap":
+			var drop: float = float(def["temp_drop"])
+			if season() == 1:
+				drop += float(def["winter_bonus"])  # harsher in winter
+			active_events.append({"id": id, "ends_day": day + int(def["duration_days"]), "temp_drop": drop})
+		"drought":
+			active_events.append({"id": id, "ends_day": day + int(def["duration_days"]), "temp_drop": 0.0})
+		"horde_surge":
+			pending_siege = int(ev.get("waves", def["base_waves"]))  # main.gd consumes this
+		"grid_failure":
+			radio_powered = false  # permanent dead air from here on
+
+func radio_listen() -> String:
+	# power gone -> permanent dead air. This IS the title, and the soft clock.
+	if not radio_powered:
+		return _pick(RADIO_DEAD)
+	# one broadcast draw per day; listening again the same day is only static
+	if radio_last_broadcast_day == day:
+		return _pick(RADIO_STATIC)
+	var b := _radio_broadcast_for_today()
+	if b == "":
+		return _pick(RADIO_STATIC)  # the usual case: mostly dead air
+	radio_last_broadcast_day = day
+	return b
+
+func _radio_broadcast_for_today() -> String:
+	# DETERMINISTIC: broadcasts come only from the Director's scheduled events. Threats
+	# outrank weather; within a tier the nearest event wins.
+	var best := ""
+	var best_lead := 9999
+	var best_is_threat := false
+	for ev in scheduled_events:
+		if bool(ev["fired"]):
+			continue
+		var def: Dictionary = EVENTS[str(ev["id"])]
+		var lead: int = int(ev["day"]) - day
+		if lead <= 0:
+			continue
+		var cat := str(def["category"])
+		var horizon: int = RADIO_THREAT_HORIZON if cat == "threat" else RADIO_WEATHER_HORIZON
+		if lead > horizon:
+			continue
+		var is_threat := cat == "threat"
+		if best == "" or (is_threat and not best_is_threat) or (is_threat == best_is_threat and lead < best_lead):
+			best = _event_line(str(ev["id"]), "radio")
+			best_lead = lead
+			best_is_threat = is_threat
+	return best
+
 func advance_time(mins: int, sleeping := false) -> void:
 	var hours := float(mins) / 60.0
 	# mature any incubating doses that come due within this step: full fixed dose, drink-time cause kept (earliest wins)
@@ -401,7 +615,13 @@ func advance_time(mins: int, sleeping := false) -> void:
 			weather = "rain" if roll < 0.12 else ("clear" if roll > 0.5 else "overcast")
 		else:  # Autumn / Spring: the mixed baseline
 			weather = "rain" if roll < 0.35 else ("clear" if roll > 0.75 else "overcast")
-	outdoor_temp = {"clear": 4.0, "overcast": 1.0, "rain": -1.0}.get(weather, 1.0) + season_offset()
+	if _event_active("drought"):
+		if weather == "rain":
+			weather = "overcast"  # no rain in a drought: the barrel stops filling for free
+		card_state["stream"] = maxf(0.0, float(card_state.get("stream", 100.0)) - float(EVENTS["drought"]["stream_drain_per_hour"]) * hours)
+	else:
+		card_state["stream"] = minf(100.0, float(card_state.get("stream", 100.0)) + 6.0 * hours)  # recovers between droughts
+	outdoor_temp = {"clear": 4.0, "overcast": 1.0, "rain": -1.0}.get(weather, 1.0) + season_offset() + _event_temp_offset()
 	# WET: soaked by rain outdoors; dries indoors or by a fire
 	if weather == "rain" and not location_indoor:
 		wet = clampf(wet + 30.0 * hours, 0.0, 100.0)
@@ -456,6 +676,7 @@ func advance_time(mins: int, sleeping := false) -> void:
 		elif not _season_warned and days_left_in_season() <= 1:
 			_season_warned = true
 			add_log(_season_warning_line((s + 1) % 4))
+		_director_tick()  # schedule/telegraph/fire the "worse times", once per new day
 	_check_collapse()
 	for id in conditions:
 		cond_last[id] = conditions[id]
@@ -761,6 +982,11 @@ func reset() -> void:
 	research_progress = 0.0
 	builds = {}
 	build_progress = {}
+	active_events = []
+	radio_powered = true
+	radio_last_broadcast_day = 0
+	pending_siege = 0
+	_seed_schedule()
 	current_location = "lordly_manor"
 	location_indoor = true
 	card_state = {}

@@ -52,11 +52,12 @@ const CARD_FILES := {
 	"antibiotics": "res://data/cards/antibiotics.tres",
 	"rat": "res://data/cards/rat.tres",
 	"zombie": "res://data/cards/zombie.tres",
+	"radio": "res://data/cards/radio.tres",
 }
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
-	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["hearth", "rain_barrel"], "connections": {"the_woods": 45},
+	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["hearth", "rain_barrel", "radio"], "connections": {"the_woods": 45},
 		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}], "renewable": []}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"lordly_manor": 45},
 		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}, {"kind": "fixture", "id": "zombie", "milestone": 45, "log": "Something moves between the trees, slow and wrong. It turns toward you."}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
@@ -113,6 +114,9 @@ var ACTIONS := {
 	],
 	"bandage": [
 		{"label": "Bind your wounds (10m)", "mins": 10, "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
+	],
+	"radio": [
+		{"label": "Listen (15m)", "mins": 15, "fx": {"Mental": -2.0}, "radio_listen": true},
 	],
 	"rat": [
 		{"label": "Deal with it", "fight": true},
@@ -1688,7 +1692,10 @@ func _container_actions(card: CardIcon) -> Array:
 
 func _do_drink(card: CardIcon, clean: bool, mins: int) -> void:
 	# every drink pulls one SIP (or the last of what's there, for less hydration)
-	var infinite := card.data.id == "stream"  # a flowing stream doesn't deplete; weather-gating is deferred
+	if card.data.id == "stream" and float(Game.card_state.get("stream", 100.0)) <= 15.0:
+		Game.add_log(Game.STREAM_DRY_LINE)  # a drought has slowed it to nothing
+		return
+	var infinite := card.data.id == "stream"  # a flowing stream doesn't deplete; drought gates it (above)
 	var avail: float = SIP if infinite else card.state_value
 	if not infinite and avail <= 0.0:
 		Game.add_log("The %s is empty." % card.data.title.to_lower())
@@ -1853,6 +1860,19 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		return
 	if act.has("fight"):
 		_start_combat(card)
+		return
+	if act.has("radio_listen"):
+		var line := Game.radio_listen()
+		var rbefore := Game.meters.duplicate()
+		var rfx: Dictionary = act.get("fx", {})
+		for k in rfx:
+			Game.modify(k, rfx[k])
+		var rmins := int(act.get("mins", 15))
+		Game.advance_time(rmins)
+		_show_time_passing(rmins)
+		Game.add_log(line)
+		_animate_meters(rbefore, rfx)
+		on_layout_changed()
 		return
 	if act.has("state_delta"):
 		var d: float = act["state_delta"]
