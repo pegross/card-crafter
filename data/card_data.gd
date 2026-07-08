@@ -22,3 +22,4 @@ extends Resource
 @export var bite_infection: float = 0.0  ## creature: infection seeded per hit (0 = none)
 @export var enemy_mins: int = 0  ## creature: in-game minutes an encounter costs
 @export var drops: String = ""  ## creature: card id spawned when this creature dies ("" = nothing)
+@export var spoil_hours: float = 0.0  ## perishable food: in-game hours until it spoils (0 = keeps)

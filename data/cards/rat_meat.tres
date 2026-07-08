@@ -7,4 +7,5 @@ script = ExtResource("1")
 id = "rat_meat"
 title = "Rat Meat"
 kind = "item"
-blurb = "A few stringy scraps, dark and gamey. Raw, it turns the stomach. Better cooked, if you can."
+blurb = "A few stringy scraps, dark and gamey. Raw, it turns the stomach. Better cooked, if you can. It will not keep long."
+spoil_hours = 8.0

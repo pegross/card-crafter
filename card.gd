@@ -32,11 +32,14 @@ var _title_label: Label
 var _blurb_label: Label
 var _state_fill: StyleBoxFlat
 var content: String = ""  ## for containers: current contents id ("" = empty)
+var spoil_at: int = -1  ## perishable food: absolute game-minute it spoils (-1 = never)
 
 func setup(card_data: CardData, main_ref) -> void:
 	data = card_data
 	main = main_ref
 	mobile = data.kind in ["item", "resource", "tool"]
+	if data.spoil_hours > 0.0:
+		spoil_at = Game.abs_minute() + int(data.spoil_hours * 60.0)  # fresh; a loader may override
 	custom_minimum_size = CARD_SIZE
 	self.clip_contents = true
 	size_flags_horizontal = Control.SIZE_SHRINK_CENTER

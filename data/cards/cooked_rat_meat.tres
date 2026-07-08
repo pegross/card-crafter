@@ -7,4 +7,5 @@ script = ExtResource("1")
 id = "cooked_rat_meat"
 title = "Cooked Rat Meat"
 kind = "item"
-blurb = "Charred over the fire until the worst of it is gone. It is still rat, but it is warm and it is food."
+blurb = "Charred over the fire until the worst of it is gone. It is still rat, but it is warm and it is food. Eat it or smoke it before it turns."
+spoil_hours = 30.0

@@ -26,7 +26,7 @@ var CARD_FILES := {}
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
 	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["broken_hearth", "radio"], "connections": {"the_grounds": 2},
-		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}], "renewable": []}},
+		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}, {"kind": "ground", "id": "wool_blanket", "milestone": 90, "log": "In a back bedroom, folded in a cedar chest, a heavy wool blanket. Dry, somehow, after all this time."}], "renewable": []}},
 	"the_grounds": {"title": "The Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"the_woods": 45},
 		"pool": {"finite": [{"kind": "ground", "id": "stone", "milestone": 10}, {"kind": "ground", "id": "stone", "milestone": 25}, {"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 2, "log": "Past a fallen gate and a tangle of dead garden, the house itself stands dark against the sky. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 2}]}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"the_grounds": 45},
@@ -60,6 +60,9 @@ var ACTIONS := {
 	],
 	"broken_hearth": [
 		{"label": "Rebuild the hearth (1h)", "mins": 60, "repair": {"cost": {"stone": 3}, "into": "hearth"}, "log": "You clear the fallen-in stone and set it back, course by course. The firebox will take a flame again."},
+	],
+	"spoiled_meat": [
+		{"label": "Choke it down (10m)", "mins": 10, "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will make you pay for this."},
 	],
 	"rain_barrel": [
 		{"label": "Drink from the barrel (5m)", "mins": 5, "drink": true, "clean": false},
@@ -1572,7 +1575,7 @@ func _restart() -> void:
 func _populate() -> void:
 	for loc in LOCATIONS:
 		Game.location_ground[loc] = GROUND_START.get(loc, []).duplicate()
-	for id in ["canned_food", "plastic_bottle", "lighter", "wool_blanket"]:
+	for id in ["canned_food", "plastic_bottle", "lighter"]:
 		_spawn(id, "inv")
 	_rebuild_out_there()
 	_load_ground(Game.current_location)
@@ -1601,15 +1604,40 @@ func _load_ground(loc: String) -> void:
 	for c in row.get_children():
 		row.remove_child(c)
 		c.queue_free()
-	for id in Game.location_ground.get(loc, []):
-		_spawn(id, "middle")
+	for entry in Game.location_ground.get(loc, []):
+		if entry is Dictionary:
+			var c := _spawn(str(entry["id"]), "middle")
+			c.spoil_at = int(entry.get("spoil_at", -1))  # keep perishables aging on absolute time
+		else:
+			_spawn(str(entry), "middle")
 
 func _save_ground(loc: String) -> void:
 	var ids: Array = []
 	for c in rows["middle"].get_children():
 		if c is CardIcon:
-			ids.append((c as CardIcon).data.id)
+			var ci := c as CardIcon
+			if ci.spoil_at >= 0:
+				ids.append({"id": ci.data.id, "spoil_at": ci.spoil_at})
+			else:
+				ids.append(ci.data.id)
 	Game.location_ground[loc] = ids
+
+func _rot_food() -> void:
+	# perishables past their spoil time turn to spoiled_meat, wherever they sit
+	var rotting: Array = []
+	for key in ["middle", "inv"]:
+		if not rows.has(key):
+			continue
+		for c in rows[key].get_children():
+			if c is CardIcon:
+				var ci := c as CardIcon
+				if ci.spoil_at >= 0 and ci.data.id != "spoiled_meat" and Game.spoil_stage(ci.spoil_at) == 2:
+					rotting.append([ci, key])
+	for pair in rotting:
+		var rc: CardIcon = pair[0]
+		Game.add_log("The %s has turned. It is not fit to eat now." % rc.data.title.to_lower())
+		_consume_card(rc)
+		_spawn("spoiled_meat", str(pair[1]))
 
 func _travel_to(dest: String, mins: int) -> void:
 	_save_ground(Game.current_location)
@@ -2391,6 +2419,7 @@ func _refresh() -> void:
 		for c in rows[key].get_children():
 			if c is CardIcon:
 				(c as CardIcon).sync_state()
+	_rot_food()
 	# condition chips: show only conditions that have surfaced (stage >= 1)
 	if cond_tray:
 		for c in cond_tray.get_children():

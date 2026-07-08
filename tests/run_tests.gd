@@ -21,6 +21,7 @@ func _init() -> void:
 	var h = preload("res://tests/test_helpers.gd").new()
 	var suites := {
 		"seasons": preload("res://tests/test_seasons.gd").new(),
+		"spoilage": preload("res://tests/test_spoilage.gd").new(),
 		"conditions": preload("res://tests/test_conditions.gd").new(),
 		"hunger": preload("res://tests/test_hunger.gd").new(),
 		"director": preload("res://tests/test_director.gd").new(),

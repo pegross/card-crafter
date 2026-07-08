@@ -400,6 +400,20 @@ func hhmm() -> String:
 	@warning_ignore("integer_division")
 	return "%02d:%02d" % [minute / 60, minute % 60]
 
+func abs_minute() -> int:
+	return day * 1440 + minute
+
+## Freshness of a perishable, from its absolute spoil-minute. 0 fresh, 1 turning (last 4h), 2 spoiled.
+func spoil_stage(spoil_at: int) -> int:
+	if spoil_at < 0:
+		return 0
+	var now := abs_minute()
+	if now >= spoil_at:
+		return 2
+	if now >= spoil_at - 240:
+		return 1
+	return 0
+
 func sleep_quality() -> float:
 	var q: float = 0.35 + 0.45 * float(meters["Warmth"]) / 100.0 + 0.20 * float(meters["Mental"]) / 100.0
 	if meters["Calories"] < 20.0 or meters["Hydration"] < 20.0:
