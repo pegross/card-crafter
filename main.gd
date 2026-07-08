@@ -26,34 +26,7 @@ var ENEMIES := {
 	"zombie": {"name": "Zombie", "hp": 34.0, "damage": 15.0, "flee_hit": 9.0, "verb": "tears at", "bite_infection": 20.0, "mins": 10},
 }
 
-const CARD_FILES := {
-	"hearth": "res://data/cards/hearth.tres",
-	"oak_tree": "res://data/cards/oak_tree.tres",
-	"lordly_manor": "res://data/cards/lordly_manor.tres",
-	"rain_barrel": "res://data/cards/rain_barrel.tres",
-	"the_woods": "res://data/cards/the_woods.tres",
-	"firewood": "res://data/cards/firewood.tres",
-	"dirty_water": "res://data/cards/dirty_water.tres",
-	"canned_food": "res://data/cards/canned_food.tres",
-	"bandage": "res://data/cards/bandage.tres",
-	"matches": "res://data/cards/matches.tres",
-	"wool_blanket": "res://data/cards/wool_blanket.tres",
-	"cellar": "res://data/cards/cellar.tres",
-	"stream": "res://data/cards/stream.tres",
-	"forage_food": "res://data/cards/forage_food.tres",
-	"log": "res://data/cards/log.tres",
-	"gas_canister": "res://data/cards/gas_canister.tres",
-	"plastic_bottle": "res://data/cards/plastic_bottle.tres",
-	"lighter": "res://data/cards/lighter.tres",
-	"tinder": "res://data/cards/tinder.tres",
-	"burning_tinder": "res://data/cards/burning_tinder.tres",
-	"herbs": "res://data/cards/herbs.tres",
-	"herbal_remedy": "res://data/cards/herbal_remedy.tres",
-	"antibiotics": "res://data/cards/antibiotics.tres",
-	"rat": "res://data/cards/rat.tres",
-	"zombie": "res://data/cards/zombie.tres",
-	"radio": "res://data/cards/radio.tres",
-}
+var CARD_FILES := {}
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
@@ -196,7 +169,22 @@ var _clock_dur: Label
 var _clock_sub: Label
 var _time_tween: Tween
 
+func _scan_cards() -> void:
+	# DirAccess enumerates data/cards when running from source/CLI/editor; a packed .pck export would need a generated manifest instead (out of scope).
+	var dir := DirAccess.open("res://data/cards")
+	if dir == null:
+		return
+	for name in dir.get_files():
+		if not name.ends_with(".tres"):
+			continue
+		var path := "res://data/cards/" + name
+		var cd: CardData = load(path)
+		if cd == null or cd.id == "":
+			continue
+		CARD_FILES[cd.id] = path
+
 func _ready() -> void:
+	_scan_cards()
 	randomize()
 	_locations_initial = LOCATIONS.duplicate(true)
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
