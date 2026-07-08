@@ -215,6 +215,7 @@ const SIEGE := {
 
 ## Continuous needs, 0..100 (the CSTI-style sliders). Provisional values.
 var meters := {
+	"Satiation": 65.0,
 	"Calories": 82.0,
 	"Hydration": 74.0,
 	"Warmth": 70.0,
@@ -226,7 +227,7 @@ var meters := {
 ## Drain per in-game HOUR of elapsed action-time (provisional). Warmth is handled
 ## separately by the fire, so it is not in this table.
 var _drain := {
-	"Calories": 4.5,
+	"Satiation": 4.0,
 	"Hydration": 5.0,
 	"Energy": 2.5,
 	"Immune": 0.2,
@@ -660,6 +661,8 @@ func advance_time(mins: int, sleeping := false) -> void:
 		if sleeping and k == "Hydration":
 			mk = 1.0  # illness dehydration suspended while prone
 		meters[k] = clampf(meters[k] - _drain[k] * hours * mk, 0.0, 100.0)
+	# CALORIES: the slow reservoir under Satiation. A full belly rebuilds it; an empty one burns it.
+	meters["Calories"] = clampf(meters["Calories"] + (meters["Satiation"] - 45.0) * 0.03 * hours, 0.0, 100.0)
 	_tick_conditions(hours)
 	_apply_influences(hours)
 	# every LIT fire source burns its fuel down; unlit fuel just sits. Out of fuel = out.
@@ -843,8 +846,10 @@ func _apply_influences(hours: float) -> void:
 
 func need_desc(m: String) -> String:
 	match m:
+		"Satiation":
+			return "How full you are right now. Meals fill it\nfast and it falls off through the day.\nKeep it up and your reserves recover."
 		"Calories":
-			return "Fuel in the tank. Spent as you act,\nrefilled by eating. Hitting empty won't\nkill you; it burns your Weight instead."
+			return "Your body's deeper reserves. They fill\nwhen you eat well and burn when you go\nwithout. Hitting empty won't kill you; it\nburns your Weight instead."
 		"Hydration":
 			return "Body water. Drops faster when you're ill\nor working hard. Let it run low and\ndehydration takes hold."
 		"Warmth":
@@ -1057,7 +1062,7 @@ func reset() -> void:
 	location_ground = {}
 	pool_state = {}
 	lit_sources = {}
-	meters = {"Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Immune": 78.0, "Mental": 64.0}
+	meters = {"Satiation": 65.0, "Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Immune": 78.0, "Mental": 64.0}
 	conditions = {}
 	cond_stage = {}
 	cond_prev = {}

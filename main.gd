@@ -65,7 +65,7 @@ var ACTIONS := {
 		{"label": "Drink from the stream (5m)", "mins": 5, "drink": true, "clean": false},
 	],
 	"canned_food": [
-		{"label": "Eat cold (15m)", "mins": 15, "fx": {"Calories": 30.0, "Mental": 1.0}, "consume": true, "log": "You eat cold from the tin. It helps, a little."},
+		{"label": "Eat cold (15m)", "mins": 15, "fx": {"Satiation": 35.0, "Mental": 1.0}, "consume": true, "log": "You eat cold from the tin. It helps, a little."},
 	],
 	"wool_blanket": [
 		{"label": "Wrap up (30m)", "mins": 30, "fx": {"Warmth": 12.0, "Mental": 2.0}, "log": "You pull the blanket close. Quiet warmth - the kind that draws nothing."},
@@ -74,7 +74,7 @@ var ACTIONS := {
 		{"label": "Search the cellar (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
 	],
 	"forage_food": [
-		{"label": "Eat (10m)", "mins": 10, "fx": {"Calories": 15.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
+		{"label": "Eat (10m)", "mins": 10, "fx": {"Satiation": 18.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
 	],
 	"log": [
 		{"label": "Split for firewood (15m)", "mins": 15, "fx": {"Energy": -6.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 4.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
@@ -399,7 +399,7 @@ func _build_left() -> Control:
 
 	vb.add_child(HSeparator.new())
 	vb.add_child(_label("CONDITION", COLD, 11))
-	for m in ["Calories", "Hydration", "Warmth", "Energy", "Immune", "Mental"]:
+	for m in ["Calories", "Satiation", "Hydration", "Warmth", "Energy", "Immune", "Mental"]:
 		vb.add_child(_make_meter(m))
 	var fbox := VBoxContainer.new()
 	fbox.add_theme_constant_override("separation", 4)

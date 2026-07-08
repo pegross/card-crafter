@@ -22,6 +22,7 @@ func _init() -> void:
 	var suites := {
 		"seasons": preload("res://tests/test_seasons.gd").new(),
 		"conditions": preload("res://tests/test_conditions.gd").new(),
+		"hunger": preload("res://tests/test_hunger.gd").new(),
 		"director": preload("res://tests/test_director.gd").new(),
 		"research": preload("res://tests/test_research.gd").new(),
 		"construction": preload("res://tests/test_construction.gd").new(),
