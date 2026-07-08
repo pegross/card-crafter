@@ -1592,13 +1592,13 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		for cid in act["cond"]:
 			Game.add_condition(cid, float(act["cond"][cid]), str(act.get("cond_cause", "")))
 	if act.has("cure"):
-		var cure_boost := 1.6 if (card.data.id == "herbal_remedy" and Game.researched.has("herbal_lore")) else 1.0
+		var cure_boost := 1.6 if (card != null and card.data.id == "herbal_remedy" and Game.researched.has("herbal_lore")) else 1.0
 		for cid in act["cure"]:
 			Game.cure_condition(cid, float(act["cure"][cid]) * cure_boost)
 	var _mins := int(act.get("mins", 30))
 	if float(fx.get("Energy", 0.0)) < 0.0:
 		_mins = int(round(float(_mins) * Game.weight_toll()))  # overweight = physical work runs longer
-	var wood_work: bool = card.data.state_kind == "fell" or card.data.state_kind == "wood"
+	var wood_work: bool = card != null and (card.data.state_kind == "fell" or card.data.state_kind == "wood")
 	if wood_work:
 		_mins = maxi(1, int(round(float(_mins) * Game.wood_speed())))  # skill makes wood work quicker
 	Game.advance_time(_mins)
