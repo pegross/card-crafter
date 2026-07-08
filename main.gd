@@ -25,9 +25,11 @@ var CARD_FILES := {}
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
-	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["hearth", "rain_barrel", "radio"], "connections": {"the_woods": 45},
+	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["hearth", "radio"], "connections": {"the_grounds": 2},
 		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}], "renewable": []}},
-	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"lordly_manor": 45},
+	"the_grounds": {"title": "The Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"lordly_manor": 2, "the_woods": 45},
+		"pool": {"finite": [], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}]}},
+	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"the_grounds": 45},
 		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}, {"kind": "fixture", "id": "zombie", "milestone": 45, "log": "Something moves between the trees, slow and wrong. It turns toward you."}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
 	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5},
 		"pool": {"finite": [{"kind": "ground", "id": "canned_food", "milestone": 40}, {"kind": "ground", "id": "gas_canister", "milestone": 75, "content": "fuel", "fill": 50.0}, {"kind": "ground", "id": "antibiotics", "milestone": 60}], "renewable": [{"kind": "fixture", "id": "rat", "max": 1, "log": "Something skitters in the dark. A big rat, cornered and bold."}]}},
@@ -52,6 +54,9 @@ var ACTIONS := {
 	],
 	"lordly_manor": [
 		{"label": "Search the Manor (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
+	],
+	"the_grounds": [
+		{"label": "Search the grounds (20m)", "mins": 20, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
 	],
 	"rain_barrel": [
 		{"label": "Drink from the barrel (5m)", "mins": 5, "drink": true, "clean": false},
