@@ -5,6 +5,8 @@ extends Node
 
 signal changed
 
+var rng := RandomNumberGenerator.new()  ## seedable sim RNG; tests set Game.rng.seed for reproducibility
+
 var day: int = 1
 var minute: int = 8 * 60  ## minutes since midnight (starts 08:00)
 const HEARTH_BURN_PER_HOUR := 12.0  ## the hearth's Fuel % burns down this fast
@@ -315,6 +317,7 @@ var weight: float = 55.0  ## body mass 0..100 (~50 ideal); Calorie surplus feeds
 var weight_warned: bool = false  ## one-shot "wasting away" tell latch
 
 func _ready() -> void:
+	rng.randomize()  # normal play stays varied; tests overwrite rng.seed after reset()
 	_seed_schedule()  # lay down the deterministic event spine for a fresh game (reset() re-seeds)
 
 func is_fire_lit() -> bool:
@@ -493,7 +496,7 @@ const RADIO_THREAT_HORIZON := 4   ## days ahead the radio can warn of a coming h
 const RADIO_WEATHER_HORIZON := 3  ## days ahead the radio forecasts weather / the grid dying
 
 func _pick(arr: Array) -> String:
-	return str(arr[randi() % arr.size()]) if not arr.is_empty() else ""
+	return str(arr[rng.randi() % arr.size()]) if not arr.is_empty() else ""
 
 func _event_line(id: String, phase: String) -> String:
 	return _pick(EVENT_FLAVOR.get(id + "_" + phase, []))
@@ -643,8 +646,8 @@ func advance_time(mins: int, sleeping := false) -> void:
 			if fuel <= 0.0:
 				lit_sources[src_id] = false
 	# WEATHER drifts over hours and sets the outdoor temperature
-	if randf() < 0.05 * hours:
-		var roll := randf()
+	if rng.randf() < 0.05 * hours:
+		var roll := rng.randf()
 		var s := season()
 		if s == 1:  # Winter: colder and wetter (sleet/snow), rarely a clear break
 			weather = "rain" if roll < 0.45 else ("clear" if roll > 0.9 else "overcast")
