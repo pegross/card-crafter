@@ -26,3 +26,11 @@ func run(_tree, h) -> void:
 	var src := f.get_as_text() if f != null else ""
 	h.expect(src.contains("\"rat_meat\": {\"hearth\":"), "RECIPES has a rat_meat -> hearth entry")
 	h.expect(src.contains("\"effect\": \"cook\", \"spawn\": \"cooked_rat_meat\""), "the hearth recipe cooks into cooked_rat_meat")
+
+	# PRESERVATION: cooked meat can be smoked into a keeps-well ration for winter.
+	var preserved: CardData = load("res://data/cards/preserved_meat.tres")
+	h.expect(preserved != null, "preserved_meat.tres loads")
+	h.expect_eq(preserved.id, "preserved_meat", "preserved_meat id")
+	h.expect_eq(preserved.kind, "item", "preserved_meat is an item")
+	h.expect(src.contains("\"cooked_rat_meat\": {\"hearth\":"), "RECIPES has a cooked_rat_meat -> hearth entry")
+	h.expect(src.contains("\"effect\": \"smoke\", \"spawn\": \"preserved_meat\""), "the smoke recipe preserves into preserved_meat")
