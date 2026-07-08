@@ -5,8 +5,8 @@
 [resource]
 script = ExtResource("1")
 id = "the_grounds"
-title = "The Grounds"
+title = "Grounds"
 kind = "location"
-blurb = "The old estate, gone to weeds and rot. The house watches from the middle of it."
+blurb = "The old estate, gone to weeds. The house is somewhere within."
 state_kind = "explore"
 state_start = 0.0
