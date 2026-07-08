@@ -25,10 +25,10 @@ var CARD_FILES := {}
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
-	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["broken_hearth", "radio"], "connections": {"the_grounds": 2}, "stripped_log": "You have been through every room. The house has given up all it holds.",
+	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["broken_hearth", "radio"], "connections": {"the_grounds": 3}, "stripped_log": "You have been through every room. The house has given up all it holds.",
 		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}, {"kind": "ground", "id": "wool_blanket", "milestone": 90, "log": "In a back bedroom, folded in a cedar chest, a heavy wool blanket. Dry, somehow, after all this time."}], "renewable": []}},
 	"the_grounds": {"title": "Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"the_woods": 45},
-		"pool": {"finite": [{"kind": "ground", "id": "stone", "milestone": 10}, {"kind": "ground", "id": "stone", "milestone": 25}, {"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 2, "log": "Past a fallen gate and a tangle of dead garden, the house itself stands dark against the sky. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 2}]}},
+		"pool": {"finite": [{"kind": "ground", "id": "stone", "milestone": 10}, {"kind": "ground", "id": "stone", "milestone": 25}, {"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 3, "log": "Past a fallen gate and a tangle of dead garden, the house itself stands dark against the sky. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 2}]}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"the_grounds": 45},
 		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}, {"kind": "fixture", "id": "zombie", "milestone": 45, "log": "Something moves between the trees, slow and wrong. It turns toward you."}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
 	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5}, "stripped_log": "The cellar is turned out to the bare shelves now. There is nothing more down here.",
@@ -56,7 +56,7 @@ var ACTIONS := {
 		{"label": "Search the Manor (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
 	],
 	"the_grounds": [
-		{"label": "Search the grounds (20m)", "mins": 20, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
+		{"label": "Search the grounds (15m)", "mins": 15, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
 	],
 	"broken_hearth": [
 		{"label": "Rebuild the hearth (1h)", "mins": 60, "repair": {"cost": {"stone": 3}, "into": "hearth"}, "log": "You clear the fallen-in stone and set it back, course by course. The firebox will take a flame again."},
@@ -149,6 +149,7 @@ var weight_fill: StyleBoxFlat
 var weather_label: Label
 var _collapsing: bool = false
 var _locations_initial: Dictionary
+var _last_present := {}  ## renewable ground id -> present count at the CURRENT location (harvest detection)
 var _death_shown: bool = false
 var death_layer: Control
 var death_dim: ColorRect
@@ -1575,6 +1576,11 @@ func _restart() -> void:
 func _populate() -> void:
 	for loc in LOCATIONS:
 		Game.location_ground[loc] = GROUND_START.get(loc, []).duplicate()
+	# register the logistic stock for every renewable GROUND resource (idempotent across restart)
+	for loc in LOCATIONS:
+		for e in LOCATIONS[loc].get("pool", {}).get("renewable", []):
+			if str((e as Dictionary).get("kind", "")) == "ground":
+				Game.register_stock(loc, str(e["id"]), int(e.get("max", 1)))
 	for id in ["canned_food", "plastic_bottle", "lighter"]:
 		_spawn(id, "inv")
 	_rebuild_out_there()
@@ -1610,13 +1616,25 @@ func _load_ground(loc: String) -> void:
 			c.spoil_at = int(entry.get("spoil_at", -1))  # keep perishables aging on absolute time
 		else:
 			_spawn(str(entry), "middle")
+	# surface renewable ground up to what has regrown, so regrowth is visible the moment you arrive
+	for id in _renewable_ground_ids(loc):
+		var present := 0
+		for c in row.get_children():
+			if c is CardIcon and str((c as CardIcon).data.id) == id:
+				present += 1
+		while present < Game.stock_count(loc, id):
+			_spawn(id, "middle")
+			present += 1
 	_rot_food()  # catch anything that spoiled here while you were away, on arrival
 
 func _save_ground(loc: String) -> void:
+	var renewable := _renewable_ground_ids(loc)
 	var ids: Array = []
 	for c in rows["middle"].get_children():
 		if c is CardIcon:
 			var ci := c as CardIcon
+			if str(ci.data.id) in renewable:
+				continue  # renewable ground is re-derived from the stock on arrival, never persisted
 			if ci.spoil_at >= 0:
 				ids.append({"id": ci.data.id, "spoil_at": ci.spoil_at})
 			else:
@@ -1651,6 +1669,7 @@ func _travel_to(dest: String, mins: int) -> void:
 	_animate_meters(before, {})
 	_rebuild_out_there()
 	_load_ground(dest)
+	_last_present = {}  # a new region starts fresh; the next _refresh re-baselines its present counts
 
 # ---------- exploration reveal pool ----------
 func _pool_state(loc: String) -> Dictionary:
@@ -1676,11 +1695,15 @@ func _process_reveals(loc: String, old_pct: float, new_pct: float) -> void:
 	var renew: Array = pool.get("renewable", [])
 	for j in renew.size():
 		var e2: Dictionary = renew[j]
-		var mx: int = int(e2.get("max", 1))
-		# cap on what's CURRENTLY present (gathering frees a slot to restock),
-		# not how many were ever revealed — the latter makes "renewable" run dry.
-		if _renew_present(loc, e2) < mx and _roll_renewable(new_pct):
-			_reveal(e2)
+		if str(e2.get("kind", "")) == "ground":
+			# GROUND renewables are driven by the logistic stock: surface up to what has grown.
+			while _renew_present(loc, e2) < Game.stock_count(loc, str(e2["id"])):
+				_reveal(e2)
+		else:
+			# FIXTURE renewables (oak_tree, rat) keep the present-count cap + chance roll unchanged.
+			var mx: int = int(e2.get("max", 1))
+			if _renew_present(loc, e2) < mx and _roll_renewable(new_pct):
+				_reveal(e2)
 
 func _check_pool_stripped(loc: String, finite: Array, st: Dictionary) -> void:
 	# grim note when a place's LIMITED loot is all taken. Only counts finite GROUND items whose id
@@ -1702,6 +1725,16 @@ func _check_pool_stripped(loc: String, finite: Array, st: Dictionary) -> void:
 			return  # still limited loot to find here
 	st["stripped"] = true
 	Game.add_log(str(LOCATIONS.get(loc, {}).get("stripped_log", "You have picked over the last of it. This place has nothing left to give up.")))
+
+func _renewable_ground_ids(loc: String) -> Array:
+	# the ids of this location's renewable pool entries with kind == "ground" (deduplicated)
+	var out: Array = []
+	for e in LOCATIONS.get(loc, {}).get("pool", {}).get("renewable", []):
+		if str((e as Dictionary).get("kind", "")) == "ground":
+			var id := str(e.get("id", ""))
+			if id != "" and not (id in out):
+				out.append(id)
+	return out
 
 func _renew_present(loc: String, e: Dictionary) -> int:
 	if e.get("kind", "") == "fixture":
@@ -2443,6 +2476,20 @@ func _refresh() -> void:
 		for c in rows[key].get_children():
 			if c is CardIcon:
 				(c as CardIcon).sync_state()
+	# HARVEST DETECTION (single chokepoint): any DROP in a renewable ground id's present count is a
+	# harvest (eat / pick up / craft / feed the fire / drag). Surfacing only ever RAISES present, so
+	# it is never a false harvest. The stock is pulled down by the exact number removed.
+	if rows.has("middle"):
+		var hloc := Game.current_location
+		for id in _renewable_ground_ids(hloc):
+			var present := 0
+			for c in rows["middle"].get_children():
+				if c is CardIcon and str((c as CardIcon).data.id) == id:
+					present += 1
+			var last := int(_last_present.get(id, present))
+			if present < last:
+				Game.harvest_stock(hloc, id, last - present)
+			_last_present[id] = present
 	_rot_food()
 	# condition chips: show only conditions that have surfaced (stage >= 1)
 	if cond_tray:

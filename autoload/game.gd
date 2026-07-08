@@ -36,6 +36,19 @@ var force_sleep: bool = false  ## set when Energy hits 0 -> main triggers a coll
 ## Worn clothing has no loose card while it is on you; taking it off re-spawns the card.
 var worn: String = ""
 
+## RENEWABLE STOCKS — a time-based logistic stock per location+resource, grown on the clock in
+## _tick_stocks() (called from advance_time). Each resource regrows toward its K with a seed floor
+## (so a barren spot still recovers) and a per-season pace. main.gd surfaces ground cards up to
+## stock_count() and calls harvest_stock() whenever something is taken. Overharvest/collapse: later.
+## "seasons" is indexed by season(): 0 Autumn, 1 Winter, 2 Spring, 3 Summer.
+const RESOURCE_REGEN := {
+	"firewood": {"r": 0.25, "seed": 0.06, "seasons": [1.0, 1.0, 1.0, 1.0]},
+	"tinder": {"r": 0.25, "seed": 0.06, "seasons": [1.0, 1.0, 1.0, 1.0]},
+	"forage_food": {"r": 0.30, "seed": 0.03, "seasons": [0.5, 0.0, 1.0, 1.2]},
+	"herbs": {"r": 0.20, "seed": 0.02, "seasons": [0.5, 0.1, 1.0, 1.0]},
+}
+var stocks := {}  ## loc -> { id -> {"S": float, "K": float} }; cleared in reset()
+
 ## EVENT DIRECTOR — deterministic, telegraphed "worse times".
 var scheduled_events: Array = []    ## upcoming instances: {id, day, telegraphed, fired, waves?}
 var active_events: Array = []       ## live effects: {id, ends_day, temp_drop}
@@ -550,6 +563,44 @@ func collect_snare(loc: String) -> Array:
 		return ["rat_meat", "hide"]
 	return []
 
+# ---------- RENEWABLE STOCKS ----------
+# A logistic stock per location+resource that regrows on the clock (see _tick_stocks, called from
+# advance_time). main.gd surfaces ground cards up to stock_count() and calls harvest_stock() when
+# something is taken. Registration is idempotent, so a restart never wipes a stock mid-game.
+func register_stock(loc: String, id: String, K: int) -> void:
+	if not stocks.has(loc):
+		stocks[loc] = {}
+	if not stocks[loc].has(id):
+		stocks[loc][id] = {"S": float(K) * 0.5, "K": float(K)}  # start half-stocked so a spot is not barren
+
+func stock_count(loc: String, id: String) -> int:
+	if stocks.has(loc) and stocks[loc].has(id):
+		return int(floor(float(stocks[loc][id]["S"])))
+	return 0
+
+func harvest_stock(loc: String, id: String, n: int = 1) -> void:
+	if stocks.has(loc) and stocks[loc].has(id):
+		stocks[loc][id]["S"] = maxf(0.0, float(stocks[loc][id]["S"]) - float(n))
+
+func add_stock(loc: String, id: String, amt: float) -> void:
+	# used by events later; harmless no-op on an unregistered slot
+	if stocks.has(loc) and stocks[loc].has(id):
+		var K: float = float(stocks[loc][id]["K"])
+		stocks[loc][id]["S"] = clampf(float(stocks[loc][id]["S"]) + amt, 0.0, K)
+
+func _tick_stocks(hours: float) -> void:
+	var s := season()
+	for loc in stocks:
+		for id in stocks[loc]:
+			var K: float = float(stocks[loc][id]["K"])
+			if K <= 0.0:
+				continue
+			var p: Dictionary = RESOURCE_REGEN.get(id, {"r": 0.2, "seed": 0.04, "seasons": [1, 1, 1, 1]})
+			var mult: float = float(p["seasons"][s])
+			var S: float = float(stocks[loc][id]["S"])
+			S += (float(p["seed"]) + float(p["r"]) * S * (1.0 - S / K)) * mult * hours
+			stocks[loc][id]["S"] = clampf(S, 0.0, K)
+
 func build_done(id: String) -> bool:
 	return builds.has(id)
 
@@ -812,6 +863,8 @@ func advance_time(mins: int, sleeping := false) -> void:
 	# TRAPPING: any snare set on open ground fills toward a catch on the clock (deterministic)
 	for tloc in traps:
 		traps[tloc] = minf(100.0, float(traps[tloc]) + SNARE_CATCH_PER_HOUR * hours)
+	# RENEWABLE STOCKS: every registered location+resource regrows on its own logistic clock
+	_tick_stocks(hours)
 	# an unlit shelter can't beat the season: it blocks most of the seasonal swing, so a deep
 	# winter still creeps in (a lit fire overrides it). Draught-proofing research seals it tighter.
 	# A stopgap until per-location insulation lands.
@@ -1179,6 +1232,7 @@ func reset() -> void:
 	location_ground = {}
 	pool_state = {}
 	traps = {}
+	stocks = {}
 	lit_sources = {}
 	meters = {"Satiation": 65.0, "Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Immune": 78.0, "Mental": 64.0}
 	conditions = {}

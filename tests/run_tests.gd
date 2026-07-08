@@ -29,6 +29,7 @@ func _init() -> void:
 		"construction": preload("res://tests/test_construction.gd").new(),
 		"crafts": preload("res://tests/test_crafts.gd").new(),
 		"trapping": preload("res://tests/test_trapping.gd").new(),
+		"stocks": preload("res://tests/test_stocks.gd").new(),
 		"siege": preload("res://tests/test_siege.gd").new(),
 		"food": preload("res://tests/test_food.gd").new(),
 		"equipment": preload("res://tests/test_equipment.gd").new(),
