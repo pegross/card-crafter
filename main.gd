@@ -1721,9 +1721,13 @@ func _process_reveals(loc: String, old_pct: float, new_pct: float) -> void:
 	for j in renew.size():
 		var e2: Dictionary = renew[j]
 		if str(e2.get("kind", "")) == "ground":
-			# GROUND renewables are driven by the logistic stock: surface up to what has grown.
-			while _renew_present(loc, e2) < Game.stock_count(loc, str(e2["id"])):
+			# GROUND renewables: a search turns up at most ONE (rarely two), never the whole stock.
+			# The stock is the ceiling you draw down over repeated searches, not a one-time dump.
+			var room := Game.stock_count(loc, str(e2["id"])) - _renew_present(loc, e2)
+			if room > 0:
 				_reveal(e2)
+				if room >= 2 and Game.rng.randf() < 0.15:
+					_reveal(e2)  # now and then a search turns up a second
 		else:
 			# FIXTURE renewables (oak_tree, rat) keep the present-count cap + chance roll unchanged.
 			var mx: int = int(e2.get("max", 1))
