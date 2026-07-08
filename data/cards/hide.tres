@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "hide"
+title = "Hide"
+kind = "item"
+blurb = "A small raw pelt, still rank with the animal. Cured, it might come to something."

@@ -103,6 +103,12 @@ var ACTIONS := {
 	"zombie": [
 		{"label": "Fight it", "fight": true},
 	],
+	"snare": [
+		{"label": "Set the snare (10m)", "mins": 10, "place_snare": true},
+	],
+	"set_snare": [
+		{"label": "Check the snare (10m)", "mins": 10, "check_snare": true},
+	],
 }
 
 ## Two-card (drag item onto target) recipes: item_id -> target_id -> {label, mins}.
@@ -1751,6 +1757,37 @@ func _transform_fixture(card: CardIcon, new_id: String) -> void:
 	_spawn(new_id, "middle")
 	_rebuild_out_there()
 
+# ---------- trapping ----------
+func _set_snare(card: CardIcon, mins: int) -> void:
+	var loc := Game.current_location
+	if Game.location_indoor:
+		Game.add_log("There is nothing to catch in here. A snare wants open ground.")
+		return
+	var fxs: Array = LOCATIONS[loc]["fixtures"]
+	if "set_snare" in fxs:
+		Game.add_log("You already have a snare set here.")
+		return
+	Game.place_snare(loc)
+	fxs.append("set_snare")
+	_consume_card(card)
+	Game.advance_time(mins)
+	_show_time_passing(mins)
+	Game.add_log("You set the snare low against a run in the brush and cover your tracks. Now the waiting.")
+	_rebuild_out_there()
+	on_layout_changed()
+
+func _check_snare(mins: int) -> void:
+	var loc := Game.current_location
+	Game.advance_time(mins)
+	_show_time_passing(mins)
+	if Game.snare_ready(loc):
+		for yid in Game.collect_snare(loc):
+			_spawn(str(yid), "middle")
+		Game.add_log("The noose has pulled tight on something small. Meat, and a hide worth keeping.")
+	else:
+		Game.add_log("The snare sits sprung on nothing. No catch yet.")
+	on_layout_changed()
+
 # ---------- recipes / drag ----------
 func recipe_for(item_id: String, target_id: String) -> Variant:
 	if RECIPES.has(item_id) and RECIPES[item_id].has(target_id):
@@ -2129,6 +2166,12 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		return
 	if act.has("fight"):
 		_start_combat(card.data.id, card)
+		return
+	if act.has("place_snare"):
+		_set_snare(card, int(act.get("mins", 10)))
+		return
+	if act.has("check_snare"):
+		_check_snare(int(act.get("mins", 10)))
 		return
 	if act.has("radio_listen"):
 		var line := Game.radio_listen()

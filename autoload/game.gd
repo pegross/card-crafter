@@ -10,6 +10,7 @@ var rng := RandomNumberGenerator.new()  ## seedable sim RNG; tests set Game.rng.
 var day: int = 1
 var minute: int = 8 * 60  ## minutes since midnight (starts 08:00)
 const HEARTH_BURN_PER_HOUR := 12.0  ## the hearth's Fuel % burns down this fast
+const SNARE_CATCH_PER_HOUR := 7.0  ## a set snare fills this much per in-world hour; a catch comes at 100 (~14h)
 const FATIGUE_ACCRUAL := 4.5   ## sleep-debt gained per waking hour (scales with duration)
 const FATIGUE_SLEEP_CLEAR := 14.0  ## sleep-debt cleared per sleeping hour * sleep_quality
 var temperature: float = 14.0  ## indoor °C — rises while the fire is lit, falls when it's out
@@ -24,6 +25,7 @@ var current_location: String = "lordly_manor"
 var card_state: Dictionary = {}  ## persistent per-card state (card id -> value) across travel/rebuilds
 var location_ground: Dictionary = {}  ## per-location loose items (location id -> [card ids])
 var pool_state: Dictionary = {}  ## per-location exploration reveal progress
+var traps: Dictionary = {}  ## per-location set snares: location id -> catch progress 0..100
 var location_indoor: bool = true  ## is the current location sheltered (drives Warmth)
 var lit_sources: Dictionary = {}  ## fire-source card id -> currently burning (fuel can sit unlit)
 var weather: String = "overcast"  ## clear / overcast / rain
@@ -61,6 +63,11 @@ const RESEARCH := {
 		"desc": "Plan out a solid workbench, the heart of any proper workshop.",
 		"unlocks": "manor_workbench",
 		"done_log": "You have a workbench worked out. You can build one now."
+	},
+	"r_trapping": {
+		"label": "Snare trapping", "skill": "woodworking", "level": 20, "hours": 18.0,
+		"desc": "Work out how to bend and set a snare that will take small game while you are away.",
+		"done_log": "You have the trick of the snare now. You can make one when you have the wood."
 	}
 }
 
@@ -141,6 +148,17 @@ const CRAFTS := {
 		"skill": ["crafting", 3.0],
 		"desc": "Shape a heavy mallet from a seasoned billet. Rough, but it will drive a stake or knock a joint home.",
 		"log": "You shape and smooth the mallet. It sits heavy and true in your hand."
+	},
+	"craft_snare": {
+		"tab": "tools",
+		"requires_research": "r_trapping",
+		"label": "Bend a snare",
+		"materials": {"firewood": 1},
+		"work_mins": 30,
+		"produces": "snare",
+		"skill": ["crafting", 3.0],
+		"desc": "Split a stave down, bend it under tension, and rig a running noose to snap shut on whatever trips it.",
+		"log": "You bend the stave, notch the trigger, and set the noose. A patient little trap."
 	}
 }
 
@@ -477,6 +495,22 @@ func crafts_for(tab: String) -> Array:
 			out.append(id)
 	return out
 
+# ---------- TRAPPING ----------
+# A snare set on open ground fills toward a catch over in-world time (see advance_time). The
+# outdoor gate lives in the UI; here every set snare simply progresses, so it stays headless-testable.
+func place_snare(loc: String) -> void:
+	traps[loc] = 0.0
+
+func snare_ready(loc: String) -> bool:
+	return float(traps.get(loc, 0.0)) >= 100.0
+
+func collect_snare(loc: String) -> Array:
+	# a sprung snare gives up small game (meat + a hide) and resets to catch again; else nothing
+	if snare_ready(loc):
+		traps[loc] = 0.0
+		return ["rat_meat", "hide"]
+	return []
+
 func build_done(id: String) -> bool:
 	return builds.has(id)
 
@@ -736,6 +770,9 @@ func advance_time(mins: int, sleeping := false) -> void:
 	# the rain barrel catches the sky wherever it sits, so rain slowly refills it
 	if weather == "rain":
 		card_state["rain_barrel"] = minf(100.0, float(card_state.get("rain_barrel", 100.0)) + 8.0 * hours)
+	# TRAPPING: any snare set on open ground fills toward a catch on the clock (deterministic)
+	for tloc in traps:
+		traps[tloc] = minf(100.0, float(traps[tloc]) + SNARE_CATCH_PER_HOUR * hours)
 	# an unlit shelter can't beat the season: it blocks most of the seasonal swing, so a deep
 	# winter still creeps in (a lit fire overrides it). Draught-proofing research seals it tighter.
 	# A stopgap until per-location insulation lands.
@@ -1100,6 +1137,7 @@ func reset() -> void:
 	card_state = {}
 	location_ground = {}
 	pool_state = {}
+	traps = {}
 	lit_sources = {}
 	meters = {"Satiation": 65.0, "Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Immune": 78.0, "Mental": 64.0}
 	conditions = {}
