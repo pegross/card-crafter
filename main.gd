@@ -25,10 +25,10 @@ var CARD_FILES := {}
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
-	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["hearth", "radio"], "connections": {"the_grounds": 2},
+	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["broken_hearth", "radio"], "connections": {"the_grounds": 2},
 		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}], "renewable": []}},
-	"the_grounds": {"title": "The Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"lordly_manor": 2, "the_woods": 45},
-		"pool": {"finite": [], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}]}},
+	"the_grounds": {"title": "The Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"the_woods": 45},
+		"pool": {"finite": [{"kind": "ground", "id": "stone", "milestone": 10}, {"kind": "ground", "id": "stone", "milestone": 25}, {"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 2, "log": "Past a fallen gate and a tangle of dead garden, the house itself stands dark against the sky. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 2}]}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"the_grounds": 45},
 		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}, {"kind": "fixture", "id": "zombie", "milestone": 45, "log": "Something moves between the trees, slow and wrong. It turns toward you."}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
 	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5},
@@ -57,6 +57,9 @@ var ACTIONS := {
 	],
 	"the_grounds": [
 		{"label": "Search the grounds (20m)", "mins": 20, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
+	],
+	"broken_hearth": [
+		{"label": "Rebuild the hearth (1h)", "mins": 60, "repair": {"cost": {"stone": 3}, "into": "hearth"}, "log": "You clear the fallen-in stone and set it back, course by course. The firebox will take a flame again."},
 	],
 	"rain_barrel": [
 		{"label": "Drink from the barrel (5m)", "mins": 5, "drink": true, "clean": false},
@@ -220,7 +223,7 @@ func _ready() -> void:
 	_build_hurt_flash()
 	_populate()
 	Game.changed.connect(_refresh)
-	Game.add_log("Day 1. The power is still on, for now. Outside, it is very quiet.")
+	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. There will be a way inside, past the overgrowth.")
 	_refresh()
 	on_layout_changed()
 	_validate_content()
@@ -1562,7 +1565,7 @@ func _restart() -> void:
 			(d["tw"] as Tween).kill()
 			d["tw"] = null
 		d["bar"].value = Game.meters[m]
-	Game.add_log("Day 1. The power is still on, for now. Outside, it is very quiet.")
+	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. There will be a way inside, past the overgrowth.")
 	_refresh()
 	on_layout_changed()
 
@@ -1695,7 +1698,7 @@ func _reveal(e: Dictionary) -> bool:
 			if conns.has(e["id"]):
 				return false
 			conns[e["id"]] = int(e.get("mins", 30))
-			Game.add_log("A way opens toward %s." % _place_prose(e["id"]))
+			Game.add_log(str(e.get("log", "A way opens toward %s." % _place_prose(e["id"]))))
 			_rebuild_out_there()
 			return true
 	return false
@@ -1764,6 +1767,16 @@ func _transform_fixture(card: CardIcon, new_id: String) -> void:
 	Game.card_state.erase(card.data.id)
 	Game.add_log("The %s comes down at last." % card.data.title.to_lower())
 	_spawn(new_id, "middle")
+	_rebuild_out_there()
+
+# swap one FIXTURE for another in place (stays in the location row), e.g. broken hearth -> hearth
+func _swap_fixture(old_id: String, new_id: String) -> void:
+	var loc := Game.current_location
+	var fxs: Array = LOCATIONS[loc]["fixtures"]
+	fxs.erase(old_id)
+	Game.card_state.erase(old_id)
+	if not (new_id in fxs):
+		fxs.append(new_id)
 	_rebuild_out_there()
 
 # ---------- trapping ----------
@@ -2221,6 +2234,30 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		_show_time_passing(rmins)
 		Game.add_log(line)
 		_animate_meters(rbefore, rfx)
+		on_layout_changed()
+		return
+	if act.has("repair"):
+		var rep: Dictionary = act["repair"]
+		var cost: Dictionary = rep.get("cost", {})
+		for mid in cost:
+			if _count_available(str(mid)) < int(cost[mid]):
+				Game.add_log("You would need %d %s to make that good." % [int(cost[mid]), _card_title(str(mid)).to_lower()])
+				return
+		for mid in cost:
+			_consume_materials(str(mid), int(cost[mid]))
+		var rmins2 := int(act.get("mins", 60))
+		var rbefore2 := Game.meters.duplicate()
+		var rfx2 := {"Energy": -8.0, "Calories": -5.0, "Hydration": -5.0}  # heavy work
+		for k in rfx2:
+			Game.modify(k, rfx2[k])
+		Game.advance_time(rmins2)
+		_show_time_passing(rmins2)
+		Game.gain_skill("crafting", 3.0)
+		if act.has("log"):
+			Game.add_log(str(act["log"]))
+		if card != null:
+			_swap_fixture(card.data.id, str(rep.get("into", "")))
+		_animate_meters(rbefore2, rfx2)
 		on_layout_changed()
 		return
 	if act.has("state_delta"):

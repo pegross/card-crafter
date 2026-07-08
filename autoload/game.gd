@@ -21,12 +21,12 @@ const SEASON_LENGTH := 6  ## in-game days per season (tunable)
 const SEASON_TEMP := [0.0, -8.0, -2.0, 8.0]  ## °C offset onto the weather-derived outdoor temp, per season
 var _last_season: int = 0  ## for detecting season transitions (telegraph logs)
 var _season_warned: bool = false  ## one-shot "next season is coming" telegraph, reset each season
-var current_location: String = "lordly_manor"
+var current_location: String = "the_grounds"  ## you start on the grounds; the manor is found by exploring
 var card_state: Dictionary = {}  ## persistent per-card state (card id -> value) across travel/rebuilds
 var location_ground: Dictionary = {}  ## per-location loose items (location id -> [card ids])
 var pool_state: Dictionary = {}  ## per-location exploration reveal progress
 var traps: Dictionary = {}  ## per-location set snares: location id -> catch progress 0..100
-var location_indoor: bool = true  ## is the current location sheltered (drives Warmth)
+var location_indoor: bool = false  ## is the current location sheltered (drives Warmth); start outdoors
 var lit_sources: Dictionary = {}  ## fire-source card id -> currently burning (fuel can sit unlit)
 var weather: String = "overcast"  ## clear / overcast / rain
 var wet: float = 0.0  ## 0..100; rises outdoors in rain, dries indoors/by fire
@@ -1159,8 +1159,8 @@ func reset() -> void:
 	radio_last_broadcast_day = 0
 	pending_siege = 0
 	_seed_schedule()
-	current_location = "lordly_manor"
-	location_indoor = true
+	current_location = "the_grounds"
+	location_indoor = false
 	card_state = {}
 	location_ground = {}
 	pool_state = {}
