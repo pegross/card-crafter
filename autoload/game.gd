@@ -491,6 +491,30 @@ func shelter_defense(loc: String) -> float:
 		d += 0.22                        # shuttered windows close the other way in
 	return minf(d, 0.90)                 # never total: a big enough surge always gets someone through
 
+# ---------- COMBAT / SIEGE MATH (pure, uses rng — headlessly testable) ----------
+const PLAYER_STRIKE := 10.0  ## unarmed base damage per Strike (varies: miss/glance/solid/good)
+
+func strike_roll() -> Dictionary:
+	# combat is NOT deterministic — a swing can miss, glance, land solid, or land hard
+	var r := rng.randf()
+	if r < 0.10:
+		return {"dmg": 0.0, "q": "miss"}
+	elif r < 0.32:
+		return {"dmg": PLAYER_STRIKE * 0.6, "q": "glance"}
+	elif r < 0.84:
+		return {"dmg": PLAYER_STRIKE, "q": "solid"}
+	return {"dmg": PLAYER_STRIKE * 1.6, "q": "good"}
+
+func enemy_damage_roll(base: float) -> float:
+	return base * rng.randf_range(0.6, 1.4)
+
+func infection_roll(base: float) -> float:
+	return base * rng.randf_range(0.7, 1.3)
+
+func siege_breaches(waves: int, loc: String) -> int:
+	# deterministic: more waves and less defense means more of them break in
+	return int(round(float(waves) * (1.0 - shelter_defense(loc))))
+
 # ---------- EVENT DIRECTOR ----------
 const RADIO_THREAT_HORIZON := 4   ## days ahead the radio can warn of a coming horde
 const RADIO_WEATHER_HORIZON := 3  ## days ahead the radio forecasts weather / the grid dying

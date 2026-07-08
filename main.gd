@@ -19,7 +19,6 @@ const GREEN := Color(0.545, 0.690, 0.541)
 
 const INV_CAP := 6
 const SIP := 25.0  ## a standard mouthful of liquid, in fill units — drinks pull this much (or the last of it)
-const PLAYER_STRIKE := 10.0  ## unarmed base damage per Strike (varies: miss/glance/solid/good)
 const COMBAT_ROUND_MINS := 3  ## in-game minutes each combat swing/round takes
 var ENEMIES := {
 	"rat": {"name": "Rat", "hp": 8.0, "damage": 6.0, "flee_hit": 2.0, "verb": "bites", "mins": 5},
@@ -1211,23 +1210,12 @@ func _combat_say(line: String) -> void:
 	_combat_log.push_back(line)
 	Game.log_quiet(line)
 
-func _strike_roll() -> Dictionary:
-	# combat is NOT deterministic — a swing can miss, glance, land solid, or land hard
-	var r := randf()
-	if r < 0.10:
-		return {"dmg": 0.0, "q": "miss"}
-	elif r < 0.32:
-		return {"dmg": PLAYER_STRIKE * 0.6, "q": "glance"}
-	elif r < 0.84:
-		return {"dmg": PLAYER_STRIKE, "q": "solid"}
-	return {"dmg": PLAYER_STRIKE * 1.6, "q": "good"}
-
 func _combat_strike() -> void:
 	if not combat_layer.visible or _combat_resolving:
 		return
 	var e: Dictionary = ENEMIES[_combat_id]
 	var enemy_name: String = str(e["name"]).to_lower()
-	var roll := _strike_roll()
+	var roll := Game.strike_roll()
 	var dmg: float = float(roll["dmg"])
 	_combat_hp -= dmg
 	match str(roll["q"]):
@@ -1245,7 +1233,7 @@ func _combat_strike() -> void:
 	if killed:
 		_combat_say("The %s drops, and does not get up." % enemy_name)
 	else:
-		var edmg: float = float(e["damage"]) * randf_range(0.6, 1.4)
+		var edmg: float = Game.enemy_damage_roll(float(e["damage"]))
 		Game.take_wound(edmg)
 		_flash_hurt()
 		_screen_shake(6.0 + edmg * 0.25)
@@ -1257,7 +1245,7 @@ func _combat_strike() -> void:
 			for dose in Game.cond_pending:
 				if str(dose.get("id", "")) == "infection":
 					seeded += float(dose.get("amt", 0.0))
-			var add: float = minf(float(e["bite_infection"]) * randf_range(0.7, 1.3), maxf(0.0, 55.0 - seeded))
+			var add: float = minf(Game.infection_roll(float(e["bite_infection"])), maxf(0.0, 55.0 - seeded))
 			if add > 0.0:
 				Game.add_condition("infection", add, "a bite")
 	# each swing costs time — the survival sim ticks for the round (may turn a wound
@@ -1273,7 +1261,7 @@ func _combat_flee() -> void:
 	if not combat_layer.visible or _combat_resolving or _combat_context != "table":
 		return  # a siege wave cannot be fled
 	var e: Dictionary = ENEMIES[_combat_id]
-	var hit: float = float(e.get("flee_hit", 0.0)) * randf_range(0.6, 1.4)
+	var hit: float = Game.enemy_damage_roll(float(e.get("flee_hit", 0.0)))
 	Game.take_wound(hit)
 	if hit > 0.0:
 		_flash_hurt()
@@ -1327,7 +1315,7 @@ func _start_siege(waves: int) -> void:
 	var sheltered := Game.is_shelter(loc)
 	var defense := Game.shelter_defense(loc)
 	# deterministic: more waves and less defense means more of them break in
-	var breaches := int(round(float(waves) * (1.0 - defense)))
+	var breaches := Game.siege_breaches(waves, loc)
 	Game.add_log(Game._pick(Game.SIEGE["horde_arrives"]))
 	if sheltered:
 		Game.add_log(Game._pick(Game.SIEGE["testing_the_door"]))
