@@ -25,13 +25,13 @@ var CARD_FILES := {}
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
-	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["broken_hearth", "radio"], "connections": {"the_grounds": 3}, "stripped_log": "You have been through every room. The house has given up all it holds.",
-		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}, {"kind": "ground", "id": "wool_blanket", "milestone": 90, "log": "In a back bedroom, folded in a cedar chest, a heavy wool blanket. Dry, somehow, after all this time."}], "renewable": []}},
+	"lordly_manor": {"title": "Manor", "the": true, "indoor": true, "fixtures": ["radio"], "connections": {"the_grounds": 0}, "stripped_log": "You have been through every room. The house has given up all it holds.",
+		"pool": {"finite": [{"kind": "fixture", "id": "broken_hearth", "milestone": 1, "log": "A hearth at the far end of the hall, fallen in and long cold."}, {"kind": "location", "id": "cellar", "milestone": 50, "mins": 0}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}, {"kind": "flavor", "milestone": 65, "log": "Framed faces on the mantel, gone soft and brown with the damp. No one you know, and no one left to ask."}, {"kind": "ground", "id": "wool_blanket", "milestone": 90, "log": "In a back bedroom, folded in a cedar chest, a heavy wool blanket. Dry, somehow, after all this time."}], "renewable": []}},
 	"the_grounds": {"title": "Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"the_woods": 45},
-		"pool": {"finite": [{"kind": "ground", "id": "stone", "milestone": 10}, {"kind": "ground", "id": "stone", "milestone": 25}, {"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 3, "log": "Past a fallen gate and a tangle of dead garden, the house itself stands dark against the sky. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 2}]}},
+		"pool": {"finite": [{"kind": "ground", "id": "stone", "milestone": 10}, {"kind": "ground", "id": "stone", "milestone": 25}, {"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 0, "log": "Past a fallen gate, the house stands dark. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 2}]}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"the_grounds": 45},
 		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}, {"kind": "fixture", "id": "zombie", "milestone": 45, "log": "Something moves between the trees, slow and wrong. It turns toward you."}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
-	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5}, "stripped_log": "The cellar is turned out to the bare shelves now. There is nothing more down here.",
+	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 0}, "stripped_log": "The cellar is turned out to the bare shelves now. There is nothing more down here.",
 		"pool": {"finite": [{"kind": "ground", "id": "canned_food", "milestone": 40}, {"kind": "ground", "id": "gas_canister", "milestone": 75, "content": "fuel", "fill": 50.0}, {"kind": "ground", "id": "antibiotics", "milestone": 60}], "renewable": [{"kind": "fixture", "id": "rat", "max": 1, "log": "Something skitters in the dark. A big rat, cornered and bold."}]}},
 }
 
@@ -44,7 +44,7 @@ var GROUND_START := {
 ## Single-card (click) actions.
 var ACTIONS := {
 	"hearth": [
-		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands."},
+		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands.", "once_log": "You reach back for how you came to be here. Only the edge of it, and cold beyond.", "once_key": "fireside_amnesia"},
 	],
 	"oak_tree": [
 		{"label": "Fell the tree (30m)", "mins": 30, "fx": {"Energy": -8.0, "Calories": -7.0, "Hydration": -6.0, "Warmth": 5.0}, "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
@@ -53,7 +53,7 @@ var ACTIONS := {
 		{"label": "Forage (45m)", "mins": 45, "fx": {"Energy": -6.0, "Mental": 2.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 3.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
 	],
 	"lordly_manor": [
-		{"label": "Search the Manor (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
+		{"label": "Search the manor (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
 	],
 	"the_grounds": [
 		{"label": "Search the grounds (15m)", "mins": 15, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
@@ -62,7 +62,7 @@ var ACTIONS := {
 		{"label": "Rebuild the hearth (1h)", "mins": 60, "repair": {"cost": {"stone": 3}, "into": "hearth"}, "log": "You clear the fallen-in stone and set it back, course by course. The firebox will take a flame again."},
 	],
 	"spoiled_meat": [
-		{"label": "Choke it down (10m)", "mins": 10, "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will make you pay for this."},
+		{"label": "Choke it down (10m)", "mins": 10, "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will turn on you for it."},
 	],
 	"rain_barrel": [
 		{"label": "Drink from the barrel (5m)", "mins": 5, "drink": true, "clean": false},
@@ -74,7 +74,7 @@ var ACTIONS := {
 		{"label": "Eat cold (15m)", "mins": 15, "fx": {"Satiation": 35.0, "Mental": 1.0}, "consume": true, "log": "You eat cold from the tin. It helps, a little."},
 	],
 	"wool_blanket": [
-		{"label": "Wrap up (30m)", "mins": 30, "fx": {"Warmth": 12.0, "Mental": 2.0}, "log": "You pull the blanket close. Quiet warmth - the kind that draws nothing."},
+		{"label": "Wrap up (30m)", "mins": 30, "fx": {"Warmth": 12.0, "Mental": 2.0}, "log": "You pull the blanket close. Quiet warmth, the kind that draws nothing."},
 	],
 	"hide_coat": [
 		{"label": "Wear it", "wear": "hide_coat", "log": "You shrug the coat on. Stiff and heavy, but it cuts the cold at once."},
@@ -101,7 +101,7 @@ var ACTIONS := {
 		{"label": "Drink the remedy (5m)", "mins": 5, "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
 	],
 	"antibiotics": [
-		{"label": "Take antibiotics (5m)", "mins": 5, "cure": {"gut_bug": -50.0, "infection": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine - and not much left."},
+		{"label": "Take antibiotics (5m)", "mins": 5, "cure": {"gut_bug": -50.0, "infection": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine, and not much left."},
 	],
 	"bandage": [
 		{"label": "Bind your wounds (10m)", "mins": 10, "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
@@ -125,9 +125,9 @@ var ACTIONS := {
 
 ## Two-card (drag item onto target) recipes: item_id -> target_id -> {label, mins}.
 var RECIPES := {
-	"firewood": {"hearth": {"label": "Add fuel", "mins": 10, "effect": "add_fuel", "amount": 40}},
-	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 3}, "plastic_bottle": {"label": "Pour into bottle", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
-	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 3}, "gas_canister": {"label": "Pour into canister", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
+	"firewood": {"hearth": {"label": "Lay on wood", "mins": 10, "effect": "add_fuel", "amount": 40}},
+	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "plastic_bottle": {"label": "Pour into bottle", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
+	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "gas_canister": {"label": "Pour into canister", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
 	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3, "effect": "light_tinder"}},
 	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3, "effect": "set_alight"}},
 	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15, "effect": "steep_remedy"}},
@@ -227,7 +227,7 @@ func _ready() -> void:
 	_build_hurt_flash()
 	_populate()
 	Game.changed.connect(_refresh)
-	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. There will be a way inside, past the overgrowth.")
+	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
 	on_layout_changed()
 	_validate_content()
@@ -421,7 +421,7 @@ func _build_left() -> Control:
 	you.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	you.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pvb.add_child(you)
-	var phint := _label("click to rest or sleep", MUTED, 10)
+	var phint := _label("rest, or sleep off the day", MUTED, 10)
 	phint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	phint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pvb.add_child(phint)
@@ -632,7 +632,7 @@ func _on_research_pick(id: String) -> void:
 func _make_meter(m: String) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
-	box.add_child(_label(m, INK, 12))
+	box.add_child(_label("Immunity" if m == "Immune" else m, INK, 12))
 	var bar := ProgressBar.new()
 	bar.min_value = 0.0
 	bar.max_value = 100.0
@@ -753,7 +753,7 @@ func _row_section(title: String, key: String, accepts: bool, cap: int) -> Contro
 
 func _build_right() -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(256, 0)
+	panel.custom_minimum_size = Vector2(220, 0)
 	panel.add_theme_stylebox_override("panel", _flat(PANEL, BORDER, 12))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
@@ -996,7 +996,7 @@ func _render_item_crafts(tab: String) -> void:
 	detail_body.add_child(_label(_craft_tab_title(tab), INK_STRONG, 20))
 	var ids := Game.crafts_for(tab)
 	if ids.is_empty():
-		detail_body.add_child(_wrapped("Nothing you can make here yet. Research and the right tools will open this up.", MUTED, 12))
+		detail_body.add_child(_wrapped("Nothing to make here yet. Come back with the research and the right tools.", MUTED, 12))
 		return
 	detail_body.add_child(_wrapped("Things you can make here, each in a single session of work.", MUTED, 12))
 	detail_body.add_child(HSeparator.new())
@@ -1231,7 +1231,7 @@ func _build_death() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 18)
 	_pad(panel, 28).add_child(vb)
-	var title := _label("—   you did not make it   —", BLOOD, 14)
+	var title := _label("this is where you stopped", BLOOD, 14)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
 	death_obit_label = _label("", INK, 15)
@@ -1253,7 +1253,7 @@ func _build_death() -> void:
 	holder.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	death_layer.add_child(holder)
-	death_badge = _btn("You died  ·  review")
+	death_badge = _btn("gone  ·  look back")
 	death_badge.anchor_left = 1.0
 	death_badge.anchor_right = 1.0
 	death_badge.offset_left = -210.0
@@ -1569,7 +1569,7 @@ func _restart() -> void:
 			(d["tw"] as Tween).kill()
 			d["tw"] = null
 		d["bar"].value = Game.meters[m]
-	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. There will be a way inside, past the overgrowth.")
+	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
 	on_layout_changed()
 
@@ -1661,17 +1661,43 @@ func _rot_food() -> void:
 		_spawn("spoiled_meat", str(pair[1]))
 
 func _travel_to(dest: String, mins: int) -> void:
-	_save_ground(Game.current_location)
+	var from_loc := Game.current_location
+	_save_ground(from_loc)
 	var before := Game.meters.duplicate()
 	Game.current_location = dest
 	Game.location_indoor = bool(LOCATIONS[dest].get("indoor", true))
-	Game.advance_time(mins)
-	_show_time_passing(mins)
-	Game.add_log("You set out. You reach %s as the light thins." % _place_prose(dest))
+	if mins > 0:
+		# a real expedition out into the world: time passes and the light moves on
+		Game.advance_time(mins)
+		_show_time_passing(mins)
+		Game.add_log("You set out. You reach %s as the light thins." % _place_prose(dest))
+	else:
+		# free movement within the base compound: a threshold, not a journey
+		Game.add_log(_step_log(from_loc, dest))
 	_animate_meters(before, {})
 	_rebuild_out_there()
 	_load_ground(dest)
 	_last_present = {}  # a new region starts fresh; the next _refresh re-baselines its present counts
+
+# The manor, its grounds, and the cellar are one base compound: moving between them is free.
+# Those hops read as crossing a threshold, so they get their own prose, not the journey line.
+func _step_log(from_loc: String, dest: String) -> String:
+	if dest == "cellar":
+		return "You head down into the cellar."
+	if from_loc == "cellar":
+		return "You climb back up into the house."
+	if bool(LOCATIONS.get(dest, {}).get("indoor", true)):
+		return "You step inside, out of the weather."
+	return "You step out onto %s." % _place_prose(dest)
+
+func _step_label(from_loc: String, dest: String) -> String:
+	if dest == "cellar":
+		return "Go down to the cellar"
+	if from_loc == "cellar":
+		return "Go back up into the house"
+	if bool(LOCATIONS.get(dest, {}).get("indoor", true)):
+		return "Go inside"
+	return "Step out onto %s" % _place_prose(dest)
 
 # ---------- exploration reveal pool ----------
 func _pool_state(loc: String) -> Dictionary:
@@ -1765,6 +1791,9 @@ func _roll_renewable(pct: float) -> bool:
 func _reveal(e: Dictionary, is_loot := false) -> bool:
 	var loc := Game.current_location
 	match e["kind"]:
+		"flavor":
+			Game.add_log(str(e.get("log", "")))  # a one-time, log-only discovery beat (no card)
+			return true
 		"ground":
 			var gc := _spawn(e["id"], "middle")
 			if e.has("content"):
@@ -1860,9 +1889,15 @@ func _transform_fixture(card: CardIcon, new_id: String) -> void:
 func _swap_fixture(old_id: String, new_id: String) -> void:
 	var loc := Game.current_location
 	var fxs: Array = LOCATIONS[loc]["fixtures"]
-	fxs.erase(old_id)
+	var idx := fxs.find(old_id)
 	Game.card_state.erase(old_id)
-	if not (new_id in fxs):
+	# replace in place so the rebuilt fixture keeps its slot in the row (no reposition)
+	if new_id in fxs:
+		if idx != -1:
+			fxs.remove_at(idx)
+	elif idx != -1:
+		fxs[idx] = new_id
+	else:
 		fxs.append(new_id)
 	_rebuild_out_there()
 
@@ -1961,14 +1996,14 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			"add_fuel":
 				target.set_state(target.state_value + float(rec.get("amount", 40)))
 				if Game.is_fire_lit():
-					Game.add_log("You feed the fire. It flares - warm, bright, and loud.")
+					Game.add_log("You feed the fire. It flares: warm, bright, and loud.")
 					fx = {"Warmth": 8.0}
 				else:
 					Game.add_log("You lay wood in the cold grate. It only wants a light now.")
 				_consume_card(src)
 			"light_tinder":
 				if src.state_value <= 0.0:
-					Game.add_log("The lighter sparks and dies - no charge left.")
+					Game.add_log("The lighter sparks and dies. No charge left.")
 					on_drag_end()
 					return
 				src.set_state(src.state_value - 1.0)
@@ -1980,7 +2015,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				if target.state_value <= 0.0:
 					target.set_state(1.0)
 				_consume_card(src)
-				Game.add_log("You feed the burning tinder in. The fire takes - warm light, and a beacon.")
+				Game.add_log("You feed the burning tinder in. The fire takes: warm light, and a beacon.")
 			"steep_remedy":
 				if not Game.is_fire_lit():
 					Game.add_log("You need a live fire to steep them.")
@@ -2137,7 +2172,8 @@ func on_card_clicked(card: CardIcon) -> void:
 	_detail_mode = "card"
 	if card.data.kind == "location" and card.data.id != Game.current_location:
 		var mins: int = _travel_mins(Game.current_location, card.data.id)
-		_menu_actions = [{"label": "Travel to %s (%dm)" % [_place_prose(card.data.id), mins], "travel_to": card.data.id, "mins": mins}]
+		var tlabel: String = _step_label(Game.current_location, card.data.id) if mins <= 0 else ("Travel to %s (%dm)" % [_place_prose(card.data.id), mins])
+		_menu_actions = [{"label": tlabel, "travel_to": card.data.id, "mins": mins}]
 	elif card.data.is_container:
 		_menu_actions = _container_actions(card)
 	else:
@@ -2385,6 +2421,8 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		Game.gain_skill("woodworking", 3.0)
 	if act.has("log"):
 		Game.add_log(act["log"])
+	if act.has("once_log") and Game.mark_beat(str(act.get("once_key", act["once_log"]))):
+		Game.add_log(str(act["once_log"]))  # a one-time narrative beat, shown only the first time
 	if act.has("state_delta"):
 		var old_pct: float = card.state_value
 		card.set_state(card.state_value + act["state_delta"])

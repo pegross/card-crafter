@@ -25,6 +25,7 @@ var current_location: String = "the_grounds"  ## you start on the grounds; the m
 var card_state: Dictionary = {}  ## persistent per-card state (card id -> value) across travel/rebuilds
 var location_ground: Dictionary = {}  ## per-location loose items (location id -> [card ids])
 var pool_state: Dictionary = {}  ## per-location exploration reveal progress
+var beats_seen: Dictionary = {}  ## one-time narrative beats already shown (e.g. the fireside amnesia echo)
 var traps: Dictionary = {}  ## per-location set snares: location id -> catch progress 0..100
 var location_indoor: bool = false  ## is the current location sheltered (drives Warmth); start outdoors
 var lit_sources: Dictionary = {}  ## fire-source card id -> currently burning (fuel can sit unlit)
@@ -136,7 +137,7 @@ const CONSTRUCTION := {
 		"broken_desc": "There is a clear stretch of the back wall that would take a proper workbench.",
 		"done_label": "Workbench",
 		"done_desc": "A heavy, solid workbench. A place to make and mend properly.",
-		"done_log": "The workbench is built. It will open up sturdier work down the line.",
+		"done_log": "The workbench is built. Solid enough now for the heavier work.",
 		"phases": [
 			{"label": "Build the frame", "materials": {"firewood": 3}, "work_mins": 120,
 			 "log": "You joint and peg the heavy frame together."},
@@ -1113,9 +1114,9 @@ func condition_desc(id: String) -> String:
 			if float(stg["mult"][k]) > 1.0:
 				fx.append("%s drains ×%.1f" % [k, minf(float(stg["mult"][k]), 1.8)])
 		if id == "gut_bug" and st >= 3:
-			fx.append("Mental −2/hr")
+			fx.append("frays your nerve")
 		if id == "hypo" and st >= 1:
-			fx.append("Energy −%.1f/hr" % (float(st) * 1.5))
+			fx.append("saps your strength")
 		if stg.get("lethal", false):
 			fx.append("can turn fatal")
 		if not fx.is_empty():
@@ -1155,7 +1156,7 @@ func _eval_stage(id: String) -> void:
 		if str(s.get("tell", "")) != "":
 			add_log(str(s["tell"]))
 		var stamp: String = (" (%s)" % cond_cause[id]) if cond_cause.has(id) else ""
-		health_log.append("Day %d %s — %s%s" % [day, hhmm(), str(s["name"]), stamp])
+		health_log.append("Day %d %s. %s%s" % [day, hhmm(), str(s["name"]), stamp])
 	while cur > 0 and g < float(stages[cur]["exit"]):
 		cur -= 1
 		if cur == 0:
@@ -1241,6 +1242,13 @@ func _build_obituary(meter: String) -> String:
 		s += " Worn down by %s." % mental_driver
 	return s
 
+func mark_beat(key: String) -> bool:
+	# true only the FIRST time a one-time narrative beat fires; false forever after
+	if beats_seen.get(key, false):
+		return false
+	beats_seen[key] = true
+	return true
+
 func reset() -> void:
 	day = 1
 	minute = 8 * 60
@@ -1264,6 +1272,7 @@ func reset() -> void:
 	card_state = {}
 	location_ground = {}
 	pool_state = {}
+	beats_seen = {}
 	traps = {}
 	stocks = {}
 	loc_indoor = {}
