@@ -258,6 +258,20 @@ func _validate_content() -> void:
 		var skill := str(r.get("skill", ""))
 		if not Game.skills.has(skill):
 			push_error("CONTENT: RESEARCH['%s'] skill '%s' is not a known skill" % [rid, skill])
+	# (c2) CRAFTS: material + produces ids must be cards; requires_research must be known; skill known.
+	for cid in Game.CRAFTS:
+		var craft: Dictionary = Game.CRAFTS[cid]
+		for mid in craft.get("materials", {}):
+			if not CARD_FILES.has(str(mid)):
+				push_error("CONTENT: CRAFTS['%s'] material id '%s' is not a known card" % [cid, str(mid)])
+		if not CARD_FILES.has(str(craft.get("produces", ""))):
+			push_error("CONTENT: CRAFTS['%s'] produces id '%s' is not a known card" % [cid, str(craft.get("produces", ""))])
+		var creq := str(craft.get("requires_research", ""))
+		if creq != "" and not Game.RESEARCH.has(creq):
+			push_error("CONTENT: CRAFTS['%s'] requires_research '%s' is not a known research project" % [cid, creq])
+		var csk: Array = craft.get("skill", [])
+		if csk.size() == 2 and not Game.skills.has(str(csk[0])):
+			push_error("CONTENT: CRAFTS['%s'] skill '%s' is not a known skill" % [cid, str(csk[0])])
 	# (d) LOCATIONS fixtures, pool ids, connection targets; GROUND_START ids.
 	for loc in LOCATIONS:
 		var ld: Dictionary = LOCATIONS[loc]
@@ -951,11 +965,39 @@ func _render_craft_hub() -> void:
 	if _craft_tab == "shelter":
 		_render_shelter_construction()
 	else:
-		detail_body.add_child(_label(_craft_tab_title(_craft_tab), INK_STRONG, 20))
-		detail_body.add_child(_wrapped("Nothing you can make here yet. Research and the right tools will open this up.", MUTED, 12))
+		_render_item_crafts(_craft_tab)
 	var closeb := _detail_action_btn("Close")
 	closeb.pressed.connect(_hide_detail)
 	detail_body.add_child(closeb)
+
+func _render_item_crafts(tab: String) -> void:
+	detail_body.add_child(_label(_craft_tab_title(tab), INK_STRONG, 20))
+	var ids := Game.crafts_for(tab)
+	if ids.is_empty():
+		detail_body.add_child(_wrapped("Nothing you can make here yet. Research and the right tools will open this up.", MUTED, 12))
+		return
+	detail_body.add_child(_wrapped("Things you can make here, each in a single session of work.", MUTED, 12))
+	detail_body.add_child(HSeparator.new())
+	for id in ids:
+		var craft: Dictionary = Game.CRAFTS[id]
+		detail_body.add_child(_label(str(craft["label"]), INK, 14))
+		detail_body.add_child(_wrapped(str(craft.get("desc", "")), MUTED, 11))
+		var mats: Dictionary = craft.get("materials", {})
+		var have_all := true
+		for mid in mats:
+			var need: int = int(mats[mid])
+			var have: int = _count_available(str(mid))
+			if have < need:
+				have_all = false
+			detail_body.add_child(_label("%s   %d / %d" % [_card_title(str(mid)), have, need], (WARM_SOFT if have >= need else BLOOD), 12))
+		var wmin: int = int(craft.get("work_mins", 30))
+		var b := _detail_action_btn("Make it  (%s)" % _dur_text(wmin))
+		b.disabled = not have_all
+		b.pressed.connect(_do_craft.bind(id))
+		detail_body.add_child(b)
+		if not have_all:
+			detail_body.add_child(_wrapped("You need the materials to hand first, on the ground here or in your pack.", MUTED, 11))
+		detail_body.add_child(HSeparator.new())
 
 func _render_shelter_construction() -> void:
 	var loc := Game.current_location
@@ -1069,6 +1111,39 @@ func _do_build_phase(id: String) -> void:
 	if phase.has("log"):
 		Game.add_log(str(phase["log"]))
 	Game.complete_build_phase(id)
+	_animate_meters(before, fx)
+	on_layout_changed()
+	if detail_layer and detail_layer.visible:
+		_open_detail()
+
+func _do_craft(id: String) -> void:
+	if Game.dead or not Game.CRAFTS.has(id):
+		return
+	var craft: Dictionary = Game.CRAFTS[id]
+	var req := str(craft.get("requires_research", ""))
+	if req != "" and not Game.researched.has(req):
+		return
+	var mats: Dictionary = craft.get("materials", {})
+	for mid in mats:
+		if _count_available(str(mid)) < int(mats[mid]):
+			Game.add_log("You do not have the materials for that yet.")
+			return
+	for mid in mats:
+		_consume_materials(str(mid), int(mats[mid]))
+	var wmin: int = int(craft.get("work_mins", 30))
+	var before := Game.meters.duplicate()
+	var fx := {"Energy": -5.0, "Calories": -3.0, "Hydration": -3.0}
+	for k in fx:
+		Game.modify(k, fx[k])
+	Game.advance_time(wmin)
+	_show_time_passing(wmin)
+	var sk: Array = craft.get("skill", [])
+	if sk.size() == 2:
+		Game.gain_skill(str(sk[0]), float(sk[1]))
+	var produces := str(craft["produces"])
+	var row_key := "inv" if (rows.has("inv") and rows["inv"].get_child_count() < INV_CAP) else "middle"
+	_spawn(produces, row_key)
+	Game.add_log(str(craft.get("log", "You finish the %s." % _card_title(produces).to_lower())))
 	_animate_meters(before, fx)
 	on_layout_changed()
 	if detail_layer and detail_layer.visible:

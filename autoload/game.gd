@@ -116,6 +116,34 @@ const CONSTRUCTION := {
 	}
 }
 
+## CRAFTING: single-step recipes that make an ITEM card (parallel to CONSTRUCTION, which is
+## phased and site-bound). A craft consumes materials, costs one session of work, and yields a
+## card to hand or ground. tab groups them in the craft hub; requires_research gates them, exactly
+## like construction. The made item is what carries any benefit; the craft only produces it.
+const CRAFTS := {
+	"craft_tinder": {
+		"tab": "tools",
+		"label": "Split kindling",
+		"materials": {"firewood": 1},
+		"work_mins": 15,
+		"produces": "tinder",
+		"skill": ["crafting", 2.0],
+		"desc": "Baton a length of firewood down into a fistful of dry kindling.",
+		"log": "You split the firewood down into a heap of fine, dry kindling."
+	},
+	"craft_mallet": {
+		"tab": "tools",
+		"requires_research": "r_workbench",
+		"label": "Carve a wooden mallet",
+		"materials": {"firewood": 2},
+		"work_mins": 45,
+		"produces": "wooden_mallet",
+		"skill": ["crafting", 3.0],
+		"desc": "Shape a heavy mallet from a seasoned billet. Rough, but it will drive a stake or knock a joint home.",
+		"log": "You shape and smooth the mallet. It sits heavy and true in your hand."
+	}
+}
+
 ## EVENT DIRECTOR data. Events are mechanical here; all prose lives in EVENT_FLAVOR and is
 ## picked at runtime. category drives the radio: "weather" forecasts, "threat" warns, "power" = soft clock.
 const EVENTS := {
@@ -434,6 +462,17 @@ func construction_for(loc: String) -> Array:
 		if str(CONSTRUCTION[id]["shelter"]) != loc:
 			continue
 		var req := str(CONSTRUCTION[id].get("requires_research", ""))
+		if req == "" or researched.has(req):
+			out.append(id)
+	return out
+
+func crafts_for(tab: String) -> Array:
+	# craftables in this hub tab whose unlocking research (if any) is done
+	var out: Array = []
+	for id in CRAFTS:
+		if str(CRAFTS[id]["tab"]) != tab:
+			continue
+		var req := str(CRAFTS[id].get("requires_research", ""))
 		if req == "" or researched.has(req):
 			out.append(id)
 	return out
