@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = "cooked_rat_meat"
+title = "Cooked Rat Meat"
+kind = "item"
+blurb = "Charred over the fire until the worst of it is gone. It is still rat, but it is warm and it is food."

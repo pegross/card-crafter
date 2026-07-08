@@ -27,6 +27,7 @@ func _init() -> void:
 		"research": preload("res://tests/test_research.gd").new(),
 		"construction": preload("res://tests/test_construction.gd").new(),
 		"siege": preload("res://tests/test_siege.gd").new(),
+		"food": preload("res://tests/test_food.gd").new(),
 		"determinism": preload("res://tests/test_determinism.gd").new(),
 	}
 	for name in suites:

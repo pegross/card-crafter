@@ -13,3 +13,4 @@ damage = 6.0
 flee_hit = 2.0
 verb = "bites"
 enemy_mins = 5
+drops = "rat_meat"

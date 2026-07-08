@@ -76,6 +76,12 @@ var ACTIONS := {
 	"forage_food": [
 		{"label": "Eat (10m)", "mins": 10, "fx": {"Satiation": 18.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
 	],
+	"rat_meat": [
+		{"label": "Eat it raw (10m)", "mins": 10, "fx": {"Satiation": 8.0, "Mental": -12.0}, "cond": {"gut_bug": 20.0}, "cond_cause": "raw rat meat", "consume": true, "log": "You force the raw meat down cold, gagging. Your gut coils in protest."},
+	],
+	"cooked_rat_meat": [
+		{"label": "Eat (10m)", "mins": 10, "fx": {"Satiation": 18.0, "Calories": 4.0, "Mental": -3.0}, "consume": true, "log": "You eat it off the fire, chewing slow. Not good, but it stays down."},
+	],
 	"log": [
 		{"label": "Split for firewood (15m)", "mins": 15, "fx": {"Energy": -6.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 4.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
 	],
@@ -107,6 +113,7 @@ var RECIPES := {
 	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3, "effect": "light_tinder"}},
 	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3, "effect": "set_alight"}},
 	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15, "effect": "steep_remedy"}},
+	"rat_meat": {"hearth": {"label": "Cook the meat", "mins": 15, "effect": "cook", "spawn": "cooked_rat_meat"}},
 }
 
 var rows := {}
@@ -1365,11 +1372,16 @@ func _combat_end(outcome: String) -> void:
 	await get_tree().create_timer(0.7).timeout
 	combat_layer.visible = false
 	if outcome == "win":
+		var defeated_id := _combat_id  # capture before it is cleared below; drives any drop
 		if _combat_card:
 			# an enemy lives in the location's fixtures; killing it removes it for good
 			LOCATIONS[Game.current_location]["fixtures"].erase(_combat_card.data.id)
 			_consume_card(_combat_card)
 		Game.add_log("You put the %s down." % e.title.to_lower())
+		var drops := enemy_data(defeated_id).drops
+		if drops != "":
+			_spawn(drops, "middle")
+			Game.add_log("You cut what little meat you can from it.")
 	elif outcome == "flee":
 		Game.add_log("You back off from the %s." % e.title.to_lower())
 	else:
@@ -1757,6 +1769,15 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				_spawn("herbal_remedy", "middle")
 				Game.add_log("You steep the herbs over the fire into a bitter, cloudy tea.")
 				Game.gain_skill("cooking", 2.5)
+			"cook":
+				if not Game.is_fire_lit():
+					Game.add_log("You need a live fire to cook it.")
+					on_drag_end()
+					return
+				_consume_card(src)
+				_spawn(str(rec.get("spawn", "")), "middle")
+				Game.add_log("You spit the meat and hold it to the flame until it browns and spits fat.")
+				Game.gain_skill("cooking", 2.0)
 	elif src.data.is_container and target.data.id == "lighter":
 		if src.content != "fuel" or src.state_value <= 0.0:
 			Game.add_log("There's no fuel in the %s to draw from." % src.data.title.to_lower())
