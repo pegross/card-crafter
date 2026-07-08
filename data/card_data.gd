@@ -15,3 +15,9 @@ extends Resource
 @export var is_fire_source: bool = false  ## a hearth/campfire: its Fuel can be lit and burns down
 @export_multiline var blurb_lit: String = ""  ## fire source: shown while burning
 @export_multiline var blurb_fueled: String = ""  ## fire source: shown when fuelled but unlit
+@export var hp: float = 0.0  ## creature: combat health; > 0 marks a card as an enemy
+@export var damage: float = 0.0  ## creature: base damage it deals per round
+@export var flee_hit: float = 0.0  ## creature: base hit it lands as you break away
+@export var verb: String = ""  ## creature: how it strikes ("bites", "tears at")
+@export var bite_infection: float = 0.0  ## creature: infection seeded per hit (0 = none)
+@export var enemy_mins: int = 0  ## creature: in-game minutes an encounter costs

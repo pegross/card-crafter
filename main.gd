@@ -20,10 +20,6 @@ const GREEN := Color(0.545, 0.690, 0.541)
 const INV_CAP := 6
 const SIP := 25.0  ## a standard mouthful of liquid, in fill units — drinks pull this much (or the last of it)
 const COMBAT_ROUND_MINS := 3  ## in-game minutes each combat swing/round takes
-var ENEMIES := {
-	"rat": {"name": "Rat", "hp": 8.0, "damage": 6.0, "flee_hit": 2.0, "verb": "bites", "mins": 5},
-	"zombie": {"name": "Zombie", "hp": 34.0, "damage": 15.0, "flee_hit": 9.0, "verb": "tears at", "bite_infection": 20.0, "mins": 10},
-}
 
 var CARD_FILES := {}
 
@@ -1151,11 +1147,17 @@ func _combat_tail() -> PackedStringArray:
 		out.append(_combat_log[i])
 	return PackedStringArray(out)
 
+func enemy_data(id: String) -> CardData:
+	return load(CARD_FILES[id])
+
+func is_enemy(id: String) -> bool:
+	return CARD_FILES.has(id) and load(CARD_FILES[id]).hp > 0.0
+
 func _refresh_combat() -> void:
-	if _combat_id == "" or not ENEMIES.has(_combat_id):
+	if _combat_id == "" or not is_enemy(_combat_id):
 		return
-	var e: Dictionary = ENEMIES[_combat_id]
-	combat_title.text = str(e["name"])
+	var e: CardData = enemy_data(_combat_id)
+	combat_title.text = e.title
 	if _combat_card:
 		combat_blurb.text = str(_combat_card.data.blurb)
 	elif _combat_context == "siege":
@@ -1166,16 +1168,16 @@ func _refresh_combat() -> void:
 	combat_log_label.text = "\n".join(_combat_tail())
 
 func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "table") -> void:
-	if Game.dead or not ENEMIES.has(enemy_id):
+	if Game.dead or not is_enemy(enemy_id):
 		return
 	_combat_id = enemy_id
 	_combat_card = card
 	_combat_context = context
-	_combat_hp_max = float(ENEMIES[_combat_id]["hp"])
+	_combat_hp_max = enemy_data(_combat_id).hp
 	_combat_hp = _combat_hp_max
 	_combat_before = Game.meters.duplicate()
 	_combat_log = []
-	_combat_say("A %s, and it has seen you." % str(ENEMIES[_combat_id]["name"]).to_lower())
+	_combat_say("A %s, and it has seen you." % enemy_data(_combat_id).title.to_lower())
 	if combat_flee_btn:
 		combat_flee_btn.visible = (context == "table")  # a siege is unfleeable
 	combat_layer.visible = true
@@ -1213,8 +1215,8 @@ func _combat_say(line: String) -> void:
 func _combat_strike() -> void:
 	if not combat_layer.visible or _combat_resolving:
 		return
-	var e: Dictionary = ENEMIES[_combat_id]
-	var enemy_name: String = str(e["name"]).to_lower()
+	var e: CardData = enemy_data(_combat_id)
+	var enemy_name: String = e.title.to_lower()
 	var roll := Game.strike_roll()
 	var dmg: float = float(roll["dmg"])
 	_combat_hp -= dmg
@@ -1233,19 +1235,19 @@ func _combat_strike() -> void:
 	if killed:
 		_combat_say("The %s drops, and does not get up." % enemy_name)
 	else:
-		var edmg: float = Game.enemy_damage_roll(float(e["damage"]))
+		var edmg: float = Game.enemy_damage_roll(e.damage)
 		Game.take_wound(edmg)
 		_flash_hurt()
 		_screen_shake(6.0 + edmg * 0.25)
-		_combat_say("The %s %s you." % [enemy_name, str(e.get("verb", "hits"))])
-		if e.has("bite_infection"):
+		_combat_say("The %s %s you." % [enemy_name, (e.verb if e.verb != "" else "hits")])
+		if e.bite_infection > 0.0:
 			# cap the infection a single fight can seed below the lethal threshold, so it
 			# surfaces and festers (a treatable emergency) instead of maturing straight to death
 			var seeded := 0.0
 			for dose in Game.cond_pending:
 				if str(dose.get("id", "")) == "infection":
 					seeded += float(dose.get("amt", 0.0))
-			var add: float = minf(Game.infection_roll(float(e["bite_infection"])), maxf(0.0, 55.0 - seeded))
+			var add: float = minf(Game.infection_roll(e.bite_infection), maxf(0.0, 55.0 - seeded))
 			if add > 0.0:
 				Game.add_condition("infection", add, "a bite")
 	# each swing costs time — the survival sim ticks for the round (may turn a wound
@@ -1260,8 +1262,8 @@ func _combat_strike() -> void:
 func _combat_flee() -> void:
 	if not combat_layer.visible or _combat_resolving or _combat_context != "table":
 		return  # a siege wave cannot be fled
-	var e: Dictionary = ENEMIES[_combat_id]
-	var hit: float = Game.enemy_damage_roll(float(e.get("flee_hit", 0.0)))
+	var e: CardData = enemy_data(_combat_id)
+	var hit: float = Game.enemy_damage_roll(e.flee_hit)
 	Game.take_wound(hit)
 	if hit > 0.0:
 		_flash_hurt()
@@ -1276,7 +1278,7 @@ func _combat_flee() -> void:
 
 func _combat_end(outcome: String) -> void:
 	_combat_resolving = true
-	var e: Dictionary = ENEMIES[_combat_id]
+	var e: CardData = enemy_data(_combat_id)
 	_refresh_combat()
 	await get_tree().create_timer(0.7).timeout
 	combat_layer.visible = false
@@ -1285,11 +1287,11 @@ func _combat_end(outcome: String) -> void:
 			# an enemy lives in the location's fixtures; killing it removes it for good
 			LOCATIONS[Game.current_location]["fixtures"].erase(_combat_card.data.id)
 			_consume_card(_combat_card)
-		Game.add_log("You put the %s down." % str(e["name"]).to_lower())
+		Game.add_log("You put the %s down." % e.title.to_lower())
 	elif outcome == "flee":
-		Game.add_log("You back off from the %s." % str(e["name"]).to_lower())
+		Game.add_log("You back off from the %s." % e.title.to_lower())
 	else:
-		Game.add_log("The %s has the better of you." % str(e["name"]).to_lower())
+		Game.add_log("The %s has the better of you." % e.title.to_lower())
 	_combat_card = null
 	_combat_id = ""
 	var ctx := _combat_context
