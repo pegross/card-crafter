@@ -112,16 +112,24 @@ godot.cmd --headless --path . --quit-after 5
 
 A clean run prints no `SCRIPT ERROR` or `Parse Error` lines — that is the compile/load check.
 
-For a headless logic test, run a `SceneTree` script:
+For the deterministic sim there is a committed headless test harness under `tests/`. Run it:
 
 ```
-godot.cmd --headless --path . -s res://tests/<name>.gd
+godot.cmd --headless --path . -s res://tests/run_tests.gd
 ```
 
-There is currently **no `tests/` directory** in the repo, so headless smoke-testing (the
-`--quit-after` load check above, optionally a throwaway `SceneTree` script that drives
-`Game.advance_time` and asserts on `Game` state) is the method. If a `tests/` harness has
-since been added, run its scripts with the `-s` form above.
+It prints `PASSED n  FAILED m`, a line per failure, and exits `0` when everything passes
+(non-zero otherwise, so CI/scripts can gate on it). `tests/run_tests.gd` (a `SceneTree`)
+builds a FRESH, seeded `Game` per test (`game.gd.new()`, `add_child`, then a manual
+`_ready()` — `_ready` is NOT auto-called for a node added during `_init`), and drives
+`Game.advance_time`. Per-area suites (`tests/test_*.gd`) cover seasons, conditions/lethality,
+the event director + radio, research, construction, siege math, and determinism. Checks go
+through `expect`/`expect_eq`/`expect_near` in `tests/test_helpers.gd` — NEVER `assert()`
+(it aborts the process and is stripped in release). See `tests/README.md` to add a case.
+
+Add or extend a suite whenever you touch the sim, then re-run the harness. For anything the
+harness cannot reach, a throwaway `SceneTree` script driving `Game` and printing state is
+still fine (run it with the same `-s` form).
 
 ## Gotchas / known debt
 
