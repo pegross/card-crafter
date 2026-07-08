@@ -165,6 +165,8 @@ var _dragging: CardIcon = null
 var detail_layer: Control
 var detail_panel: PanelContainer
 var detail_body: VBoxContainer
+var _detail_mode: String = "card"  ## card | construction | buildsite
+var _build_project: String = ""
 var combat_layer: Control
 var combat_title: Label
 var combat_hp_bar: ProgressBar
@@ -748,14 +750,25 @@ func _open_detail() -> void:
 	for c in detail_body.get_children():
 		detail_body.remove_child(c)
 		c.queue_free()
+	match _detail_mode:
+		"construction": _render_construction_list()
+		"buildsite": _render_buildsite()
+		_: _render_card_detail()
+	detail_panel.reset_size()
+	detail_layer.visible = true
+
+func _wrapped(txt: String, col: Color, sz: int) -> Label:
+	var l := _label(txt, col, sz)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(396, 0)
+	return l
+
+func _render_card_detail() -> void:
 	var card := _menu_card
 	detail_body.add_child(_label("YOU" if card == null else _detail_category(card), COLD, 11))
 	detail_body.add_child(_label("You" if card == null else card.data.title, INK_STRONG, 22))
 	var desc := "Rest to steady your nerves, or sleep off the day's weariness." if card == null else card.current_blurb()
-	var d := _label(desc, MUTED, 13)
-	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	d.custom_minimum_size = Vector2(396, 0)
-	detail_body.add_child(d)
+	detail_body.add_child(_wrapped(desc, MUTED, 13))
 	if card != null:
 		var st := card.state_summary()
 		if st != "":
@@ -774,11 +787,129 @@ func _open_detail() -> void:
 			var b := _detail_action_btn(str(_menu_actions[i]["label"]))
 			b.pressed.connect(_on_detail_pick.bind(i))
 			detail_body.add_child(b)
+	if card != null and card.data.kind == "location" and card.data.id == Game.current_location and not Game.construction_for(card.data.id).is_empty():
+		var cb := _detail_action_btn("Construction...")
+		cb.pressed.connect(_goto_detail_mode.bind("construction"))
+		detail_body.add_child(cb)
 	var closeb := _detail_action_btn("Close")
 	closeb.pressed.connect(_hide_detail)
 	detail_body.add_child(closeb)
-	detail_panel.reset_size()
-	detail_layer.visible = true
+
+func _render_construction_list() -> void:
+	detail_body.add_child(_label("CONSTRUCTION", COLD, 11))
+	detail_body.add_child(_label("Here" if _menu_card == null else str(_menu_card.data.title), INK_STRONG, 20))
+	detail_body.add_child(_wrapped("Repairs and improvements to the place. Each is done in stages, a session of work at a time.", MUTED, 12))
+	detail_body.add_child(HSeparator.new())
+	for id in Game.construction_for(Game.current_location):
+		var proj: Dictionary = Game.CONSTRUCTION[id]
+		var status := ""
+		if Game.build_done(id):
+			status = "   ·   done"
+		elif Game.build_phase_idx(id) > 0:
+			status = "   ·   in progress"
+		var b := _detail_action_btn(str(proj["label"]) + status)
+		b.pressed.connect(_open_buildsite.bind(id))
+		detail_body.add_child(b)
+	var back := _detail_action_btn("Back")
+	back.pressed.connect(_goto_detail_mode.bind("card"))
+	detail_body.add_child(back)
+
+func _render_buildsite() -> void:
+	var id := _build_project
+	if not Game.CONSTRUCTION.has(id):
+		_goto_detail_mode("construction")
+		return
+	var proj: Dictionary = Game.CONSTRUCTION[id]
+	detail_body.add_child(_label("CONSTRUCTION", COLD, 11))
+	if Game.build_done(id):
+		detail_body.add_child(_label(str(proj.get("done_label", proj["label"])), INK_STRONG, 20))
+		detail_body.add_child(_wrapped(str(proj.get("done_desc", "")), MUTED, 13))
+		detail_body.add_child(_label("Finished.", WARM_SOFT, 12))
+	else:
+		detail_body.add_child(_label(str(proj["label"]), INK_STRONG, 20))
+		detail_body.add_child(_wrapped(str(proj.get("broken_desc", "")), MUTED, 13))
+		var phases: Array = proj["phases"]
+		var idx := Game.build_phase_idx(id)
+		var phase: Dictionary = phases[idx]
+		detail_body.add_child(HSeparator.new())
+		detail_body.add_child(_label("Stage %d of %d:  %s" % [idx + 1, phases.size(), str(phase["label"])], INK, 13))
+		var mats: Dictionary = phase.get("materials", {})
+		var have_all := true
+		for mid in mats:
+			var need: int = int(mats[mid])
+			var have: int = _count_available(str(mid))
+			if have < need:
+				have_all = false
+			detail_body.add_child(_label("%s   %d / %d" % [_card_title(str(mid)), have, need], (WARM_SOFT if have >= need else BLOOD), 12))
+		var wmin: int = int(phase.get("work_mins", 60))
+		var wb := _detail_action_btn("Work on it  (%s)" % _dur_text(wmin))
+		wb.disabled = not have_all
+		wb.pressed.connect(_do_build_phase.bind(id))
+		detail_body.add_child(wb)
+		if not have_all:
+			detail_body.add_child(_wrapped("You need the materials to hand first, on the ground here or in your pack.", MUTED, 11))
+	var back := _detail_action_btn("Back")
+	back.pressed.connect(_goto_detail_mode.bind("construction"))
+	detail_body.add_child(back)
+
+func _goto_detail_mode(mode: String) -> void:
+	_detail_mode = mode
+	_open_detail()
+
+func _open_buildsite(id: String) -> void:
+	_build_project = id
+	_detail_mode = "buildsite"
+	_open_detail()
+
+func _count_available(mid: String) -> int:
+	var n := 0
+	for key in ["inv", "middle"]:
+		if rows.has(key):
+			for c in rows[key].get_children():
+				if c is CardIcon and (c as CardIcon).data.id == mid:
+					n += 1
+	return n
+
+func _consume_materials(mid: String, n: int) -> void:
+	var remaining := n
+	for key in ["middle", "inv"]:
+		if not rows.has(key):
+			continue
+		for c in rows[key].get_children().duplicate():
+			if remaining <= 0:
+				break
+			if c is CardIcon and (c as CardIcon).data.id == mid:
+				_consume_card(c)
+				remaining -= 1
+
+func _do_build_phase(id: String) -> void:
+	if Game.dead or Game.build_done(id):
+		return
+	var phase: Dictionary = Game.build_current_phase(id)
+	if phase.is_empty():
+		return
+	var mats: Dictionary = phase.get("materials", {})
+	for mid in mats:
+		if _count_available(str(mid)) < int(mats[mid]):
+			Game.add_log("You do not have the materials for that yet.")
+			return
+	for mid in mats:
+		_consume_materials(str(mid), int(mats[mid]))
+	var wmin: int = int(phase.get("work_mins", 60))
+	var before := Game.meters.duplicate()
+	var fx := {"Energy": -6.0, "Calories": -4.0, "Hydration": -4.0, "Warmth": 4.0}
+	for k in fx:
+		Game.modify(k, fx[k])
+	Game.advance_time(wmin)
+	_show_time_passing(wmin)
+	Game.gain_skill("crafting", 3.0)
+	if phase.has("log"):
+		Game.add_log(str(phase["log"]))
+	Game.complete_build_phase(id)
+	_animate_meters(before, fx)
+	on_layout_changed()
+	if detail_layer and detail_layer.visible:
+		_open_detail()
 
 func _on_detail_pick(i: int) -> void:
 	_hide_detail()
@@ -1546,6 +1677,7 @@ func _do_drink(card: CardIcon, clean: bool, mins: int) -> void:
 
 func on_card_clicked(card: CardIcon) -> void:
 	_menu_card = card
+	_detail_mode = "card"
 	if card.data.kind == "location" and card.data.id != Game.current_location:
 		var mins: int = _travel_mins(Game.current_location, card.data.id)
 		_menu_actions = [{"label": "Travel to %s (%dm)" % [_place_prose(card.data.id), mins], "travel_to": card.data.id, "mins": mins}]
@@ -1594,6 +1726,7 @@ func _open_char_menu() -> void:
 	if Game.dead:
 		return
 	_menu_card = null
+	_detail_mode = "card"
 	_menu_actions = [
 		{"label": "Rest (15m)", "mins": 15, "fx": {"Mental": 3.0}, "log": "You sit a while, eyes shut. Not sleep, but it steadies you a little."},
 		{"label": "Sleep until rested", "sleep": true},
@@ -1702,9 +1835,8 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		for cid in act["cond"]:
 			Game.add_condition(cid, float(act["cond"][cid]), str(act.get("cond_cause", "")))
 	if act.has("cure"):
-		var cure_boost := 1.6 if (card != null and card.data.id == "herbal_remedy" and Game.researched.has("herbal_lore")) else 1.0
 		for cid in act["cure"]:
-			Game.cure_condition(cid, float(act["cure"][cid]) * cure_boost)
+			Game.cure_condition(cid, float(act["cure"][cid]))
 	var _mins := int(act.get("mins", 30))
 	if float(fx.get("Energy", 0.0)) < 0.0:
 		_mins = int(round(float(_mins) * Game.weight_toll()))  # overweight = physical work runs longer

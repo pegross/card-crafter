@@ -35,21 +35,72 @@ const SKILL_ACTIVE := ["woodworking", "cooking"]  ## skills that have XP sources
 var researched: Dictionary = {}     ## project id -> true once complete
 var current_research: String = ""   ## the project being worked out, or ""
 var research_progress: float = 0.0  ## waking hours accrued on the current project
+## Research UNLOCKS a recipe/build; it never applies an effect directly. The unlocked
+## thing (a shuttered window, a workbench) is what carries the benefit once you build it.
 const RESEARCH := {
-	"draught_proofing": {
-		"label": "Draught-proofing", "skill": "woodworking", "level": 25, "hours": 24.0,
-		"desc": "Seal the worst of the gaps and board the broken panes so the house holds its heat against the season.",
-		"done_log": "You have the house sealed against the worst of the draughts now. It holds warmth better, even unlit."
+	"r_shutters": {
+		"label": "Window shutters", "skill": "woodworking", "level": 25, "hours": 24.0,
+		"desc": "Work out how to build proper timber shutters for the manor's broken windows.",
+		"unlocks": "manor_windows",
+		"done_log": "You have the measure of it now. You can build shutters for the windows."
 	},
-	"fire_banking": {
-		"label": "Fire-banking", "skill": "woodworking", "level": 45, "hours": 36.0,
-		"desc": "Learn to bank the coals and damp the draught so a fire burns low and slow through the night instead of roaring itself out.",
-		"done_log": "You have the knack of banking the fire now. The hearth burns through its fuel more slowly."
+	"r_workbench": {
+		"label": "Workbench", "skill": "woodworking", "level": 45, "hours": 36.0,
+		"desc": "Plan out a solid workbench, the heart of any proper workshop.",
+		"unlocks": "manor_workbench",
+		"done_log": "You have a workbench worked out. You can build one now."
+	}
+}
+
+## BASE-BUILDING: phased construction projects attached to a shelter. Each phase needs
+## materials and up to ~2h of work; a project can have several phases. See main.gd for the
+## buildsite UI and material consumption. builds = completed ids; build_progress = phase idx.
+var builds: Dictionary = {}          ## project id -> true once fully built
+var build_progress: Dictionary = {}  ## project id -> next phase index to do
+const CONSTRUCTION := {
+	"manor_door": {
+		"shelter": "lordly_manor",
+		"label": "Repair the front door",
+		"broken_desc": "The front door hangs off one hinge, the latch smashed. It keeps out neither the cold nor anything that might come looking.",
+		"done_label": "Braced door",
+		"done_desc": "Back on solid hinges with a stout crossbrace, the gaps packed tight. It holds the warmth in and the weather out.",
+		"done_log": "The door is sound again. The manor feels a shade warmer already.",
+		"phases": [
+			{"label": "Rehang the door", "materials": {"firewood": 2}, "work_mins": 90,
+			 "log": "You lift the door back onto fresh pins and plane it to sit square in the frame."},
+			{"label": "Brace and seal it", "materials": {"firewood": 1}, "work_mins": 60,
+			 "log": "You fit a crossbrace across the back and pack the gaps. It shuts with a solid thud."}
+		]
 	},
-	"herbal_lore": {
-		"label": "Herbal lore", "skill": "cooking", "level": 35, "hours": 24.0,
-		"desc": "Work out which leaves and roots do the most good, and how to draw their strength out over the fire.",
-		"done_log": "You understand the herbs far better now. Your remedies do more."
+	"manor_windows": {
+		"shelter": "lordly_manor",
+		"requires_research": "r_shutters",
+		"label": "Board and shutter the windows",
+		"broken_desc": "Two of the front windows are just jagged holes stuffed with rag. The cold pours straight through them.",
+		"done_label": "Shuttered windows",
+		"done_desc": "Stout timber shutters, closed and barred against the weather.",
+		"done_log": "The windows are shuttered tight. The draught through the front rooms is gone.",
+		"phases": [
+			{"label": "Cut the boards", "materials": {"firewood": 2}, "work_mins": 90,
+			 "log": "You saw and plane the timber down into shutter boards."},
+			{"label": "Hang and bar the shutters", "materials": {"firewood": 2}, "work_mins": 90,
+			 "log": "You hang the shutters and fit a bar across each. They close out the cold."}
+		]
+	},
+	"manor_workbench": {
+		"shelter": "lordly_manor",
+		"requires_research": "r_workbench",
+		"label": "Build a workbench",
+		"broken_desc": "There is a clear stretch of the back wall that would take a proper workbench.",
+		"done_label": "Workbench",
+		"done_desc": "A heavy, solid workbench. A place to make and mend properly.",
+		"done_log": "The workbench is built. It will open up sturdier work down the line.",
+		"phases": [
+			{"label": "Build the frame", "materials": {"firewood": 3}, "work_mins": 120,
+			 "log": "You joint and peg the heavy frame together."},
+			{"label": "Fit the top", "materials": {"firewood": 2}, "work_mins": 90,
+			 "log": "You lay and fix the thick top. It does not so much as wobble."}
+		]
 	}
 }
 
@@ -262,6 +313,52 @@ func _complete_research(id: String) -> void:
 	research_progress = 0.0
 	add_log(str(RESEARCH[id].get("done_log", "You have it worked out at last.")))
 
+func construction_for(loc: String) -> Array:
+	# only projects for this shelter whose unlocking research (if any) is done
+	var out: Array = []
+	for id in CONSTRUCTION:
+		if str(CONSTRUCTION[id]["shelter"]) != loc:
+			continue
+		var req := str(CONSTRUCTION[id].get("requires_research", ""))
+		if req == "" or researched.has(req):
+			out.append(id)
+	return out
+
+func build_done(id: String) -> bool:
+	return builds.has(id)
+
+func build_phase_idx(id: String) -> int:
+	return int(build_progress.get(id, 0))
+
+func build_phase_count(id: String) -> int:
+	return (CONSTRUCTION[id]["phases"] as Array).size() if CONSTRUCTION.has(id) else 0
+
+func build_current_phase(id: String) -> Dictionary:
+	if build_done(id) or not CONSTRUCTION.has(id):
+		return {}
+	var phases: Array = CONSTRUCTION[id]["phases"]
+	var idx := build_phase_idx(id)
+	return phases[idx] if idx < phases.size() else {}
+
+func complete_build_phase(id: String) -> void:
+	# called after the caller has consumed materials + spent the work time
+	var idx := build_phase_idx(id) + 1
+	build_progress[id] = idx
+	if idx >= build_phase_count(id):
+		builds[id] = true
+		add_log(str(CONSTRUCTION[id].get("done_log", "The work is finished.")))
+
+func shelter_damp() -> float:
+	# how much of the seasonal swing an unlit shelter blocks (lower = tighter). Built sealing stacks;
+	# the benefit lives on the BUILDS, not on research. Global for now (only the manor exists);
+	# make per-location when multiple shelters land.
+	var d := 0.4
+	if builds.has("manor_door"):
+		d -= 0.08
+	if builds.has("manor_windows"):
+		d -= 0.12
+	return maxf(0.15, d)
+
 func advance_time(mins: int, sleeping := false) -> void:
 	var hours := float(mins) / 60.0
 	# mature any incubating doses that come due within this step: full fixed dose, drink-time cause kept (earliest wins)
@@ -288,10 +385,9 @@ func advance_time(mins: int, sleeping := false) -> void:
 	_tick_conditions(hours)
 	_apply_influences(hours)
 	# every LIT fire source burns its fuel down; unlit fuel just sits. Out of fuel = out.
-	var burn_rate := HEARTH_BURN_PER_HOUR * (0.7 if researched.has("fire_banking") else 1.0)
 	for src_id in lit_sources.keys():
 		if lit_sources[src_id]:
-			var fuel: float = maxf(0.0, card_state.get(src_id, 0.0) - burn_rate * hours)
+			var fuel: float = maxf(0.0, card_state.get(src_id, 0.0) - HEARTH_BURN_PER_HOUR * hours)
 			card_state[src_id] = fuel
 			if fuel <= 0.0:
 				lit_sources[src_id] = false
@@ -317,7 +413,7 @@ func advance_time(mins: int, sleeping := false) -> void:
 	# an unlit shelter can't beat the season: it blocks most of the seasonal swing, so a deep
 	# winter still creeps in (a lit fire overrides it). Draught-proofing research seals it tighter.
 	# A stopgap until per-location insulation lands.
-	var damp := 0.25 if researched.has("draught_proofing") else 0.4
+	var damp := shelter_damp()
 	var target := 19.0 if is_fire_lit() else (7.0 + season_offset() * damp)
 	temperature = lerpf(temperature, target, clampf(hours * 0.6, 0.0, 1.0))
 	# your Warmth follows the AMBIENT temperature where you actually are:
@@ -663,6 +759,8 @@ func reset() -> void:
 	researched = {}
 	current_research = ""
 	research_progress = 0.0
+	builds = {}
+	build_progress = {}
 	current_location = "lordly_manor"
 	location_indoor = true
 	card_state = {}
