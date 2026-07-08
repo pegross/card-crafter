@@ -192,6 +192,24 @@ const RADIO_DEAD := [
 	"You thumb the dial out of old habit. Nothing answers. The grid is gone, and the radio with it.",
 ]
 const STREAM_DRY_LINE := "The stream has slowed to a dirty trickle, barely enough to wet a hand."
+const SIEGE := {
+	"horde_arrives": [
+		"They come up out of the grey all at once and press against the walls.",
+		"The dark outside fills with them. Every window has a shape leaning on it."],
+	"testing_the_door": [
+		"Hands find the door and worry at it, patient, endless.",
+		"A slow drumming starts on the shutters, then another, then too many to count."],
+	"holding": [
+		"The barricade groans and holds. You press your back to it and wait."],
+	"straining": [
+		"The wood shrieks against the frame. A nail works loose and rings on the floor."],
+	"breach": [
+		"The door gives with a crack, and the cold and the reek of them come pouring in."],
+	"repelled": [
+		"The pressure eases. The sounds thin out and drift off into the dark, and you are still here."],
+	"open_ground": [
+		"They are on you in the open. There is nowhere to put your back."],
+}
 
 ## Continuous needs, 0..100 (the CSTI-style sliders). Provisional values.
 var meters := {
@@ -450,6 +468,25 @@ func shelter_damp() -> float:
 	if builds.has("manor_windows"):
 		d -= 0.12
 	return maxf(0.15, d)
+
+func is_shelter(loc: String) -> bool:
+	# a defensible base = any location construction targets (only the manor for now)
+	for id in CONSTRUCTION:
+		if str(CONSTRUCTION[id]["shelter"]) == loc:
+			return true
+	return false
+
+func shelter_defense(loc: String) -> float:
+	# 0.0 = open ground. Higher = fewer of the horde break in. The benefit lives on the
+	# BUILDS, exactly like shelter_damp(): a braced door and shuttered windows are what save you.
+	if not is_shelter(loc):
+		return 0.0
+	var d := 0.20                        # bare walls and a roof: some cover even unimproved
+	if builds.has("manor_door"):
+		d += 0.24                        # the braced door is the main thing between you and them
+	if builds.has("manor_windows"):
+		d += 0.22                        # shuttered windows close the other way in
+	return minf(d, 0.90)                 # never total: a big enough surge always gets someone through
 
 # ---------- EVENT DIRECTOR ----------
 const RADIO_THREAT_HORIZON := 4   ## days ahead the radio can warn of a coming horde

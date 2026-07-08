@@ -183,6 +183,9 @@ var _combat_hp_max: float = 0.0
 var _combat_log: Array = []
 var _combat_before: Dictionary = {}
 var _combat_resolving: bool = false
+var _combat_context: String = "table"  ## table (normal) | siege (unfleeable horde wave)
+var _siege_waves_left: int = 0
+var combat_flee_btn: Button
 var hurt_flash: ColorRect
 var _shake_tween: Tween
 var time_layer: Control
@@ -1106,11 +1109,11 @@ func _build_combat() -> void:
 	strike_btn.custom_minimum_size = Vector2(120, 34)
 	strike_btn.pressed.connect(_combat_strike)
 	row.add_child(strike_btn)
-	var flee_btn := Button.new()
-	flee_btn.text = "Flee"
-	flee_btn.custom_minimum_size = Vector2(120, 34)
-	flee_btn.pressed.connect(_combat_flee)
-	row.add_child(flee_btn)
+	combat_flee_btn = Button.new()
+	combat_flee_btn.text = "Flee"
+	combat_flee_btn.custom_minimum_size = Vector2(120, 34)
+	combat_flee_btn.pressed.connect(_combat_flee)
+	row.add_child(combat_flee_btn)
 	combat_layer.visible = false
 
 func _combat_tail() -> PackedStringArray:
@@ -1127,21 +1130,26 @@ func _refresh_combat() -> void:
 	combat_title.text = str(e["name"])
 	if _combat_card:
 		combat_blurb.text = str(_combat_card.data.blurb)
+	elif _combat_context == "siege":
+		combat_blurb.text = "It came over the threshold, out of the crush of them. Put it down."
 	combat_hp_bar.max_value = _combat_hp_max
 	combat_hp_bar.value = maxf(0.0, _combat_hp)
 	combat_wound_label.text = "Your wounds: %d%%" % int(round(Game.conditions.get("wound", 0.0)))
 	combat_log_label.text = "\n".join(_combat_tail())
 
-func _start_combat(card: CardIcon) -> void:
-	if Game.dead or not ENEMIES.has(card.data.id):
+func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "table") -> void:
+	if Game.dead or not ENEMIES.has(enemy_id):
 		return
-	_combat_id = card.data.id
+	_combat_id = enemy_id
 	_combat_card = card
+	_combat_context = context
 	_combat_hp_max = float(ENEMIES[_combat_id]["hp"])
 	_combat_hp = _combat_hp_max
 	_combat_before = Game.meters.duplicate()
 	_combat_log = []
 	_combat_say("A %s, and it has seen you." % str(ENEMIES[_combat_id]["name"]).to_lower())
+	if combat_flee_btn:
+		combat_flee_btn.visible = (context == "table")  # a siege is unfleeable
 	combat_layer.visible = true
 	_refresh_combat()
 
@@ -1233,8 +1241,8 @@ func _combat_strike() -> void:
 		_combat_end("downed")
 
 func _combat_flee() -> void:
-	if not combat_layer.visible or _combat_resolving:
-		return
+	if not combat_layer.visible or _combat_resolving or _combat_context != "table":
+		return  # a siege wave cannot be fled
 	var e: Dictionary = ENEMIES[_combat_id]
 	var hit: float = float(e.get("flee_hit", 0.0)) * randf_range(0.6, 1.4)
 	Game.take_wound(hit)
@@ -1267,11 +1275,56 @@ func _combat_end(outcome: String) -> void:
 		Game.add_log("The %s has the better of you." % str(e["name"]).to_lower())
 	_combat_card = null
 	_combat_id = ""
+	var ctx := _combat_context
+	_combat_context = "table"
 	# time already passed per round; settle the bars to their post-fight values. combat is
 	# hidden now, so the add_log above already let _refresh surface any death / forced sleep.
 	_animate_meters(_combat_before, {})
 	on_layout_changed()
 	_combat_resolving = false
+	# a siege chains breach by breach until the surge is spent or you go down
+	if ctx == "siege" and outcome == "win" and not Game.dead:
+		_siege_waves_left -= 1
+		if _siege_waves_left > 0:
+			_spawn_siege_wave.call_deferred()
+		else:
+			_end_siege()
+
+# ---------- siege (a horde surge, driven by Game.pending_siege) ----------
+func _start_siege(waves: int) -> void:
+	if waves <= 0 or Game.dead:
+		return
+	var loc := Game.current_location
+	var sheltered := Game.is_shelter(loc)
+	var defense := Game.shelter_defense(loc)
+	# deterministic: more waves and less defense means more of them break in
+	var breaches := int(round(float(waves) * (1.0 - defense)))
+	Game.add_log(Game._pick(Game.SIEGE["horde_arrives"]))
+	if sheltered:
+		Game.add_log(Game._pick(Game.SIEGE["testing_the_door"]))
+		if breaches <= 0:
+			Game.add_log(Game._pick(Game.SIEGE["holding"]))
+			Game.add_log(Game._pick(Game.SIEGE["repelled"]))
+			return
+		if defense > 0.2:
+			Game.add_log(Game._pick(Game.SIEGE["straining"]))
+		Game.add_log(Game._pick(Game.SIEGE["breach"]))
+	else:
+		Game.add_log(Game._pick(Game.SIEGE["open_ground"]))
+		breaches = maxi(1, waves)
+	_siege_waves_left = breaches
+	_spawn_siege_wave()
+
+func _spawn_siege_wave() -> void:
+	if _siege_waves_left <= 0 or Game.dead:
+		_end_siege()
+		return
+	_start_combat("zombie", null, "siege")
+
+func _end_siege() -> void:
+	_siege_waves_left = 0
+	if not Game.dead:
+		Game.add_log(Game._pick(Game.SIEGE["repelled"]))
 
 func _show_death() -> void:
 	if death_obit_label:
@@ -1859,7 +1912,7 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		_do_drink(card, bool(act.get("clean", false)), int(act.get("mins", 5)))
 		return
 	if act.has("fight"):
-		_start_combat(card)
+		_start_combat(card.data.id, card)
 		return
 	if act.has("radio_listen"):
 		var line := Game.radio_listen()
@@ -2022,6 +2075,10 @@ func _refresh() -> void:
 		Game.force_sleep = false
 		if not _collapsing:
 			_collapse_sleep.call_deferred()
+	if Game.pending_siege > 0 and not Game.dead and (not combat_layer or not combat_layer.visible) and not _collapsing:
+		var _waves: int = Game.pending_siege
+		Game.pending_siege = 0
+		_start_siege.call_deferred(_waves)
 	if Game.dead and not _death_shown and (not combat_layer or not combat_layer.visible):
 		_death_shown = true
 		_show_death()
