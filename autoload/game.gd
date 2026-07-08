@@ -48,6 +48,7 @@ const RESOURCE_REGEN := {
 	"herbs": {"r": 0.20, "seed": 0.02, "seasons": [0.5, 0.1, 1.0, 1.0]},
 }
 var stocks := {}  ## loc -> { id -> {"S": float, "K": float} }; cleared in reset()
+var loc_indoor := {}  ## loc -> bool; set at boot by main.gd, drives which stocks a windfall/rain reaches
 
 ## EVENT DIRECTOR — deterministic, telegraphed "worse times".
 var scheduled_events: Array = []    ## upcoming instances: {id, day, telegraphed, fired, waves?}
@@ -202,9 +203,11 @@ const EVENTS := {
 	"drought":      {"category": "weather", "telegraph_days": 3, "duration_days": 5, "stream_drain_per_hour": 10.0},
 	"horde_surge":  {"category": "threat",  "telegraph_days": 2, "duration_days": 1, "base_waves": 1},
 	"grid_failure": {"category": "power",   "telegraph_days": 3, "duration_days": 0},
+	"gale":         {"category": "weather", "telegraph_days": 1, "duration_days": 0},
 }
 ## The authored year-0 spine, by absolute day. First Winter = days 7-12, first Summer = 19-24.
 const EVENT_SPINE := [
+	{"id": "gale",         "day": 4},   ## early first autumn: a windstorm throws down deadwood
 	{"id": "grid_failure", "day": 8},   ## early first winter: the power goes for good
 	{"id": "cold_snap",    "day": 9},   ## first winter bites
 	{"id": "horde_surge",  "day": 11},  ## the first siege, a fixed day of the first winter
@@ -255,6 +258,12 @@ const EVENT_FLAVOR := {
 		"The power dies for good. A hum you had long stopped hearing is gone, and the house goes truly quiet."],
 	"grid_failure_radio": [
 		"rolling blackouts across the, the grid failing region by, expect to lose power in your."],
+	"gale_telegraph": [
+		"The wind is getting up, worrying at the eaves, and the trees have begun to thrash.",
+		"A hard wind is building. The air has an edge to it and the whole house creaks and shifts."],
+	"gale_onset": [
+		"The gale tore through in the night and brought branches down all across the grounds.",
+		"By morning the wind has spent itself, leaving the open ground littered with fallen wood."],
 }
 const RADIO_STATIC := [
 	"Static, and under it nothing. You listen anyway, the way you listen for rain.",
@@ -573,6 +582,11 @@ func register_stock(loc: String, id: String, K: int) -> void:
 	if not stocks[loc].has(id):
 		stocks[loc][id] = {"S": float(K) * 0.5, "K": float(K)}  # start half-stocked so a spot is not barren
 
+func set_location_indoor(loc: String, indoor: bool) -> void:
+	# main.gd registers each location's shelter status at boot so events (gale, rain) know which
+	# stocks sit under open sky. Game itself has no map, only this flag.
+	loc_indoor[loc] = indoor
+
 func stock_count(loc: String, id: String) -> int:
 	if stocks.has(loc) and stocks[loc].has(id):
 		return int(floor(float(stocks[loc][id]["S"])))
@@ -590,6 +604,7 @@ func add_stock(loc: String, id: String, amt: float) -> void:
 
 func _tick_stocks(hours: float) -> void:
 	var s := season()
+	var drought := _event_active("drought")  # the dry kills new forage/herb growth; wood is unaffected
 	for loc in stocks:
 		for id in stocks[loc]:
 			var K: float = float(stocks[loc][id]["K"])
@@ -597,6 +612,8 @@ func _tick_stocks(hours: float) -> void:
 				continue
 			var p: Dictionary = RESOURCE_REGEN.get(id, {"r": 0.2, "seed": 0.04, "seasons": [1, 1, 1, 1]})
 			var mult: float = float(p["seasons"][s])
+			if drought and (id == "forage_food" or id == "herbs"):
+				mult = 0.0
 			var S: float = float(stocks[loc][id]["S"])
 			S += (float(p["seed"]) + float(p["r"]) * S * (1.0 - S / K)) * mult * hours
 			stocks[loc][id]["S"] = clampf(S, 0.0, K)
@@ -699,8 +716,10 @@ func _extend_schedule(year: int) -> void:
 	# endless sandbox: deterministically append a winter surge + snap and a summer drought per year
 	if year <= _schedule_seeded_year:
 		return
+	var autumn_start := year * 4 * SEASON_LENGTH + 1
 	var winter_start := year * 4 * SEASON_LENGTH + SEASON_LENGTH + 1
 	var summer_start := year * 4 * SEASON_LENGTH + 3 * SEASON_LENGTH + 1
+	scheduled_events.append({"id": "gale",        "day": autumn_start + 3, "telegraphed": false, "fired": false})
 	scheduled_events.append({"id": "cold_snap",   "day": winter_start + 2, "telegraphed": false, "fired": false})
 	scheduled_events.append({"id": "horde_surge", "day": winter_start + 4, "telegraphed": false, "fired": false, "waves": 1 + year})
 	scheduled_events.append({"id": "drought",     "day": summer_start + 2, "telegraphed": false, "fired": false})
@@ -763,6 +782,14 @@ func _fire_event(ev: Dictionary) -> void:
 			pending_siege = int(ev.get("waves", def["base_waves"]))  # main.gd consumes this
 		"grid_failure":
 			radio_powered = false  # permanent dead air from here on
+		"gale":
+			# a windstorm throws deadwood down across the open ground: a firewood + tinder windfall,
+			# but only outdoors (a roofed location catches nothing)
+			for loc in stocks:
+				if bool(loc_indoor.get(loc, false)):
+					continue
+				add_stock(loc, "firewood", 3.0)
+				add_stock(loc, "tinder", 1.5)
 
 func radio_listen() -> String:
 	# power gone -> permanent dead air. This IS the title, and the soft clock.
@@ -860,6 +887,12 @@ func advance_time(mins: int, sleeping := false) -> void:
 	# the rain barrel catches the sky wherever it sits, so rain slowly refills it
 	if weather == "rain":
 		card_state["rain_barrel"] = minf(100.0, float(card_state.get("rain_barrel", 100.0)) + 8.0 * hours)
+		# rain feeds the wild growth: a gentle nudge to forage and herbs at every outdoor stock
+		for loc in stocks:
+			if bool(loc_indoor.get(loc, false)):
+				continue
+			add_stock(loc, "forage_food", 0.4 * hours)
+			add_stock(loc, "herbs", 0.2 * hours)
 	# TRAPPING: any snare set on open ground fills toward a catch on the clock (deterministic)
 	for tloc in traps:
 		traps[tloc] = minf(100.0, float(traps[tloc]) + SNARE_CATCH_PER_HOUR * hours)
@@ -1233,6 +1266,7 @@ func reset() -> void:
 	pool_state = {}
 	traps = {}
 	stocks = {}
+	loc_indoor = {}
 	lit_sources = {}
 	meters = {"Satiation": 65.0, "Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Immune": 78.0, "Mental": 64.0}
 	conditions = {}

@@ -1578,6 +1578,8 @@ func _populate() -> void:
 		Game.location_ground[loc] = GROUND_START.get(loc, []).duplicate()
 	# register the logistic stock for every renewable GROUND resource (idempotent across restart)
 	for loc in LOCATIONS:
+		# tell Game which locations sit under open sky, so gale/rain windfalls only reach outdoor stocks
+		Game.set_location_indoor(loc, bool(LOCATIONS[loc].get("indoor", true)))
 		for e in LOCATIONS[loc].get("pool", {}).get("renewable", []):
 			if str((e as Dictionary).get("kind", "")) == "ground":
 				Game.register_stock(loc, str(e["id"]), int(e.get("max", 1)))

@@ -10,9 +10,9 @@ func _find(g, id: String) -> Dictionary:
 	return {}
 
 func run(tree, h) -> void:
-	# --- the spine seeds exactly 4 events for a fresh game ---
+	# --- the spine seeds exactly 5 events for a fresh game (gale, grid_failure, cold_snap, horde, drought) ---
 	var g = tree.make_sim(42)
-	h.expect_eq(g.scheduled_events.size(), 4, "the spine seeds 4 scheduled events")
+	h.expect_eq(g.scheduled_events.size(), 5, "the spine seeds 5 scheduled events")
 
 	# --- telegraph timing: grid_failure (day 8, telegraph_days 3) -> telegraphed by day 5 ---
 	var g2 = tree.make_sim(42)

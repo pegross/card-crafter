@@ -78,9 +78,50 @@ func run(tree, h) -> void:
 	g._tick_stocks(5.0)
 	h.expect_near(g.stocks["loc_b"]["forage_food"]["S"], 2.0, "forage_food is flat over a winter tick (mult 0)", 0.0001)
 
+	# GALE windfall: firing a gale raises firewood + tinder at an OUTDOOR stock, skips indoor ones
+	g.register_stock("out_yard", "firewood", 10)
+	g.register_stock("out_yard", "tinder", 10)
+	g.register_stock("in_shed", "firewood", 10)
+	g.set_location_indoor("out_yard", false)
+	g.set_location_indoor("in_shed", true)
+	g.stocks["out_yard"]["firewood"]["S"] = 2.0
+	g.stocks["out_yard"]["tinder"]["S"] = 2.0
+	g.stocks["in_shed"]["firewood"]["S"] = 2.0
+	g._fire_event({"id": "gale"})
+	h.expect(g.stocks["out_yard"]["firewood"]["S"] > 2.0, "a gale drops a firewood windfall at an outdoor stock")
+	h.expect(g.stocks["out_yard"]["tinder"]["S"] > 2.0, "a gale drops tinder at an outdoor stock")
+	h.expect_eq(g.stocks["in_shed"]["firewood"]["S"], 2.0, "a gale leaves an indoor stock untouched")
+
+	# RAIN feed is add_stock at outdoor locs (the weather hook itself is boot-covered); verify the helper reaches forage/herbs
+	g.register_stock("out_yard", "forage_food", 6)
+	g.register_stock("out_yard", "herbs", 6)
+	g.stocks["out_yard"]["forage_food"]["S"] = 2.0
+	g.stocks["out_yard"]["herbs"]["S"] = 2.0
+	g.add_stock("out_yard", "forage_food", 0.4)
+	g.add_stock("out_yard", "herbs", 0.2)
+	h.expect(g.stocks["out_yard"]["forage_food"]["S"] > 2.0, "the rain feed helper raises forage_food")
+	h.expect(g.stocks["out_yard"]["herbs"]["S"] > 2.0, "the rain feed helper raises herbs")
+
+	# DROUGHT stall: forage grows on a normal summer tick but is killed while a drought is active
+	var dg = tree.make_sim(11)
+	dg.register_stock("field", "forage_food", 6)
+	dg.day = 20  # Summer (season 3): forage's season mult is at its highest
+	h.expect_eq(dg.season(), 3, "day 20 is Summer for the drought-stall check")
+	dg.stocks["field"]["forage_food"]["S"] = 3.0
+	dg._tick_stocks(3.0)
+	var grow_normal := float(dg.stocks["field"]["forage_food"]["S"]) - 3.0
+	dg.stocks["field"]["forage_food"]["S"] = 3.0
+	dg.active_events = [{"id": "drought", "ends_day": dg.day + 5, "temp_drop": 0.0}]
+	dg._tick_stocks(3.0)
+	var grow_drought := float(dg.stocks["field"]["forage_food"]["S"]) - 3.0
+	h.expect(grow_normal > 0.0, "forage grows on a normal summer tick")
+	h.expect(grow_drought < grow_normal * 0.1, "a drought stalls forage growth to near nothing")
+	dg.free()
+
 	# reset() clears every stock
 	g.reset()
 	h.expect_eq(g.stocks.size(), 0, "reset clears all stocks")
+	h.expect_eq(g.loc_indoor.size(), 0, "reset clears the indoor registry")
 
 	# DETERMINISM: two identical runs tick to exactly the same S (no rng in the stock math)
 	var a = tree.make_sim(3)
