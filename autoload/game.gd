@@ -32,6 +32,10 @@ var weather: String = "overcast"  ## clear / overcast / rain
 var wet: float = 0.0  ## 0..100; rises outdoors in rain, dries indoors/by fire
 var force_sleep: bool = false  ## set when Energy hits 0 -> main triggers a collapse-sleep
 
+## EQUIPMENT — a single worn slot. The card id of the garment on your back, "" = nothing worn.
+## Worn clothing has no loose card while it is on you; taking it off re-spawns the card.
+var worn: String = ""
+
 ## EVENT DIRECTOR — deterministic, telegraphed "worse times".
 var scheduled_events: Array = []    ## upcoming instances: {id, day, telegraphed, fired, waves?}
 var active_events: Array = []       ## live effects: {id, ends_day, temp_drop}
@@ -68,6 +72,11 @@ const RESEARCH := {
 		"label": "Snare trapping", "skill": "woodworking", "level": 20, "hours": 18.0,
 		"desc": "Work out how to bend and set a snare that will take small game while you are away.",
 		"done_log": "You have the trick of the snare now. You can make one when you have the wood."
+	},
+	"r_tailoring": {
+		"label": "Tailoring a coat", "skill": "tailoring", "level": 20, "hours": 18.0,
+		"desc": "Work out how to cut and stitch cured hide into a coat that will hold the warmth in.",
+		"done_log": "You have the pattern of it in your head now. You can tailor a coat when you have the hide."
 	}
 }
 
@@ -159,6 +168,17 @@ const CRAFTS := {
 		"skill": ["crafting", 3.0],
 		"desc": "Split a stave down, bend it under tension, and rig a running noose to snap shut on whatever trips it.",
 		"log": "You bend the stave, notch the trigger, and set the noose. A patient little trap."
+	},
+	"craft_hide_coat": {
+		"tab": "tailoring",
+		"requires_research": "r_tailoring",
+		"label": "Tailor a hide coat",
+		"materials": {"hide": 2},
+		"work_mins": 60,
+		"produces": "hide_coat",
+		"skill": ["tailoring", 4.0],
+		"desc": "Cut and stitch two cured hides into a rough coat. Heavy and stiff, but it turns the wind and keeps the warmth in.",
+		"log": "You cut, fit, and stitch the hides into a coat. It sits heavy on your shoulders, and warm."
 	}
 }
 
@@ -435,6 +455,11 @@ func gain_skill(id: String, amt: float) -> void:
 
 func wood_speed() -> float:
 	return 1.0 - float(skill_level("woodworking")) * 0.003  # up to ~30% faster felling/splitting at mastery
+
+func warmth_insulation() -> float:
+	# Multiplier applied to Warmth LOSS while a garment is worn: < 1.0 means you shed less heat.
+	# A hide coat cuts roughly a third of the chill. Tunable, and testable via make_sim.
+	return 0.65
 
 func skill_desc(id: String) -> String:
 	match id:
@@ -785,6 +810,8 @@ func advance_time(mins: int, sleeping := false) -> void:
 	var warm_delta := (ambient - 10.0) * 0.6 * hours
 	if warm_delta < 0.0:
 		warm_delta *= (1.0 + wet / 100.0)  # being wet steepens the chill
+		if worn != "":
+			warm_delta *= warmth_insulation()  # a worn garment cuts the heat you shed
 	meters["Warmth"] = clampf(meters["Warmth"] + warm_delta, 0.0, 100.0)
 	# FATIGUE: cleared only by sleep (raising the Energy ceiling FIRST), accrues while awake
 	if sleeping:
@@ -1155,6 +1182,7 @@ func reset() -> void:
 	weather = "overcast"
 	wet = 0.0
 	force_sleep = false
+	worn = ""
 	weight = 55.0
 	weight_warned = false
 

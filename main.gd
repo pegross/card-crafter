@@ -70,6 +70,9 @@ var ACTIONS := {
 	"wool_blanket": [
 		{"label": "Wrap up (30m)", "mins": 30, "fx": {"Warmth": 12.0, "Mental": 2.0}, "log": "You pull the blanket close. Quiet warmth - the kind that draws nothing."},
 	],
+	"hide_coat": [
+		{"label": "Wear it", "wear": "hide_coat", "log": "You shrug the coat on. Stiff and heavy, but it cuts the cold at once."},
+	],
 	"cellar": [
 		{"label": "Search the cellar (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
 	],
@@ -922,6 +925,8 @@ func _render_card_detail() -> void:
 	detail_body.add_child(_label("You" if card == null else card.data.title, INK_STRONG, 22))
 	var desc := "Rest to steady your nerves, or sleep off the day's weariness." if card == null else card.current_blurb()
 	detail_body.add_child(_wrapped(desc, MUTED, 13))
+	if card == null and Game.worn != "":
+		detail_body.add_child(_label("Wearing: a %s" % _card_title(Game.worn).to_lower(), WARM_SOFT, 12))
 	if card != null:
 		var st := card.state_summary()
 		if st != "":
@@ -2092,6 +2097,8 @@ func _open_char_menu() -> void:
 		{"label": "Rest (15m)", "mins": 15, "fx": {"Mental": 3.0}, "log": "You sit a while, eyes shut. Not sleep, but it steadies you a little."},
 		{"label": "Sleep until rested", "sleep": true},
 	]
+	if Game.worn != "":
+		_menu_actions.append({"label": "Take off the %s" % _card_title(Game.worn).to_lower(), "take_off": true})
 	_open_detail()
 
 func _on_portrait_input(event: InputEvent) -> void:
@@ -2170,6 +2177,23 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		return
 	if act.has("travel_to"):
 		_travel_to(act["travel_to"], int(act.get("mins", 30)))
+		return
+	if act.has("wear"):
+		Game.worn = str(act["wear"])
+		if act.has("log"):
+			Game.add_log(str(act["log"]))
+		if card != null:
+			_consume_card(card)  # it is on your back now, not a loose card
+		on_layout_changed()
+		return
+	if act.has("take_off"):
+		var wid: String = Game.worn
+		Game.worn = ""
+		if wid != "":
+			var row_key := "inv" if (rows.has("inv") and rows["inv"].get_child_count() < INV_CAP) else "middle"
+			_spawn(wid, row_key)
+			Game.add_log("You shrug the %s off." % _card_title(wid).to_lower())
+		on_layout_changed()
 		return
 	if act.get("needs_fire", false) and not Game.is_fire_lit():
 		Game.add_log("There is no fire lit.")

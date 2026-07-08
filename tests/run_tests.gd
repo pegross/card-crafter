@@ -30,6 +30,7 @@ func _init() -> void:
 		"trapping": preload("res://tests/test_trapping.gd").new(),
 		"siege": preload("res://tests/test_siege.gd").new(),
 		"food": preload("res://tests/test_food.gd").new(),
+		"equipment": preload("res://tests/test_equipment.gd").new(),
 		"determinism": preload("res://tests/test_determinism.gd").new(),
 	}
 	for name in suites:
