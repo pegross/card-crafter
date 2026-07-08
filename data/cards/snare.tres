@@ -7,4 +7,4 @@ script = ExtResource("1")
 id = "snare"
 title = "Snare"
 kind = "tool"
-blurb = "A spring-snare of bent wood and a running noose. Set it out on open ground and leave it to do the patient work."
+blurb = "A spring-snare of bent wood and a running noose. Patient work, once it is set."

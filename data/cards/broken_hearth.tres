@@ -7,4 +7,4 @@ script = ExtResource("1")
 id = "broken_hearth"
 title = "Broken Hearth"
 kind = "station"
-blurb = "The hearth has fallen in, a ruin of soot-black stone and cold ash. It would need rebuilding before it could hold a fire."
+blurb = "Fallen in. Soot-black stone and cold ash where a fire should sit."

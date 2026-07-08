@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = "lordly_manor"
-title = "Lordly Manor"
+title = "Manor"
 kind = "location"
 blurb = "Grand once. The damp has it now."
 state_kind = "explore"

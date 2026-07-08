@@ -7,6 +7,6 @@ script = ExtResource("1")
 id = "rain_barrel"
 title = "Rain Barrel"
 kind = "station"
-blurb = "Rain water. Needs boiling."
+blurb = "Roof-water, scummed at the rim. Wants boiling."
 state_kind = "water"
 state_start = 100.0

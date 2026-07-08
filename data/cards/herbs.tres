@@ -7,4 +7,4 @@ script = ExtResource("1")
 id = "herbs"
 title = "Herbs"
 kind = "item"
-blurb = "Wild yarrow and mint. Steeped over a fire, they settle the gut."
+blurb = "Wild yarrow and mint. Bitter, and good for a sour gut."

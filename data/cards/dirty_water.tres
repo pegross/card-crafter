@@ -7,4 +7,4 @@ script = ExtResource("1")
 id = "dirty_water"
 title = "Dirty Water"
 kind = "resource"
-blurb = "A canister of cold water. Unboiled."
+blurb = "A canister of water, cloudy at the bottom. Unboiled."

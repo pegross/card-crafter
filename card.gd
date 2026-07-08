@@ -55,13 +55,13 @@ func setup(card_data: CardData, main_ref) -> void:
 	_panel_sb.set_corner_radius_all(12)
 	_panel_sb.content_margin_left = 12.0
 	_panel_sb.content_margin_right = 12.0
-	_panel_sb.content_margin_top = 11.0
+	_panel_sb.content_margin_top = 8.0
 	_panel_sb.content_margin_bottom = 12.0
 	add_theme_stylebox_override("panel", _panel_sb)
 
 	var vb := VBoxContainer.new()
 	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vb.add_theme_constant_override("separation", 6)
+	vb.add_theme_constant_override("separation", 4)
 	add_child(vb)
 
 	_kind_label = _ilabel(data.kind.to_upper(), _accent(), 10)
@@ -98,6 +98,7 @@ func setup(card_data: CardData, main_ref) -> void:
 	scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_blurb_label = _ilabel(data.blurb, MUTED, 11)
 	_blurb_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_blurb_label.add_theme_constant_override("line_spacing", 1)
 	_blurb_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_blurb_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 	scroll.add_child(_blurb_label)

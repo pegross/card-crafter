@@ -7,6 +7,6 @@ script = ExtResource("1")
 id = "the_grounds"
 title = "Grounds"
 kind = "location"
-blurb = "The old estate, gone to weeds. The house is somewhere within."
+blurb = "An old estate, long gone to weeds."
 state_kind = "explore"
 state_start = 0.0

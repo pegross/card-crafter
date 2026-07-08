@@ -5,6 +5,6 @@
 [resource]
 script = ExtResource("1")
 id = "wooden_mallet"
-title = "Wooden mallet"
+title = "Wooden Mallet"
 kind = "tool"
 blurb = "A heavy mallet carved from a single billet. Rough-hewn, but solid in the hand."

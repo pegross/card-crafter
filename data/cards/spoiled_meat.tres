@@ -7,4 +7,4 @@ script = ExtResource("1")
 id = "spoiled_meat"
 title = "Spoiled Meat"
 kind = "item"
-blurb = "Grey, slick, and sweet with rot. Only the truly desperate would put this in their mouth."
+blurb = "Grey, slick, sweet with rot. Only the desperate would eat it."
