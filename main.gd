@@ -96,12 +96,12 @@ var ACTIONS := {
 
 ## Two-card (drag item onto target) recipes: item_id -> target_id -> {label, mins}.
 var RECIPES := {
-	"firewood": {"hearth": {"label": "Add fuel", "mins": 10}},
+	"firewood": {"hearth": {"label": "Add fuel", "mins": 10, "effect": "add_fuel", "amount": 40}},
 	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 3}, "plastic_bottle": {"label": "Pour into bottle", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
 	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Refuel lighter", "mins": 3}, "gas_canister": {"label": "Pour into canister", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
-	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3}},
-	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3}},
-	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15}},
+	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3, "effect": "light_tinder"}},
+	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3, "effect": "set_alight"}},
+	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15, "effect": "steep_remedy"}},
 }
 
 var rows := {}
@@ -1641,38 +1641,40 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		return
 	var before := Game.meters.duplicate()
 	var fx := {}
-	if src.data.id == "firewood" and target.data.id == "hearth":
-		target.set_state(target.state_value + 40.0)
-		if Game.is_fire_lit():
-			Game.add_log("You feed the fire. It flares - warm, bright, and loud.")
-			fx = {"Warmth": 8.0}
-		else:
-			Game.add_log("You lay wood in the cold grate. It only wants a light now.")
-		_consume_card(src)
-	elif src.data.id == "lighter" and target.data.id == "tinder":
-		if src.state_value <= 0.0:
-			Game.add_log("The lighter sparks and dies - no charge left.")
-			on_drag_end()
-			return
-		src.set_state(src.state_value - 1.0)
-		_consume_card(target)
-		_spawn("burning_tinder", "middle")
-		Game.add_log("You thumb the lighter; the tinder catches and curls into flame.")
-	elif src.data.id == "burning_tinder" and target.data.id == "hearth":
-		Game.lit_sources[target.data.id] = true
-		if target.state_value <= 0.0:
-			target.set_state(1.0)
-		_consume_card(src)
-		Game.add_log("You feed the burning tinder in. The fire takes - warm light, and a beacon.")
-	elif src.data.id == "herbs" and target.data.id == "hearth":
-		if not Game.is_fire_lit():
-			Game.add_log("You need a live fire to steep them.")
-			on_drag_end()
-			return
-		_consume_card(src)
-		_spawn("herbal_remedy", "middle")
-		Game.add_log("You steep the herbs over the fire into a bitter, cloudy tea.")
-		Game.gain_skill("cooking", 2.5)
+	if rec.has("effect"):
+		match rec["effect"]:
+			"add_fuel":
+				target.set_state(target.state_value + float(rec.get("amount", 40)))
+				if Game.is_fire_lit():
+					Game.add_log("You feed the fire. It flares - warm, bright, and loud.")
+					fx = {"Warmth": 8.0}
+				else:
+					Game.add_log("You lay wood in the cold grate. It only wants a light now.")
+				_consume_card(src)
+			"light_tinder":
+				if src.state_value <= 0.0:
+					Game.add_log("The lighter sparks and dies - no charge left.")
+					on_drag_end()
+					return
+				src.set_state(src.state_value - 1.0)
+				_consume_card(target)
+				_spawn("burning_tinder", "middle")
+				Game.add_log("You thumb the lighter; the tinder catches and curls into flame.")
+			"set_alight":
+				Game.lit_sources[target.data.id] = true
+				if target.state_value <= 0.0:
+					target.set_state(1.0)
+				_consume_card(src)
+				Game.add_log("You feed the burning tinder in. The fire takes - warm light, and a beacon.")
+			"steep_remedy":
+				if not Game.is_fire_lit():
+					Game.add_log("You need a live fire to steep them.")
+					on_drag_end()
+					return
+				_consume_card(src)
+				_spawn("herbal_remedy", "middle")
+				Game.add_log("You steep the herbs over the fire into a bitter, cloudy tea.")
+				Game.gain_skill("cooking", 2.5)
 	elif src.data.is_container and target.data.id == "lighter":
 		if src.content != "fuel" or src.state_value <= 0.0:
 			Game.add_log("There's no fuel in the %s to draw from." % src.data.title.to_lower())
