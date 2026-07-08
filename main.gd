@@ -1299,6 +1299,30 @@ func _consume_card(c: CardIcon) -> void:
 		p.remove_child(c)
 	c.queue_free()
 
+# Right-click MOVES a movable card. With no buildsite open it toggles between
+# your inventory and the current area's ground (3c adds "into an open buildsite").
+func on_card_right_clicked(card: CardIcon) -> void:
+	if Game.dead or not card.mobile:
+		return
+	var parent := card.get_parent()
+	if parent == rows.get("inv"):
+		_move_card(card, "middle")
+		Game.add_log("You set the %s down here." % card.data.title.to_lower())
+	elif parent == rows.get("middle"):
+		if rows["inv"].get_child_count() >= INV_CAP:
+			Game.add_log("Your hands and pockets are full.")
+			return
+		_move_card(card, "inv")
+		Game.add_log("You pick up the %s." % card.data.title.to_lower())
+	else:
+		return
+	on_layout_changed()
+
+func _move_card(card: CardIcon, dest_key: String) -> void:
+	var id: String = card.data.id
+	_consume_card(card)
+	_spawn(id, dest_key)
+
 func _transform_fixture(card: CardIcon, new_id: String) -> void:
 	var loc := Game.current_location
 	var fxs: Array = LOCATIONS[loc]["fixtures"]

@@ -326,6 +326,8 @@ func set_location_badge(mode: String) -> void:
 func _on_gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		main.on_card_clicked(self)
+	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
+		main.on_card_right_clicked(self)
 
 # --- drag & drop ---
 func _get_drag_data(_at: Vector2):
