@@ -198,6 +198,83 @@ func _ready() -> void:
 	Game.add_log("Day 1. The power is still on, for now. Outside, it is very quiet.")
 	_refresh()
 	on_layout_changed()
+	_validate_content()
+
+## Boot-time content check: turn silent bad-id no-ops into loud, named errors.
+## Reports ALL problems via push_error; never crashes. Run at the end of _ready().
+func _validate_content() -> void:
+	# (a) RECIPES: source id, target id, and any recipe "spawn" id must be cards.
+	for src in RECIPES:
+		if not CARD_FILES.has(src):
+			push_error("CONTENT: RECIPES source id '%s' is not a known card" % src)
+		var targets: Dictionary = RECIPES[src]
+		for tgt in targets:
+			if not CARD_FILES.has(tgt):
+				push_error("CONTENT: RECIPES['%s'] target id '%s' is not a known card" % [src, tgt])
+			var rec: Dictionary = targets[tgt]
+			if rec.has("spawn") and not CARD_FILES.has(str(rec["spawn"])):
+				push_error("CONTENT: RECIPES['%s']['%s'] spawn id '%s' is not a known card" % [src, tgt, str(rec["spawn"])])
+	# (b) ACTIONS: spawn -> card, cure/cond keys -> condition, fx keys -> meter.
+	for aid in ACTIONS:
+		for act in ACTIONS[aid]:
+			if act.has("spawn") and not CARD_FILES.has(str(act["spawn"])):
+				push_error("CONTENT: ACTIONS['%s'] spawn id '%s' is not a known card" % [aid, str(act["spawn"])])
+			for cid in act.get("cure", {}):
+				if not Game.CONDITIONS.has(cid):
+					push_error("CONTENT: ACTIONS['%s'] cure key '%s' is not a known condition" % [aid, str(cid)])
+			for ck in act.get("cond", {}):
+				if not Game.CONDITIONS.has(ck):
+					push_error("CONTENT: ACTIONS['%s'] cond key '%s' is not a known condition" % [aid, str(ck)])
+			for fk in act.get("fx", {}):
+				if not Game.meters.has(fk):
+					push_error("CONTENT: ACTIONS['%s'] fx key '%s' is not a known meter" % [aid, str(fk)])
+	# (c) CONSTRUCTION phase materials, requires_research; RESEARCH unlocks + skill.
+	for pid in Game.CONSTRUCTION:
+		var proj: Dictionary = Game.CONSTRUCTION[pid]
+		for phase in proj.get("phases", []):
+			for mid in phase.get("materials", {}):
+				if not CARD_FILES.has(str(mid)):
+					push_error("CONTENT: CONSTRUCTION['%s'] phase material id '%s' is not a known card" % [pid, str(mid)])
+		var req := str(proj.get("requires_research", ""))
+		if req != "" and not Game.RESEARCH.has(req):
+			push_error("CONTENT: CONSTRUCTION['%s'] requires_research '%s' is not a known research project" % [pid, req])
+	for rid in Game.RESEARCH:
+		var r: Dictionary = Game.RESEARCH[rid]
+		var unlocks := str(r.get("unlocks", ""))
+		if unlocks != "" and not Game.CONSTRUCTION.has(unlocks):
+			push_error("CONTENT: RESEARCH['%s'] unlocks '%s' is not a known construction project" % [rid, unlocks])
+		var skill := str(r.get("skill", ""))
+		if not Game.skills.has(skill):
+			push_error("CONTENT: RESEARCH['%s'] skill '%s' is not a known skill" % [rid, skill])
+	# (d) LOCATIONS fixtures, pool ids, connection targets; GROUND_START ids.
+	for loc in LOCATIONS:
+		var ld: Dictionary = LOCATIONS[loc]
+		for fxid in ld.get("fixtures", []):
+			if not CARD_FILES.has(str(fxid)):
+				push_error("CONTENT: LOCATIONS['%s'] fixture id '%s' is not a known card" % [loc, str(fxid)])
+		var pool: Dictionary = ld.get("pool", {})
+		for bucket in ["finite", "renewable"]:
+			for entry in pool.get(bucket, []):
+				var eid := str(entry.get("id", ""))
+				if eid != "" and not CARD_FILES.has(eid):
+					push_error("CONTENT: LOCATIONS['%s'] pool %s id '%s' is not a known card" % [loc, bucket, eid])
+		for tgt in ld.get("connections", {}):
+			if not LOCATIONS.has(tgt):
+				push_error("CONTENT: LOCATIONS['%s'] connection target '%s' is not a known location" % [loc, str(tgt)])
+	for gloc in GROUND_START:
+		for gid in GROUND_START[gloc]:
+			if not CARD_FILES.has(str(gid)):
+				push_error("CONTENT: GROUND_START['%s'] id '%s' is not a known card" % [gloc, str(gid)])
+	# (e) EVENT_SPINE ids exist; every EVENT has _telegraph and _onset flavor.
+	for ev in Game.EVENT_SPINE:
+		var evid := str(ev["id"])
+		if not Game.EVENTS.has(evid):
+			push_error("CONTENT: EVENT_SPINE id '%s' is not a known event" % evid)
+	for eid in Game.EVENTS:
+		if not Game.EVENT_FLAVOR.has(eid + "_telegraph"):
+			push_error("CONTENT: EVENT_FLAVOR missing '%s_telegraph' for event '%s'" % [eid, eid])
+		if not Game.EVENT_FLAVOR.has(eid + "_onset"):
+			push_error("CONTENT: EVENT_FLAVOR missing '%s_onset' for event '%s'" % [eid, eid])
 
 func _build_tooltip_theme() -> void:
 	# global styling for hover tooltips: a solid, readable panel instead of the faint default
