@@ -167,8 +167,10 @@ var _dragging: CardIcon = null
 var detail_layer: Control
 var detail_panel: PanelContainer
 var detail_body: VBoxContainer
-var _detail_mode: String = "card"  ## card | construction | buildsite
+var _detail_mode: String = "card"  ## card | craft | buildsite | skills | research
 var _build_project: String = ""
+var _craft_tab: String = "shelter"
+const CRAFT_TABS := [["shelter", "Shelter"], ["tools", "Tools"], ["tailoring", "Tailoring"]]
 var combat_layer: Control
 var combat_title: Label
 var combat_hp_bar: ProgressBar
@@ -318,6 +320,10 @@ func _build_left() -> Control:
 	phint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pvb.add_child(phint)
 	vb.add_child(portrait)
+
+	var build_btn := _btn("Construction")
+	build_btn.pressed.connect(_open_craft_hub)
+	vb.add_child(build_btn)
 
 	clock_label = _label("", INK_STRONG, 18)
 	vb.add_child(clock_label)
@@ -486,10 +492,12 @@ func _char_tabs(active: String) -> Control:
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 4)
 	for t in [["card", "You"], ["skills", "Skills"], ["research", "Research"]]:
-		hb.add_child(_tab_btn(str(t[1]), str(t[0]) == active, str(t[0])))
+		var b := _tab_btn(str(t[1]), str(t[0]) == active)
+		b.pressed.connect(_goto_detail_mode.bind(str(t[0])))
+		hb.add_child(b)
 	return hb
 
-func _tab_btn(txt: String, active: bool, mode: String) -> Button:
+func _tab_btn(txt: String, active: bool) -> Button:
 	var b := Button.new()
 	b.text = txt
 	b.add_theme_font_size_override("font_size", 12)
@@ -506,7 +514,6 @@ func _tab_btn(txt: String, active: bool, mode: String) -> Button:
 	b.add_theme_stylebox_override("normal", sb)
 	b.add_theme_stylebox_override("pressed", sb)
 	b.add_theme_stylebox_override("hover", sb)
-	b.pressed.connect(_goto_detail_mode.bind(mode))
 	return b
 
 func _on_research_pick(id: String) -> void:
@@ -797,7 +804,7 @@ func _open_detail() -> void:
 		detail_body.remove_child(c)
 		c.queue_free()
 	match _detail_mode:
-		"construction": _render_construction_list()
+		"craft": _render_craft_hub()
 		"buildsite": _render_buildsite()
 		"skills": _render_skills_screen()
 		"research": _render_research_screen()
@@ -837,20 +844,57 @@ func _render_card_detail() -> void:
 			var b := _detail_action_btn(str(_menu_actions[i]["label"]))
 			b.pressed.connect(_on_detail_pick.bind(i))
 			detail_body.add_child(b)
-	if card != null and card.data.kind == "location" and card.data.id == Game.current_location and not Game.construction_for(card.data.id).is_empty():
-		var cb := _detail_action_btn("Construction...")
-		cb.pressed.connect(_goto_detail_mode.bind("construction"))
-		detail_body.add_child(cb)
 	var closeb := _detail_action_btn("Close")
 	closeb.pressed.connect(_hide_detail)
 	detail_body.add_child(closeb)
 
-func _render_construction_list() -> void:
-	detail_body.add_child(_label("CONSTRUCTION", COLD, 11))
-	detail_body.add_child(_label("Here" if _menu_card == null else str(_menu_card.data.title), INK_STRONG, 20))
-	detail_body.add_child(_wrapped("Repairs and improvements to the place. Each is done in stages, a session of work at a time.", MUTED, 12))
+func _open_craft_hub() -> void:
+	_menu_card = null
+	_detail_mode = "craft"
+	_craft_tab = "shelter"
+	_open_detail()
+
+func _goto_craft_tab(tab: String) -> void:
+	_craft_tab = tab
+	_detail_mode = "craft"
+	_open_detail()
+
+func _craft_tab_title(tab: String) -> String:
+	for t in CRAFT_TABS:
+		if str(t[0]) == tab:
+			return str(t[1])
+	return tab
+
+func _craft_tabs(active: String) -> Control:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 4)
+	for t in CRAFT_TABS:
+		var b := _tab_btn(str(t[1]), str(t[0]) == active)
+		b.pressed.connect(_goto_craft_tab.bind(str(t[0])))
+		hb.add_child(b)
+	return hb
+
+func _render_craft_hub() -> void:
+	detail_body.add_child(_craft_tabs(_craft_tab))
+	if _craft_tab == "shelter":
+		_render_shelter_construction()
+	else:
+		detail_body.add_child(_label(_craft_tab_title(_craft_tab), INK_STRONG, 20))
+		detail_body.add_child(_wrapped("Nothing you can make here yet. Research and the right tools will open this up.", MUTED, 12))
+	var closeb := _detail_action_btn("Close")
+	closeb.pressed.connect(_hide_detail)
+	detail_body.add_child(closeb)
+
+func _render_shelter_construction() -> void:
+	var loc := Game.current_location
+	if not Game.is_shelter(loc):
+		detail_body.add_child(_label("Shelter", INK_STRONG, 20))
+		detail_body.add_child(_wrapped("You are not at one of your shelters just now. Come back to the place to work on it.", MUTED, 12))
+		return
+	detail_body.add_child(_label(str(LOCATIONS[loc]["title"]), INK_STRONG, 20))
+	detail_body.add_child(_wrapped("Repairs and improvements, each done in stages, a session of work at a time.", MUTED, 12))
 	detail_body.add_child(HSeparator.new())
-	for id in Game.construction_for(Game.current_location):
+	for id in Game.construction_for(loc):
 		var proj: Dictionary = Game.CONSTRUCTION[id]
 		var status := ""
 		if Game.build_done(id):
@@ -860,14 +904,11 @@ func _render_construction_list() -> void:
 		var b := _detail_action_btn(str(proj["label"]) + status)
 		b.pressed.connect(_open_buildsite.bind(id))
 		detail_body.add_child(b)
-	var back := _detail_action_btn("Back")
-	back.pressed.connect(_goto_detail_mode.bind("card"))
-	detail_body.add_child(back)
 
 func _render_buildsite() -> void:
 	var id := _build_project
 	if not Game.CONSTRUCTION.has(id):
-		_goto_detail_mode("construction")
+		_open_craft_hub()
 		return
 	var proj: Dictionary = Game.CONSTRUCTION[id]
 	detail_body.add_child(_label("CONSTRUCTION", COLD, 11))
@@ -899,7 +940,7 @@ func _render_buildsite() -> void:
 		if not have_all:
 			detail_body.add_child(_wrapped("You need the materials to hand first, on the ground here or in your pack.", MUTED, 11))
 	var back := _detail_action_btn("Back")
-	back.pressed.connect(_goto_detail_mode.bind("construction"))
+	back.pressed.connect(_open_craft_hub)
 	detail_body.add_child(back)
 
 func _goto_detail_mode(mode: String) -> void:
@@ -1788,7 +1829,16 @@ func on_card_clicked(card: CardIcon) -> void:
 		_menu_actions = _container_actions(card)
 	else:
 		_menu_actions = ACTIONS.get(card.data.id, [])
-	_open_detail()
+	# a small cursor menu with the action(s) and their durations; none gives a hint
+	if _menu_actions.is_empty():
+		if RECIPES.has(card.data.id):
+			Game.add_log("Drag the %s onto a target to use it." % card.data.title.to_lower())
+		elif _is_recipe_target(card.data.id):
+			Game.add_log("Drag the right item onto the %s to use it." % card.data.title.to_lower())
+		else:
+			Game.add_log("There's nothing to do with the %s just now." % card.data.title.to_lower())
+		return
+	_open_menu()
 
 func _open_menu() -> void:
 	for c in menu_vbox.get_children():
