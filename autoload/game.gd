@@ -11,7 +11,13 @@ const HEARTH_BURN_PER_HOUR := 12.0  ## the hearth's Fuel % burns down this fast
 const FATIGUE_ACCRUAL := 4.5   ## sleep-debt gained per waking hour (scales with duration)
 const FATIGUE_SLEEP_CLEAR := 14.0  ## sleep-debt cleared per sleeping hour * sleep_quality
 var temperature: float = 14.0  ## indoor °C — rises while the fire is lit, falls when it's out
-var outdoor_temp: float = 1.0  ## outdoor °C (weather-driven later; static for now)
+var outdoor_temp: float = 1.0  ## outdoor °C (weather + season drive it)
+## SEASONS — start in Autumn so the first winter is on its way. Cyclical: Autumn/Winter/Spring/Summer.
+const SEASONS := ["Autumn", "Winter", "Spring", "Summer"]
+const SEASON_LENGTH := 6  ## in-game days per season (tunable)
+const SEASON_TEMP := [0.0, -8.0, -2.0, 8.0]  ## °C offset onto the weather-derived outdoor temp, per season
+var _last_season: int = 0  ## for detecting season transitions (telegraph logs)
+var _season_warned: bool = false  ## one-shot "next season is coming" telegraph, reset each season
 var current_location: String = "lordly_manor"
 var card_state: Dictionary = {}  ## persistent per-card state (card id -> value) across travel/rebuilds
 var location_ground: Dictionary = {}  ## per-location loose items (location id -> [card ids])
@@ -156,6 +162,32 @@ func weather_line() -> String:
 		w += " You are damp."
 	return w
 
+func season() -> int:
+	return int(float(day - 1) / float(SEASON_LENGTH)) % 4
+
+func season_name() -> String:
+	return SEASONS[season()]
+
+func season_offset() -> float:
+	return SEASON_TEMP[season()]
+
+func days_left_in_season() -> int:
+	return SEASON_LENGTH - ((day - 1) % SEASON_LENGTH)
+
+func _season_arrival_line(s: int) -> String:
+	match s:
+		1: return "A hard frost overnight, and it did not lift. Winter has closed in."
+		2: return "The snow is going soft and grey at the edges. Spring, at last."
+		3: return "The air has turned dry and warm. High summer now."
+		_: return "The leaves are down and the nights draw in. Autumn."
+
+func _season_warning_line(next_s: int) -> String:
+	match next_s:
+		1: return "The light is thin and the cold has teeth in the mornings now. Winter is close. Lay in wood and food while you still can."
+		2: return "The worst of the cold feels like it is starting to break. Spring is not far off."
+		3: return "The days are stretching long and warm. High summer is coming on."
+		_: return "There is a chill creeping into the mornings now. The warm season is ending."
+
 func advance_time(mins: int, sleeping := false) -> void:
 	var hours := float(mins) / 60.0
 	# mature any incubating doses that come due within this step: full fixed dose, drink-time cause kept (earliest wins)
@@ -191,8 +223,14 @@ func advance_time(mins: int, sleeping := false) -> void:
 	# WEATHER drifts over hours and sets the outdoor temperature
 	if randf() < 0.05 * hours:
 		var roll := randf()
-		weather = "rain" if roll < 0.35 else ("clear" if roll > 0.75 else "overcast")
-	outdoor_temp = {"clear": 4.0, "overcast": 1.0, "rain": -1.0}.get(weather, 1.0)
+		var s := season()
+		if s == 1:  # Winter: colder and wetter (sleet/snow), rarely a clear break
+			weather = "rain" if roll < 0.45 else ("clear" if roll > 0.9 else "overcast")
+		elif s == 3:  # Summer: mostly dry and clear
+			weather = "rain" if roll < 0.12 else ("clear" if roll > 0.5 else "overcast")
+		else:  # Autumn / Spring: the mixed baseline
+			weather = "rain" if roll < 0.35 else ("clear" if roll > 0.75 else "overcast")
+	outdoor_temp = {"clear": 4.0, "overcast": 1.0, "rain": -1.0}.get(weather, 1.0) + season_offset()
 	# WET: soaked by rain outdoors; dries indoors or by a fire
 	if weather == "rain" and not location_indoor:
 		wet = clampf(wet + 30.0 * hours, 0.0, 100.0)
@@ -201,7 +239,9 @@ func advance_time(mins: int, sleeping := false) -> void:
 	# the rain barrel catches the sky wherever it sits, so rain slowly refills it
 	if weather == "rain":
 		card_state["rain_barrel"] = minf(100.0, float(card_state.get("rain_barrel", 100.0)) + 8.0 * hours)
-	var target := 19.0 if is_fire_lit() else 7.0
+	# an unlit shelter can't beat the season: it blocks ~60% of the seasonal swing, so a deep
+	# winter still creeps in (a lit fire overrides it). A stopgap until per-location insulation lands.
+	var target := 19.0 if is_fire_lit() else (7.0 + season_offset() * 0.4)
 	temperature = lerpf(temperature, target, clampf(hours * 0.6, 0.0, 1.0))
 	# your Warmth follows the AMBIENT temperature where you actually are:
 	# indoors = the room (fire-warmed); outdoors = the weather. Below ~10C you lose heat.
@@ -230,6 +270,14 @@ func advance_time(mins: int, sleeping := false) -> void:
 	while minute >= 1440:
 		minute -= 1440
 		day += 1
+		var s := season()
+		if s != _last_season:
+			_last_season = s
+			_season_warned = false
+			add_log(_season_arrival_line(s))
+		elif not _season_warned and days_left_in_season() <= 1:
+			_season_warned = true
+			add_log(_season_warning_line((s + 1) % 4))
 	_check_collapse()
 	for id in conditions:
 		cond_last[id] = conditions[id]
@@ -527,6 +575,8 @@ func reset() -> void:
 	minute = 8 * 60
 	temperature = 4.0
 	outdoor_temp = 1.0
+	_last_season = 0
+	_season_warned = false
 	current_location = "lordly_manor"
 	location_indoor = true
 	card_state = {}
@@ -569,7 +619,7 @@ func log_quiet(line: String) -> void:
 		log_lines.pop_front()
 
 func time_string() -> String:
-	return "Day %d  ·  %s" % [day, hhmm()]
+	return "Day %d  ·  %s  ·  %s" % [day, season_name(), hhmm()]
 
 func temp_string() -> String:
 	return "%d°C" % int(round(temperature))
