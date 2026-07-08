@@ -25,13 +25,13 @@ var CARD_FILES := {}
 
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
-	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["broken_hearth", "radio"], "connections": {"the_grounds": 2},
+	"lordly_manor": {"title": "Lordly Manor", "indoor": true, "fixtures": ["broken_hearth", "radio"], "connections": {"the_grounds": 2}, "stripped_log": "You have been through every room. The house has given up all it holds.",
 		"pool": {"finite": [{"kind": "location", "id": "cellar", "milestone": 50, "mins": 5}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}, {"kind": "ground", "id": "wool_blanket", "milestone": 90, "log": "In a back bedroom, folded in a cedar chest, a heavy wool blanket. Dry, somehow, after all this time."}], "renewable": []}},
 	"the_grounds": {"title": "The Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"the_woods": 45},
 		"pool": {"finite": [{"kind": "ground", "id": "stone", "milestone": 10}, {"kind": "ground", "id": "stone", "milestone": 25}, {"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 2, "log": "Past a fallen gate and a tangle of dead garden, the house itself stands dark against the sky. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 2}]}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"the_grounds": 45},
 		"pool": {"finite": [{"kind": "fixture", "id": "stream", "milestone": 30}, {"kind": "fixture", "id": "zombie", "milestone": 45, "log": "Something moves between the trees, slow and wrong. It turns toward you."}], "renewable": [{"kind": "ground", "id": "forage_food", "max": 3}, {"kind": "ground", "id": "tinder", "max": 3}, {"kind": "fixture", "id": "oak_tree", "max": 3, "log": "Deeper in, you find another good oak."}, {"kind": "ground", "id": "herbs", "max": 3}, {"kind": "ground", "id": "firewood", "max": 3}]}},
-	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5},
+	"cellar": {"title": "Cellar", "the": true, "indoor": true, "fixtures": [], "connections": {"lordly_manor": 5}, "stripped_log": "The cellar is turned out to the bare shelves now. There is nothing more down here.",
 		"pool": {"finite": [{"kind": "ground", "id": "canned_food", "milestone": 40}, {"kind": "ground", "id": "gas_canister", "milestone": 75, "content": "fuel", "fill": 50.0}, {"kind": "ground", "id": "antibiotics", "milestone": 60}], "renewable": [{"kind": "fixture", "id": "rat", "max": 1, "log": "Something skitters in the dark. A big rat, cornered and bold."}]}},
 }
 
@@ -1671,7 +1671,8 @@ func _process_reveals(loc: String, old_pct: float, new_pct: float) -> void:
 		var thr: float = _entry_threshold(i, e, st)
 		if new_pct >= thr and old_pct < thr:
 			st["revealed"].append(i)
-			_reveal(e)
+			_reveal(e, true)  # finite = looted from the place's limited stash
+	_check_pool_stripped(loc, finite, st)
 	var renew: Array = pool.get("renewable", [])
 	for j in renew.size():
 		var e2: Dictionary = renew[j]
@@ -1680,6 +1681,27 @@ func _process_reveals(loc: String, old_pct: float, new_pct: float) -> void:
 		# not how many were ever revealed — the latter makes "renewable" run dry.
 		if _renew_present(loc, e2) < mx and _roll_renewable(new_pct):
 			_reveal(e2)
+
+func _check_pool_stripped(loc: String, finite: Array, st: Dictionary) -> void:
+	# grim note when a place's LIMITED loot is all taken. Only counts finite GROUND items whose id
+	# does NOT also renew here, so a spot that keeps regrowing (e.g. stones) never reads "empty".
+	if st.get("stripped", false):
+		return
+	var renew_ids := {}
+	for r in LOCATIONS.get(loc, {}).get("pool", {}).get("renewable", []):
+		renew_ids[str((r as Dictionary).get("id", ""))] = true
+	var loot: Array = []
+	for i in finite.size():
+		var fe: Dictionary = finite[i]
+		if str(fe.get("kind", "")) == "ground" and not renew_ids.has(str(fe.get("id", ""))):
+			loot.append(i)
+	if loot.is_empty():
+		return
+	for i in loot:
+		if not (i in st["revealed"]):
+			return  # still limited loot to find here
+	st["stripped"] = true
+	Game.add_log(str(LOCATIONS.get(loc, {}).get("stripped_log", "You have picked over the last of it. This place has nothing left to give up.")))
 
 func _renew_present(loc: String, e: Dictionary) -> int:
 	if e.get("kind", "") == "fixture":
@@ -1705,14 +1727,15 @@ func _roll_renewable(pct: float) -> bool:
 	var chance := 0.7 if pct >= 100.0 else 0.3
 	return randf() < chance
 
-func _reveal(e: Dictionary) -> bool:
+func _reveal(e: Dictionary, is_loot := false) -> bool:
 	var loc := Game.current_location
 	match e["kind"]:
 		"ground":
 			var gc := _spawn(e["id"], "middle")
 			if e.has("content"):
 				gc.fill_with(str(e["content"]), float(e.get("fill", 100.0)))
-			Game.add_log(str(e.get("log", "You turn up: %s." % _card_title(e["id"]))))
+			var default_log: String = ("You turn up %s among what the place still holds." % _card_title(e["id"]).to_lower()) if is_loot else ("You turn up: %s." % _card_title(e["id"]))
+			Game.add_log(str(e.get("log", default_log)))
 			return true
 		"fixture":
 			var fxs: Array = LOCATIONS[loc]["fixtures"]
