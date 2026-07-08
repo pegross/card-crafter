@@ -1,19 +1,20 @@
 extends RefCounted
-## RENEWABLE STOCKS: the time-based logistic stock per location+resource (Game.stocks). A slot
-## regrows toward K on the clock with a seed floor (so a barren spot recovers) and a per-season
-## pace. The math (register_stock / stock_count / harvest_stock / add_stock / _tick_stocks) lives in
-## game.gd and is headless-testable; the ground-card reconciliation lives in main.gd (boot-checked).
+## RENEWABLE STOCKS: the time-based LINEAR stock per location+resource (Game.stocks). A slot starts
+## FULL and regrows toward K at a STEADY per-hour rate that does NOT depend on the current level, so
+## the refill is governed by how much was TAKEN (the deficit), not by how much is there. Season
+## multipliers scale the rate; a drought zeroes forage/herbs. The math lives in game.gd (headless-
+## testable); the ground-card reconciliation lives in main.gd (boot-checked).
 
 func run(tree, h) -> void:
 	var g = tree.make_sim(7)
 
-	# register_stock: a fresh slot starts half-stocked (K/2), and it is idempotent
+	# register_stock: a fresh slot starts FULL (S == K), and it is idempotent
 	g.register_stock("loc_a", "firewood", 4)
-	h.expect_eq(g.stocks["loc_a"]["firewood"]["S"], 2.0, "register starts S at K/2")
+	h.expect_eq(g.stocks["loc_a"]["firewood"]["S"], 4.0, "register starts S full at K")
 	h.expect_eq(g.stocks["loc_a"]["firewood"]["K"], 4.0, "register records K")
-	g.stocks["loc_a"]["firewood"]["S"] = 3.5
+	g.stocks["loc_a"]["firewood"]["S"] = 1.5
 	g.register_stock("loc_a", "firewood", 4)
-	h.expect_eq(g.stocks["loc_a"]["firewood"]["S"], 3.5, "register is idempotent (never overwrites an existing slot)")
+	h.expect_eq(g.stocks["loc_a"]["firewood"]["S"], 1.5, "register is idempotent (never overwrites an existing slot)")
 
 	# stock_count == floor(S), and 0 for an absent slot/id
 	g.stocks["loc_a"]["firewood"]["S"] = 2.9
@@ -21,31 +22,31 @@ func run(tree, h) -> void:
 	h.expect_eq(g.stock_count("nowhere", "firewood"), 0, "stock_count of an absent location is 0")
 	h.expect_eq(g.stock_count("loc_a", "nothing"), 0, "stock_count of an absent id is 0")
 
-	# _tick_stocks grows S toward K, and clamps: it never exceeds K no matter how long it runs
-	g.day = 1  # Autumn (firewood's season multipliers are 1.0 in every season regardless)
+	# _tick_stocks grows S toward K and clamps: it never exceeds K no matter how long it runs
+	g.day = 1  # Autumn (firewood's season multiplier is 1.0 in every season)
 	g.stocks["loc_a"]["firewood"]["S"] = 2.0
-	g._tick_stocks(5.0)
+	g._tick_stocks(1.0)
 	h.expect(g.stocks["loc_a"]["firewood"]["S"] > 2.0, "a tick grows S toward K")
 	for i in range(60):
 		g._tick_stocks(10.0)
 	h.expect_near(g.stocks["loc_a"]["firewood"]["S"], 4.0, "S saturates at K over a long run", 0.0001)
 	h.expect(g.stocks["loc_a"]["firewood"]["S"] <= 4.0, "S never exceeds K")
 
-	# DECLINING pace: growth over a fixed step is smaller near K than at K/2 (logistic)
-	g.stocks["loc_a"]["firewood"]["S"] = 2.0  # K/2
+	# LINEAR pace: growth over a fixed step is the SAME regardless of current level (not logistic)
+	g.stocks["loc_a"]["firewood"]["S"] = 0.5
 	var s0 := float(g.stocks["loc_a"]["firewood"]["S"])
 	g._tick_stocks(1.0)
-	var d_mid := float(g.stocks["loc_a"]["firewood"]["S"]) - s0
-	g.stocks["loc_a"]["firewood"]["S"] = 3.8  # near K
+	var d_low := float(g.stocks["loc_a"]["firewood"]["S"]) - s0
+	g.stocks["loc_a"]["firewood"]["S"] = 2.5
 	var s1 := float(g.stocks["loc_a"]["firewood"]["S"])
 	g._tick_stocks(1.0)
-	var d_near := float(g.stocks["loc_a"]["firewood"]["S"]) - s1
-	h.expect(d_near < d_mid, "growth pace declines as S approaches K")
+	var d_mid := float(g.stocks["loc_a"]["firewood"]["S"]) - s1
+	h.expect_near(d_low, d_mid, "growth pace is steady, independent of current stock", 0.0001)
 
-	# recovery from empty: the seed floor pulls a fully barren stock back up
+	# recovery from empty: a fully barren stock still regrows (rate > 0, no dependence on current S)
 	g.stocks["loc_a"]["firewood"]["S"] = 0.0
-	g._tick_stocks(5.0)
-	h.expect(g.stocks["loc_a"]["firewood"]["S"] > 0.0, "a barren stock recovers from zero (seed > 0)")
+	g._tick_stocks(1.0)
+	h.expect(g.stocks["loc_a"]["firewood"]["S"] > 0.0, "a barren stock recovers from zero")
 
 	# harvest_stock lowers S (floored at 0); a later tick regrows it
 	g.stocks["loc_a"]["firewood"]["S"] = 3.0
@@ -123,15 +124,17 @@ func run(tree, h) -> void:
 	h.expect_eq(g.stocks.size(), 0, "reset clears all stocks")
 	h.expect_eq(g.loc_indoor.size(), 0, "reset clears the indoor registry")
 
-	# DETERMINISM: two identical runs tick to exactly the same S (no rng in the stock math)
+	# DETERMINISM: harvest down then tick; two identical runs land on exactly the same S (no rng)
 	var a = tree.make_sim(3)
 	var b = tree.make_sim(3)
 	a.register_stock("x", "herbs", 3)
 	b.register_stock("x", "herbs", 3)
+	a.stocks["x"]["herbs"]["S"] = 0.5
+	b.stocks["x"]["herbs"]["S"] = 0.5
 	for i in range(6):
 		a._tick_stocks(3.0)
 		b._tick_stocks(3.0)
-	h.expect(float(a.stocks["x"]["herbs"]["S"]) > 1.5, "the stock grows over repeated ticks")
-	h.expect_near(float(a.stocks["x"]["herbs"]["S"]), float(b.stocks["x"]["herbs"]["S"]), "stock growth is deterministic across identical runs")
+	h.expect(float(a.stocks["x"]["herbs"]["S"]) > 0.5, "the stock grows over repeated ticks")
+	h.expect_near(float(a.stocks["x"]["herbs"]["S"]), float(b.stocks["x"]["herbs"]["S"]), "stock growth is deterministic across identical runs", 0.0001)
 	a.free()
 	b.free()

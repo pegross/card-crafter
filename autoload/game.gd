@@ -42,11 +42,14 @@ var worn: String = ""
 ## (so a barren spot still recovers) and a per-season pace. main.gd surfaces ground cards up to
 ## stock_count() and calls harvest_stock() whenever something is taken. Overharvest/collapse: later.
 ## "seasons" is indexed by season(): 0 Autumn, 1 Winter, 2 Spring, 3 Summer.
+## Renewables regrow at a STEADY rate toward the cap (linear). The refill depends on how much you
+## TOOK (the deficit below K), NOT on how much is currently there. rate = units per in-game hour.
 const RESOURCE_REGEN := {
-	"firewood": {"r": 0.25, "seed": 0.06, "seasons": [1.0, 1.0, 1.0, 1.0]},
-	"tinder": {"r": 0.25, "seed": 0.06, "seasons": [1.0, 1.0, 1.0, 1.0]},
-	"forage_food": {"r": 0.30, "seed": 0.03, "seasons": [0.5, 0.0, 1.0, 1.2]},
-	"herbs": {"r": 0.20, "seed": 0.02, "seasons": [0.5, 0.1, 1.0, 1.0]},
+	"firewood": {"rate": 0.20, "seasons": [1.0, 1.0, 1.0, 1.0]},
+	"tinder": {"rate": 0.20, "seasons": [1.0, 1.0, 1.0, 1.0]},
+	"forage_food": {"rate": 0.25, "seasons": [0.5, 0.0, 1.0, 1.2]},
+	"herbs": {"rate": 0.15, "seasons": [0.5, 0.1, 1.0, 1.0]},
+	"stone": {"rate": 0.15, "seasons": [1.0, 1.0, 1.0, 1.0]},
 }
 var stocks := {}  ## loc -> { id -> {"S": float, "K": float} }; cleared in reset()
 var loc_indoor := {}  ## loc -> bool; set at boot by main.gd, drives which stocks a windfall/rain reaches
@@ -581,7 +584,7 @@ func register_stock(loc: String, id: String, K: int) -> void:
 	if not stocks.has(loc):
 		stocks[loc] = {}
 	if not stocks[loc].has(id):
-		stocks[loc][id] = {"S": float(K) * 0.5, "K": float(K)}  # start half-stocked so a spot is not barren
+		stocks[loc][id] = {"S": float(K), "K": float(K)}  # start full; regrowth only refills what you take
 
 func set_location_indoor(loc: String, indoor: bool) -> void:
 	# main.gd registers each location's shelter status at boot so events (gale, rain) know which
@@ -611,12 +614,12 @@ func _tick_stocks(hours: float) -> void:
 			var K: float = float(stocks[loc][id]["K"])
 			if K <= 0.0:
 				continue
-			var p: Dictionary = RESOURCE_REGEN.get(id, {"r": 0.2, "seed": 0.04, "seasons": [1, 1, 1, 1]})
+			var p: Dictionary = RESOURCE_REGEN.get(id, {"rate": 0.2, "seasons": [1, 1, 1, 1]})
 			var mult: float = float(p["seasons"][s])
 			if drought and (id == "forage_food" or id == "herbs"):
 				mult = 0.0
 			var S: float = float(stocks[loc][id]["S"])
-			S += (float(p["seed"]) + float(p["r"]) * S * (1.0 - S / K)) * mult * hours
+			S += float(p["rate"]) * mult * hours  # steady linear refill toward K, independent of current S
 			stocks[loc][id]["S"] = clampf(S, 0.0, K)
 
 func build_done(id: String) -> bool:
