@@ -28,6 +28,31 @@ var weather: String = "overcast"  ## clear / overcast / rain
 var wet: float = 0.0  ## 0..100; rises outdoors in rain, dries indoors/by fire
 var force_sleep: bool = false  ## set when Energy hits 0 -> main triggers a collapse-sleep
 
+## SKILLS (0..100, learn-by-doing) and background RESEARCH (progresses in waking time).
+var skills := {"woodworking": 0.0, "cooking": 0.0, "crafting": 0.0, "tailoring": 0.0}
+const SKILL_LABEL := {"woodworking": "Woodworking", "cooking": "Cooking", "crafting": "Crafting", "tailoring": "Tailoring"}
+const SKILL_ACTIVE := ["woodworking", "cooking"]  ## skills that have XP sources today (always shown)
+var researched: Dictionary = {}     ## project id -> true once complete
+var current_research: String = ""   ## the project being worked out, or ""
+var research_progress: float = 0.0  ## waking hours accrued on the current project
+const RESEARCH := {
+	"draught_proofing": {
+		"label": "Draught-proofing", "skill": "woodworking", "level": 25, "hours": 24.0,
+		"desc": "Seal the worst of the gaps and board the broken panes so the house holds its heat against the season.",
+		"done_log": "You have the house sealed against the worst of the draughts now. It holds warmth better, even unlit."
+	},
+	"fire_banking": {
+		"label": "Fire-banking", "skill": "woodworking", "level": 45, "hours": 36.0,
+		"desc": "Learn to bank the coals and damp the draught so a fire burns low and slow through the night instead of roaring itself out.",
+		"done_log": "You have the knack of banking the fire now. The hearth burns through its fuel more slowly."
+	},
+	"herbal_lore": {
+		"label": "Herbal lore", "skill": "cooking", "level": 35, "hours": 24.0,
+		"desc": "Work out which leaves and roots do the most good, and how to draw their strength out over the fire.",
+		"done_log": "You understand the herbs far better now. Your remedies do more."
+	}
+}
+
 ## Continuous needs, 0..100 (the CSTI-style sliders). Provisional values.
 var meters := {
 	"Calories": 82.0,
@@ -188,6 +213,55 @@ func _season_warning_line(next_s: int) -> String:
 		3: return "The days are stretching long and warm. High summer is coming on."
 		_: return "There is a chill creeping into the mornings now. The warm season is ending."
 
+func skill_level(id: String) -> int:
+	return int(skills.get(id, 0.0))
+
+func gain_skill(id: String, amt: float) -> void:
+	if not skills.has(id) or amt <= 0.0:
+		return
+	var cur: float = skills[id]
+	skills[id] = clampf(cur + amt * (1.0 - cur / 130.0), 0.0, 100.0)  # gains taper toward mastery
+
+func wood_speed() -> float:
+	return 1.0 - float(skill_level("woodworking")) * 0.003  # up to ~30% faster felling/splitting at mastery
+
+func skill_desc(id: String) -> String:
+	match id:
+		"woodworking": return "Your hand with axe and saw. Higher woodworking makes felling and splitting quicker and opens up sturdier things to build."
+		"cooking": return "Your feel for food, fire and herbs. Higher cooking opens up better ways to prepare what you gather."
+		"crafting": return "Your knack for making and mending gear. It will matter more as you start building the place up."
+		"tailoring": return "Your work with needle, thread and hide. It will matter once there are clothes and coverings to make."
+		_: return ""
+
+func research_available(id: String) -> bool:
+	if researched.has(id) or not RESEARCH.has(id):
+		return false
+	var r: Dictionary = RESEARCH[id]
+	return skill_level(str(r["skill"])) >= int(r["level"])
+
+func research_hours(id: String) -> float:
+	return float(RESEARCH[id]["hours"]) if RESEARCH.has(id) else 0.0
+
+func research_fraction() -> float:
+	if current_research == "":
+		return 0.0
+	var need := research_hours(current_research)
+	return clampf(research_progress / need, 0.0, 1.0) if need > 0.0 else 0.0
+
+func start_research(id: String) -> bool:
+	if current_research != "" or not research_available(id):
+		return false
+	current_research = id
+	research_progress = 0.0
+	add_log("You start puzzling out %s in what spare time you can find." % str(RESEARCH[id]["label"]).to_lower())
+	return true
+
+func _complete_research(id: String) -> void:
+	researched[id] = true
+	current_research = ""
+	research_progress = 0.0
+	add_log(str(RESEARCH[id].get("done_log", "You have it worked out at last.")))
+
 func advance_time(mins: int, sleeping := false) -> void:
 	var hours := float(mins) / 60.0
 	# mature any incubating doses that come due within this step: full fixed dose, drink-time cause kept (earliest wins)
@@ -214,9 +288,10 @@ func advance_time(mins: int, sleeping := false) -> void:
 	_tick_conditions(hours)
 	_apply_influences(hours)
 	# every LIT fire source burns its fuel down; unlit fuel just sits. Out of fuel = out.
+	var burn_rate := HEARTH_BURN_PER_HOUR * (0.7 if researched.has("fire_banking") else 1.0)
 	for src_id in lit_sources.keys():
 		if lit_sources[src_id]:
-			var fuel: float = maxf(0.0, card_state.get(src_id, 0.0) - HEARTH_BURN_PER_HOUR * hours)
+			var fuel: float = maxf(0.0, card_state.get(src_id, 0.0) - burn_rate * hours)
 			card_state[src_id] = fuel
 			if fuel <= 0.0:
 				lit_sources[src_id] = false
@@ -239,9 +314,11 @@ func advance_time(mins: int, sleeping := false) -> void:
 	# the rain barrel catches the sky wherever it sits, so rain slowly refills it
 	if weather == "rain":
 		card_state["rain_barrel"] = minf(100.0, float(card_state.get("rain_barrel", 100.0)) + 8.0 * hours)
-	# an unlit shelter can't beat the season: it blocks ~60% of the seasonal swing, so a deep
-	# winter still creeps in (a lit fire overrides it). A stopgap until per-location insulation lands.
-	var target := 19.0 if is_fire_lit() else (7.0 + season_offset() * 0.4)
+	# an unlit shelter can't beat the season: it blocks most of the seasonal swing, so a deep
+	# winter still creeps in (a lit fire overrides it). Draught-proofing research seals it tighter.
+	# A stopgap until per-location insulation lands.
+	var damp := 0.25 if researched.has("draught_proofing") else 0.4
+	var target := 19.0 if is_fire_lit() else (7.0 + season_offset() * damp)
 	temperature = lerpf(temperature, target, clampf(hours * 0.6, 0.0, 1.0))
 	# your Warmth follows the AMBIENT temperature where you actually are:
 	# indoors = the room (fire-warmed); outdoors = the weather. Below ~10C you lose heat.
@@ -258,6 +335,11 @@ func advance_time(mins: int, sleeping := false) -> void:
 		meters["Energy"] = clampf(meters["Energy"] + (f0 - fatigue) * 1.4, 0.0, energy_cap())
 	else:
 		fatigue = clampf(fatigue + FATIGUE_ACCRUAL * hours, 0.0, 100.0)
+		# RESEARCH advances in the background, in your waking hours (never while asleep)
+		if current_research != "":
+			research_progress += hours
+			if research_progress >= research_hours(current_research):
+				_complete_research(current_research)
 	meters["Energy"] = minf(meters["Energy"], energy_cap())
 	# WEIGHT: the slow body-mass reservoir — Calorie surplus feeds it, a deficit burns it
 	weight = clampf(weight + (meters["Calories"] - 50.0) * 0.025 * hours, 0.0, 100.0)
@@ -577,6 +659,10 @@ func reset() -> void:
 	outdoor_temp = 1.0
 	_last_season = 0
 	_season_warned = false
+	skills = {"woodworking": 0.0, "cooking": 0.0, "crafting": 0.0, "tailoring": 0.0}
+	researched = {}
+	current_research = ""
+	research_progress = 0.0
 	current_location = "lordly_manor"
 	location_indoor = true
 	card_state = {}

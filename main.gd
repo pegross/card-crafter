@@ -143,6 +143,8 @@ var cond_tray: VBoxContainer
 var fatigue_bar: ProgressBar
 var weight_bar: ProgressBar
 var weight_fill: StyleBoxFlat
+var skills_box: VBoxContainer
+var research_box: VBoxContainer
 var weather_label: Label
 var _collapsing: bool = false
 var _locations_initial: Dictionary
@@ -348,11 +350,114 @@ func _build_left() -> Control:
 	cond_tray.add_theme_constant_override("separation", 5)
 	vb.add_child(cond_tray)
 
+	vb.add_child(HSeparator.new())
+	vb.add_child(_label("SKILLS", COLD, 11))
+	skills_box = VBoxContainer.new()
+	skills_box.add_theme_constant_override("separation", 5)
+	vb.add_child(skills_box)
+	vb.add_child(_label("RESEARCH", COLD, 11))
+	research_box = VBoxContainer.new()
+	research_box.add_theme_constant_override("separation", 4)
+	vb.add_child(research_box)
+
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vb.add_child(spacer)
 	vb.add_child(_label("F11  ·  fullscreen", MUTED, 10))
 	return panel
+
+func _skill_row(id: String) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	box.tooltip_text = Game.skill_desc(id)
+	var head := HBoxContainer.new()
+	var nm := _label(str(Game.SKILL_LABEL.get(id, id)), INK, 12)
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(nm)
+	var val := _label(str(Game.skill_level(id)), MUTED, 12)
+	val.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(val)
+	box.add_child(head)
+	var bar := ProgressBar.new()
+	bar.min_value = 0.0
+	bar.max_value = 100.0
+	bar.value = Game.skills.get(id, 0.0)
+	bar.show_percentage = false
+	bar.custom_minimum_size = Vector2(0, 7)
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 4))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = GREEN
+	sb.set_corner_radius_all(4)
+	bar.add_theme_stylebox_override("fill", sb)
+	box.add_child(bar)
+	return box
+
+func _refresh_skills() -> void:
+	if not skills_box:
+		return
+	for c in skills_box.get_children():
+		skills_box.remove_child(c)
+		c.queue_free()
+	for id in Game.skills:
+		if id in Game.SKILL_ACTIVE or Game.skills[id] > 0.0:
+			skills_box.add_child(_skill_row(id))
+
+func _refresh_research() -> void:
+	if not research_box:
+		return
+	for c in research_box.get_children():
+		research_box.remove_child(c)
+		c.queue_free()
+	# something under way: show it and its progress
+	if Game.current_research != "":
+		var r: Dictionary = Game.RESEARCH[Game.current_research]
+		var lbl := _label(str(r["label"]), INK, 12)
+		lbl.tooltip_text = str(r.get("desc", ""))
+		research_box.add_child(lbl)
+		var bar := ProgressBar.new()
+		bar.min_value = 0.0
+		bar.max_value = 1.0
+		bar.value = Game.research_fraction()
+		bar.show_percentage = false
+		bar.custom_minimum_size = Vector2(0, 8)
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 4))
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = COLD
+		sb.set_corner_radius_all(4)
+		bar.add_theme_stylebox_override("fill", sb)
+		bar.tooltip_text = str(r.get("desc", ""))
+		research_box.add_child(bar)
+		return
+	# nothing under way: offer what you can start now, name what needs more skill
+	var shown := false
+	for id in Game.RESEARCH:
+		if Game.researched.has(id):
+			continue
+		var r: Dictionary = Game.RESEARCH[id]
+		if Game.research_available(id):
+			var b := _btn(str(r["label"]))
+			b.add_theme_font_size_override("font_size", 12)
+			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			b.clip_text = true
+			b.tooltip_text = str(r.get("desc", ""))
+			b.pressed.connect(_on_research_pick.bind(id))
+			research_box.add_child(b)
+		else:
+			var skill_name: String = Game.SKILL_LABEL.get(str(r["skill"]), str(r["skill"]))
+			var need := _label("%s  (needs %s %d)" % [str(r["label"]), skill_name, int(r["level"])], MUTED, 11)
+			need.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			need.tooltip_text = str(r.get("desc", ""))
+			research_box.add_child(need)
+		shown = true
+	if not shown:
+		research_box.add_child(_label("Nothing left to work out.", MUTED, 11))
+
+func _on_research_pick(id: String) -> void:
+	if Game.start_research(id):
+		on_layout_changed()
 
 func _make_meter(m: String) -> Control:
 	var box := VBoxContainer.new()
@@ -1199,6 +1304,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		_consume_card(src)
 		_spawn("herbal_remedy", "middle")
 		Game.add_log("You steep the herbs over the fire into a bitter, cloudy tea.")
+		Game.gain_skill("cooking", 2.5)
 	elif src.data.is_container and target.data.id == "lighter":
 		if src.content != "fuel" or src.state_value <= 0.0:
 			Game.add_log("There's no fuel in the %s to draw from." % src.data.title.to_lower())
@@ -1246,6 +1352,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			return
 		src.boil()
 		Game.add_log("You set the %s by the fire until it steams. The water runs clean." % src.data.title.to_lower())
+		Game.gain_skill("cooking", 2.0)
 	elif src.data.is_container and (target.data.id == "stream" or target.data.id == "rain_barrel"):
 		var room: float = src.data.capacity - src.state_value
 		if room <= 0.0:
@@ -1485,13 +1592,19 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		for cid in act["cond"]:
 			Game.add_condition(cid, float(act["cond"][cid]), str(act.get("cond_cause", "")))
 	if act.has("cure"):
+		var cure_boost := 1.6 if (card.data.id == "herbal_remedy" and Game.researched.has("herbal_lore")) else 1.0
 		for cid in act["cure"]:
-			Game.cure_condition(cid, float(act["cure"][cid]))
+			Game.cure_condition(cid, float(act["cure"][cid]) * cure_boost)
 	var _mins := int(act.get("mins", 30))
 	if float(fx.get("Energy", 0.0)) < 0.0:
 		_mins = int(round(float(_mins) * Game.weight_toll()))  # overweight = physical work runs longer
+	var wood_work: bool = card.data.state_kind == "fell" or card.data.state_kind == "wood"
+	if wood_work:
+		_mins = maxi(1, int(round(float(_mins) * Game.wood_speed())))  # skill makes wood work quicker
 	Game.advance_time(_mins)
 	_show_time_passing(_mins)
+	if wood_work:
+		Game.gain_skill("woodworking", 3.0)
 	if act.has("log"):
 		Game.add_log(act["log"])
 	if act.has("state_delta"):
@@ -1580,6 +1693,8 @@ func _refresh() -> void:
 			wc = WARM
 		weight_fill.bg_color = wc
 		weight_bar.queue_redraw()
+	_refresh_skills()
+	_refresh_research()
 	if log_label:
 		log_label.text = "\n".join(PackedStringArray(Game.log_lines))
 	# keep card state bars (e.g. the hearth fuel burning down) in sync with the model
