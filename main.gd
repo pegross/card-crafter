@@ -143,8 +143,6 @@ var cond_tray: VBoxContainer
 var fatigue_bar: ProgressBar
 var weight_bar: ProgressBar
 var weight_fill: StyleBoxFlat
-var skills_box: VBoxContainer
-var research_box: VBoxContainer
 var weather_label: Label
 var _collapsing: bool = false
 var _locations_initial: Dictionary
@@ -361,16 +359,6 @@ func _build_left() -> Control:
 	cond_tray.add_theme_constant_override("separation", 5)
 	vb.add_child(cond_tray)
 
-	vb.add_child(HSeparator.new())
-	vb.add_child(_label("SKILLS", COLD, 11))
-	skills_box = VBoxContainer.new()
-	skills_box.add_theme_constant_override("separation", 5)
-	vb.add_child(skills_box)
-	vb.add_child(_label("RESEARCH", COLD, 11))
-	research_box = VBoxContainer.new()
-	research_box.add_theme_constant_override("separation", 4)
-	vb.add_child(research_box)
-
 	var spacer := Control.new()
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	vb.add_child(spacer)
@@ -405,28 +393,24 @@ func _skill_row(id: String) -> Control:
 	box.add_child(bar)
 	return box
 
-func _refresh_skills() -> void:
-	if not skills_box:
-		return
-	for c in skills_box.get_children():
-		skills_box.remove_child(c)
-		c.queue_free()
+func _render_skills_screen() -> void:
+	detail_body.add_child(_char_tabs("skills"))
+	detail_body.add_child(_label("Skills", INK_STRONG, 20))
+	detail_body.add_child(_wrapped("What your hands have learned. Each one rises as you use it.", MUTED, 12))
+	detail_body.add_child(HSeparator.new())
 	for id in Game.skills:
 		if id in Game.SKILL_ACTIVE or Game.skills[id] > 0.0:
-			skills_box.add_child(_skill_row(id))
+			detail_body.add_child(_skill_row(id))
+	var closeb := _detail_action_btn("Close")
+	closeb.pressed.connect(_hide_detail)
+	detail_body.add_child(closeb)
 
-func _refresh_research() -> void:
-	if not research_box:
-		return
-	for c in research_box.get_children():
-		research_box.remove_child(c)
-		c.queue_free()
-	# something under way: show it and its progress
+func _render_research_screen() -> void:
+	detail_body.add_child(_char_tabs("research"))
+	detail_body.add_child(_label("Research", INK_STRONG, 20))
 	if Game.current_research != "":
 		var r: Dictionary = Game.RESEARCH[Game.current_research]
-		var lbl := _label(str(r["label"]), INK, 12)
-		lbl.tooltip_text = str(r.get("desc", ""))
-		research_box.add_child(lbl)
+		detail_body.add_child(_wrapped("Working out: %s" % str(r["label"]), INK, 13))
 		var bar := ProgressBar.new()
 		bar.min_value = 0.0
 		bar.max_value = 1.0
@@ -435,40 +419,95 @@ func _refresh_research() -> void:
 		bar.custom_minimum_size = Vector2(0, 8)
 		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 4))
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = COLD
-		sb.set_corner_radius_all(4)
-		bar.add_theme_stylebox_override("fill", sb)
-		bar.tooltip_text = str(r.get("desc", ""))
-		research_box.add_child(bar)
-		return
-	# nothing under way: offer what you can start now, name what needs more skill
-	var shown := false
+		var fsb := StyleBoxFlat.new()
+		fsb.bg_color = COLD
+		fsb.set_corner_radius_all(4)
+		bar.add_theme_stylebox_override("fill", fsb)
+		detail_body.add_child(bar)
+		detail_body.add_child(_wrapped("You turn it over in your spare hours. It will come in time.", MUTED, 11))
+	else:
+		detail_body.add_child(_wrapped("Things you might work out, given the skill and the time. Pick one to turn over.", MUTED, 12))
+	detail_body.add_child(HSeparator.new())
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	var any := false
 	for id in Game.RESEARCH:
 		if Game.researched.has(id):
 			continue
-		var r: Dictionary = Game.RESEARCH[id]
-		if Game.research_available(id):
-			var b := _btn(str(r["label"]))
-			b.add_theme_font_size_override("font_size", 12)
-			b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-			b.clip_text = true
-			b.tooltip_text = str(r.get("desc", ""))
-			b.pressed.connect(_on_research_pick.bind(id))
-			research_box.add_child(b)
-		else:
-			var skill_name: String = Game.SKILL_LABEL.get(str(r["skill"]), str(r["skill"]))
-			var need := _label("%s  (needs %s %d)" % [str(r["label"]), skill_name, int(r["level"])], MUTED, 11)
-			need.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			need.tooltip_text = str(r.get("desc", ""))
-			research_box.add_child(need)
-		shown = true
-	if not shown:
-		research_box.add_child(_label("Nothing left to work out.", MUTED, 11))
+		hb.add_child(_research_card(id))
+		any = true
+	if any:
+		detail_body.add_child(hb)
+	else:
+		detail_body.add_child(_label("Nothing left to work out.", MUTED, 12))
+	var closeb := _detail_action_btn("Close")
+	closeb.pressed.connect(_hide_detail)
+	detail_body.add_child(closeb)
+
+func _research_card(id: String) -> Control:
+	var r: Dictionary = Game.RESEARCH[id]
+	var avail := Game.research_available(id)
+	var active := Game.current_research == id
+	var can_start := avail and Game.current_research == ""
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(150, 0)
+	panel.add_theme_stylebox_override("panel", _flat(PANEL2, (COLD if active else BORDER), 8))
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 5)
+	_pad(panel, 10).add_child(vb)
+	vb.add_child(_wrapped(str(r["label"]), INK, 13, 126))
+	var unlocks_id := str(r.get("unlocks", ""))
+	if unlocks_id != "" and Game.CONSTRUCTION.has(unlocks_id):
+		vb.add_child(_wrapped("Lets you build: %s" % str(Game.CONSTRUCTION[unlocks_id]["label"]), MUTED, 10, 126))
+	var skill_name: String = str(Game.SKILL_LABEL.get(str(r["skill"]), str(r["skill"])))
+	vb.add_child(_label("%s %d" % [skill_name, int(r["level"])], (WARM_SOFT if avail else BLOOD), 11))
+	if active:
+		vb.add_child(_label("in progress", COLD, 11))
+	elif can_start:
+		var b := _btn("Study")
+		b.add_theme_font_size_override("font_size", 12)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(_on_research_pick.bind(id))
+		vb.add_child(b)
+	elif not avail:
+		vb.add_child(_label("needs more skill", MUTED, 11))
+	else:
+		vb.add_child(_label("another time", MUTED, 11))
+	return panel
+
+func _char_tabs(active: String) -> Control:
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 4)
+	for t in [["card", "You"], ["skills", "Skills"], ["research", "Research"]]:
+		hb.add_child(_tab_btn(str(t[1]), str(t[0]) == active, str(t[0])))
+	return hb
+
+func _tab_btn(txt: String, active: bool, mode: String) -> Button:
+	var b := Button.new()
+	b.text = txt
+	b.add_theme_font_size_override("font_size", 12)
+	b.add_theme_color_override("font_color", WARM if active else INK)
+	b.add_theme_color_override("font_hover_color", WARM_SOFT)
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PANEL2 if active else BG
+	sb.set_corner_radius_all(6)
+	sb.content_margin_left = 11.0
+	sb.content_margin_right = 11.0
+	sb.content_margin_top = 5.0
+	sb.content_margin_bottom = 5.0
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("pressed", sb)
+	b.add_theme_stylebox_override("hover", sb)
+	b.pressed.connect(_goto_detail_mode.bind(mode))
+	return b
 
 func _on_research_pick(id: String) -> void:
 	if Game.start_research(id):
-		on_layout_changed()
+		if detail_layer and detail_layer.visible:
+			_open_detail()
+		else:
+			on_layout_changed()
 
 func _make_meter(m: String) -> Control:
 	var box := VBoxContainer.new()
@@ -753,18 +792,22 @@ func _open_detail() -> void:
 	match _detail_mode:
 		"construction": _render_construction_list()
 		"buildsite": _render_buildsite()
+		"skills": _render_skills_screen()
+		"research": _render_research_screen()
 		_: _render_card_detail()
 	detail_panel.reset_size()
 	detail_layer.visible = true
 
-func _wrapped(txt: String, col: Color, sz: int) -> Label:
+func _wrapped(txt: String, col: Color, sz: int, w: int = 396) -> Label:
 	var l := _label(txt, col, sz)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(396, 0)
+	l.custom_minimum_size = Vector2(w, 0)
 	return l
 
 func _render_card_detail() -> void:
 	var card := _menu_card
+	if card == null:
+		detail_body.add_child(_char_tabs("card"))
 	detail_body.add_child(_label("YOU" if card == null else _detail_category(card), COLD, 11))
 	detail_body.add_child(_label("You" if card == null else card.data.title, INK_STRONG, 22))
 	var desc := "Rest to steady your nerves, or sleep off the day's weariness." if card == null else card.current_blurb()
@@ -1935,8 +1978,6 @@ func _refresh() -> void:
 			wc = WARM
 		weight_fill.bg_color = wc
 		weight_bar.queue_redraw()
-	_refresh_skills()
-	_refresh_research()
 	if log_label:
 		log_label.text = "\n".join(PackedStringArray(Game.log_lines))
 	# keep card state bars (e.g. the hearth fuel burning down) in sync with the model
