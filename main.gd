@@ -1898,7 +1898,15 @@ func _sleep() -> void:
 		guard += 1
 		Game.advance_time(30, true)
 		if Game.meters["Hydration"] < 10.0 or Game.meters["Calories"] < 10.0 or Game.meters["Warmth"] < 10.0:
-			Game.add_log("You jolt awake - cold, or parched, or worse. A ruined night.")
+			var hyd: float = Game.meters["Hydration"]
+			var cal: float = Game.meters["Calories"]
+			var wrm: float = Game.meters["Warmth"]
+			if wrm <= hyd and wrm <= cal:
+				Game.add_log("You jolt awake shivering, too cold to lie still. A ruined night.")
+			elif hyd <= cal:
+				Game.add_log("You jolt awake with your throat like paper, too parched to sleep. A ruined night.")
+			else:
+				Game.add_log("You jolt awake with your stomach clawing at itself, too hungry to rest. A ruined night.")
 			break
 	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
 	if not Game.dead and Game.fatigue <= 0.0:
