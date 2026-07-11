@@ -1,7 +1,7 @@
 extends Control
 ## Dead Air — table view.
 ## LEFT (character + condition) | CENTER (3 card rows) | RIGHT (time / temp / log).
-## Single-card actions: click a card -> menu. Two-card actions: drag a card onto a
+## Single-card actions: click a card -> detail modal. Two-card actions: drag a card onto a
 ## target -> a hover label shows the action; release to perform it.
 
 const BG := Color(0.039, 0.055, 0.075)
@@ -890,9 +890,28 @@ func _build_detail() -> void:
 	detail_panel.add_theme_stylebox_override("panel", _flat(PANEL, BORDER, 14))
 	detail_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	center.add_child(detail_panel)
+	var detail_shell := VBoxContainer.new()
+	detail_shell.add_theme_constant_override("separation", 4)
+	_pad(detail_panel, 22).add_child(detail_shell)
+	var close_row := HBoxContainer.new()
+	var close_spacer := Control.new()
+	close_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	close_row.add_child(close_spacer)
+	var close_x := Button.new()
+	close_x.text = "X"
+	close_x.tooltip_text = "Close"
+	close_x.flat = true
+	close_x.focus_mode = Control.FOCUS_NONE
+	close_x.custom_minimum_size = Vector2(28, 26)
+	close_x.add_theme_font_size_override("font_size", 18)
+	close_x.add_theme_color_override("font_color", MUTED)
+	close_x.add_theme_color_override("font_hover_color", INK_STRONG)
+	close_x.pressed.connect(_hide_detail)
+	close_row.add_child(close_x)
+	detail_shell.add_child(close_row)
 	detail_body = VBoxContainer.new()
 	detail_body.add_theme_constant_override("separation", 9)
-	_pad(detail_panel, 22).add_child(detail_body)
+	detail_shell.add_child(detail_body)
 
 func _detail_category(card: CardIcon) -> String:
 	if card.data.kind == "location":
@@ -904,6 +923,19 @@ func _detail_action_btn(txt: String) -> Button:
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	return b
+
+func _detail_card_art(card: CardIcon) -> Control:
+	var frame := PanelContainer.new()
+	frame.custom_minimum_size = Vector2(500, 434)
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_theme_stylebox_override("panel", _flat(PANEL2, BORDER, 8))
+	var art := TextureRect.new()
+	art.texture = card.data.cover_image_lit if card.data.is_fire_source and Game.is_lit(card.data.id) and card.data.cover_image_lit != null else card.data.cover_image
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_pad(frame, 3).add_child(art)
+	return frame
 
 func _open_detail() -> void:
 	for c in detail_body.get_children():
@@ -930,6 +962,8 @@ func _render_card_detail() -> void:
 		detail_body.add_child(_char_tabs("card"))
 	detail_body.add_child(_label("YOU" if card == null else _detail_category(card), COLD, 11))
 	detail_body.add_child(_label("You" if card == null else card.data.title, INK_STRONG, 22))
+	if card != null and card.data.cover_image != null:
+		detail_body.add_child(_detail_card_art(card))
 	var desc := "Rest to steady your nerves, or sleep off the day's weariness." if card == null else card.current_blurb()
 	detail_body.add_child(_wrapped(desc, MUTED, 13))
 	if card == null and Game.worn != "":
@@ -952,9 +986,6 @@ func _render_card_detail() -> void:
 			var b := _detail_action_btn(str(_menu_actions[i]["label"]))
 			b.pressed.connect(_on_detail_pick.bind(i))
 			detail_body.add_child(b)
-	var closeb := _detail_action_btn("Close")
-	closeb.pressed.connect(_hide_detail)
-	detail_body.add_child(closeb)
 
 func _open_craft_hub() -> void:
 	_menu_card = null
@@ -2179,16 +2210,7 @@ func on_card_clicked(card: CardIcon) -> void:
 		_menu_actions = _container_actions(card)
 	else:
 		_menu_actions = ACTIONS.get(card.data.id, [])
-	# a small cursor menu with the action(s) and their durations; none gives a hint
-	if _menu_actions.is_empty():
-		if RECIPES.has(card.data.id):
-			Game.add_log("Drag the %s onto a target to use it." % card.data.title.to_lower())
-		elif _is_recipe_target(card.data.id):
-			Game.add_log("Drag the right item onto the %s to use it." % card.data.title.to_lower())
-		else:
-			Game.add_log("There's nothing to do with the %s just now." % card.data.title.to_lower())
-		return
-	_open_menu()
+	_open_detail()
 
 func _open_menu() -> void:
 	for c in menu_vbox.get_children():

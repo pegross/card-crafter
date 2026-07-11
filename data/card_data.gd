@@ -5,6 +5,8 @@ extends Resource
 @export var id: String = ""
 @export var title: String = ""
 @export var kind: String = "item"  ## character / station / item / resource / tool / location
+@export var cover_image: Texture2D  ## optional card art; null keeps the initial-glyph fallback
+@export var cover_image_lit: Texture2D  ## optional alternate art while a fire source is burning
 @export_multiline var blurb: String = ""
 @export var state_kind: String = ""  ## "" / "explore" / "water" / "fell" / "wood"
 @export var state_start: float = 0.0

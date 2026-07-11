@@ -1,7 +1,7 @@
 class_name CardIcon
 extends PanelContainer
 ## A big, card-shaped tile.
-## - Click (release without dragging) opens the single-card action menu.
+## - Click (release without dragging) opens the card detail view.
 ## - Drag a mobile card ONTO another card: if there's a two-card recipe
 ##   (e.g. Firewood -> Hearth) it performs that action; otherwise it reorders /
 ##   moves the card between rows.
@@ -19,6 +19,7 @@ const GREEN := Color(0.545, 0.690, 0.541)
 const BLOOD := Color(0.788, 0.412, 0.369)
 
 const CARD_SIZE := Vector2(176, 230)
+const CLICK_DRAG_THRESHOLD := 8.0
 
 var data: CardData
 var main
@@ -29,8 +30,12 @@ var _state_label: Label
 var _kind_label: Label
 var _panel_sb: StyleBoxFlat
 var _title_label: Label
-var _blurb_label: Label
+var _cover_rect: TextureRect
 var _state_fill: StyleBoxFlat
+var _left_press_active: bool = false
+var _click_candidate: bool = false
+var _drag_started: bool = false
+var _press_position := Vector2.ZERO
 var content: String = ""  ## for containers: current contents id ("" = empty)
 var spoil_at: int = -1  ## perishable food: absolute game-minute it spoils (-1 = never)
 
@@ -69,40 +74,37 @@ func setup(card_data: CardData, main_ref) -> void:
 
 	var art := PanelContainer.new()
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	art.custom_minimum_size = Vector2(0, 84)
+	art.custom_minimum_size = Vector2(0, 132)
+	art.clip_contents = true
 	var artsb := StyleBoxFlat.new()
 	artsb.bg_color = PANELC2
 	artsb.border_color = BORDER
 	artsb.set_border_width_all(1)
 	artsb.set_corner_radius_all(8)
 	art.add_theme_stylebox_override("panel", artsb)
-	var glyph_name := data.title
-	if glyph_name.begins_with("The "):
-		glyph_name = glyph_name.substr(4)
-	var glyph := _ilabel(glyph_name.substr(0, 1).to_upper(), _accent(), 42)
-	glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	art.add_child(glyph)
+	if data.cover_image != null:
+		_cover_rect = TextureRect.new()
+		_cover_rect.texture = data.cover_image
+		_cover_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_cover_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		_cover_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		_cover_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_cover_rect.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		_cover_rect.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		art.add_child(_cover_rect)
+	else:
+		var glyph_name := data.title
+		if glyph_name.begins_with("The "):
+			glyph_name = glyph_name.substr(4)
+		var glyph := _ilabel(glyph_name.substr(0, 1).to_upper(), _accent(), 42)
+		glyph.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		glyph.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		art.add_child(glyph)
 	vb.add_child(art)
 
-	_title_label = _ilabel(data.title, INK_STRONG, 15)
+	_title_label = _ilabel(data.title, INK_STRONG, 16)
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(_title_label)
-
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_horizontal = Control.SIZE_FILL
-	scroll.custom_minimum_size = Vector2(0, 12)
-	scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_blurb_label = _ilabel(data.blurb, MUTED, 11)
-	_blurb_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_blurb_label.add_theme_constant_override("line_spacing", 1)
-	_blurb_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_blurb_label.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
-	scroll.add_child(_blurb_label)
-	vb.add_child(scroll)
 
 	if data.is_container:
 		var cst: Dictionary = Game.card_state.get(data.id, {})
@@ -163,16 +165,10 @@ func set_state(v: float) -> void:
 	_refresh_state()
 
 func _refresh_state() -> void:
+	_refresh_cover_image()
 	if _state_label == null:
 		return
 	if data.is_fire_source:
-		if _blurb_label:
-			if Game.is_lit(data.id) and data.blurb_lit != "":
-				_blurb_label.text = data.blurb_lit
-			elif state_value > 0.0 and data.blurb_fueled != "":
-				_blurb_label.text = data.blurb_fueled
-			else:
-				_blurb_label.text = data.blurb
 		var pct := int(round(state_value))
 		if Game.is_lit(data.id):
 			_state_label.text = "Burning  %d%%" % pct
@@ -194,6 +190,14 @@ func _refresh_state() -> void:
 	_state_label.text = "%s  %d%%" % [_state_word(), int(round(state_value))]
 	if _state_bar:
 		_state_bar.value = state_value
+
+func _refresh_cover_image() -> void:
+	if _cover_rect == null:
+		return
+	if data.is_fire_source and Game.is_lit(data.id) and data.cover_image_lit != null:
+		_cover_rect.texture = data.cover_image_lit
+	else:
+		_cover_rect.texture = data.cover_image
 
 func sync_state() -> void:
 	# Re-read persistent state (e.g. the hearth fuel burning down over time) so
@@ -326,10 +330,23 @@ func set_location_badge(mode: String) -> void:
 		if _panel_sb:
 			_panel_sb.border_color = Color(0.247, 0.427, 0.510)
 
-# --- click (release without a drag) opens the action menu ---
+# --- click vs drag: release opens detail only when no drag gesture began ---
 func _on_gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
-		main.on_card_clicked(self)
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			_left_press_active = true
+			_click_candidate = true
+			_drag_started = false
+			_press_position = event.position
+		else:
+			var should_open := _left_press_active and _click_candidate and not _drag_started
+			_left_press_active = false
+			_click_candidate = false
+			if should_open and main:
+				main.on_card_clicked(self)
+	elif event is InputEventMouseMotion and _left_press_active:
+		if event.position.distance_to(_press_position) > CLICK_DRAG_THRESHOLD:
+			_click_candidate = false
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and not event.pressed:
 		main.on_card_right_clicked(self)
 
@@ -337,6 +354,8 @@ func _on_gui_input(event: InputEvent) -> void:
 func _get_drag_data(_at: Vector2):
 	if not mobile:
 		return null
+	_drag_started = true
+	_click_candidate = false
 	main.on_drag_begin(self)
 	set_drag_preview(_make_preview())
 	modulate.a = 0.35
@@ -377,6 +396,9 @@ func _drop_data(at: Vector2, incoming) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
 		modulate.a = 1.0
+		_left_press_active = false
+		_click_candidate = false
+		_drag_started = false
 		if main and main._dragging == self:
 			main.on_drag_end()
 
