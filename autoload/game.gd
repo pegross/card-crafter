@@ -112,9 +112,9 @@ const CONSTRUCTION := {
 		"done_desc": "Back on solid hinges with a stout crossbrace, the gaps packed tight. It holds the warmth in and the weather out.",
 		"done_log": "The door is sound again. The manor feels a shade warmer already.",
 		"phases": [
-			{"label": "Rehang the door", "materials": {"firewood": 2}, "work_mins": 90,
+			{"label": "Rehang the door", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
 			 "log": "You lift the door back onto fresh pins and plane it to sit square in the frame."},
-			{"label": "Brace and seal it", "materials": {"firewood": 1}, "work_mins": 60,
+			{"label": "Brace and seal it", "materials": {"firewood": 1}, "work_mins": 60, "audio": "construction_wood",
 			 "log": "You fit a crossbrace across the back and pack the gaps. It shuts with a solid thud."}
 		]
 	},
@@ -127,9 +127,9 @@ const CONSTRUCTION := {
 		"done_desc": "Stout timber shutters, closed and barred against the weather.",
 		"done_log": "The windows are shuttered tight. The draught through the front rooms is gone.",
 		"phases": [
-			{"label": "Cut the boards", "materials": {"firewood": 2}, "work_mins": 90,
+			{"label": "Cut the boards", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
 			 "log": "You saw and plane the timber down into shutter boards."},
-			{"label": "Hang and bar the shutters", "materials": {"firewood": 2}, "work_mins": 90,
+			{"label": "Hang and bar the shutters", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
 			 "log": "You hang the shutters and fit a bar across each. They close out the cold."}
 		]
 	},
@@ -142,9 +142,9 @@ const CONSTRUCTION := {
 		"done_log": "The hearth is whole again. It only wants a light now.",
 		"on_done_swap": ["broken_hearth", "hearth"],
 		"phases": [
-			{"label": "Clear the ruin, lay the base", "materials": {"stone": 2}, "work_mins": 60,
+			{"label": "Clear the ruin, lay the base", "materials": {"stone": 2}, "work_mins": 60, "audio": "construction_stone",
 			 "log": "You haul out the fallen stone and lay a level base."},
-			{"label": "Build up the firebox", "materials": {"stone": 1}, "work_mins": 45,
+			{"label": "Build up the firebox", "materials": {"stone": 1}, "work_mins": 45, "audio": "construction_stone",
 			 "log": "You raise the firebox course by course and set the lintel."}
 		]
 	},
@@ -157,9 +157,9 @@ const CONSTRUCTION := {
 		"done_desc": "A heavy, solid workbench. A place to make and mend properly.",
 		"done_log": "The workbench is built. Solid enough now for the heavier work.",
 		"phases": [
-			{"label": "Build the frame", "materials": {"firewood": 3}, "work_mins": 120,
+			{"label": "Build the frame", "materials": {"firewood": 3}, "work_mins": 120, "audio": "construction_wood",
 			 "log": "You joint and peg the heavy frame together."},
-			{"label": "Fit the top", "materials": {"firewood": 2}, "work_mins": 90,
+			{"label": "Fit the top", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
 			 "log": "You lay and fix the thick top. It does not so much as wobble."}
 		]
 	}
@@ -178,7 +178,7 @@ const CRAFTS := {
 		"produces": "tinder",
 		"skill": ["crafting", 2.0],
 		"desc": "Baton a length of firewood down into a fistful of dry kindling.",
-		"log": "You split the firewood down into a heap of fine, dry kindling."
+		"log": "You split the firewood down into a heap of fine, dry kindling.", "audio": "wood_split"
 	},
 	"craft_mallet": {
 		"tab": "tools",
@@ -189,7 +189,7 @@ const CRAFTS := {
 		"produces": "wooden_mallet",
 		"skill": ["crafting", 3.0],
 		"desc": "Shape a heavy mallet from a seasoned billet. Rough, but it will drive a stake or knock a joint home.",
-		"log": "You shape and smooth the mallet. It sits heavy and true in your hand."
+		"log": "You shape and smooth the mallet. It sits heavy and true in your hand.", "audio": "construction_wood"
 	},
 	"craft_snare": {
 		"tab": "tools",
@@ -200,7 +200,7 @@ const CRAFTS := {
 		"produces": "snare",
 		"skill": ["crafting", 3.0],
 		"desc": "Split a stave down, bend it under tension, and rig a running noose to snap shut on whatever trips it.",
-		"log": "You bend the stave, notch the trigger, and set the noose. A patient little trap."
+		"log": "You bend the stave, notch the trigger, and set the noose. A patient little trap.", "audio": "construction_wood"
 	},
 	"craft_hide_coat": {
 		"tab": "tailoring",
@@ -211,7 +211,7 @@ const CRAFTS := {
 		"produces": "hide_coat",
 		"skill": ["tailoring", 4.0],
 		"desc": "Cut and stitch two cured hides into a rough coat. Heavy and stiff, but it turns the wind and keeps the warmth in.",
-		"log": "You cut, fit, and stitch the hides into a coat. It sits heavy on your shoulders, and warm."
+		"log": "You cut, fit, and stitch the hides into a coat. It sits heavy on your shoulders, and warm.", "audio": "cloth_wrap"
 	}
 }
 

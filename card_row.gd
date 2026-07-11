@@ -37,4 +37,4 @@ func _drop_data(at: Vector2, incoming) -> void:
 		add_child(dropped)
 	move_child(dropped, clampi(idx, 0, get_child_count() - 1))
 	if main:
-		main.on_layout_changed()
+		main.on_card_reordered()

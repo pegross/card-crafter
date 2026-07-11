@@ -44,25 +44,25 @@ var GROUND_START := {
 ## Single-card (click) actions.
 var ACTIONS := {
 	"hearth": [
-		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands.", "once_log": "You reach back for how you came to be here. Only the edge of it, and cold beyond.", "once_key": "fireside_amnesia"},
+		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "audio": "hearth_add_wood", "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands.", "once_log": "You reach back for how you came to be here. Only the edge of it, and cold beyond.", "once_key": "fireside_amnesia"},
 	],
 	"oak_tree": [
-		{"label": "Fell the tree (30m)", "mins": 30, "fx": {"Energy": -8.0, "Calories": -7.0, "Hydration": -6.0, "Warmth": 5.0}, "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
+		{"label": "Fell the tree (30m)", "mins": 30, "audio": "wood_axe_oak", "fx": {"Energy": -8.0, "Calories": -7.0, "Hydration": -6.0, "Warmth": 5.0}, "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
 	],
 	"the_woods": [
-		{"label": "Forage (45m)", "mins": 45, "fx": {"Energy": -6.0, "Mental": 2.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 3.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
+		{"label": "Forage (45m)", "mins": 45, "audio": "search_outdoors", "fx": {"Energy": -6.0, "Mental": 2.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 3.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
 	],
 	"lordly_manor": [
-		{"label": "Search the manor (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
+		{"label": "Search the manor (30m)", "mins": 30, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
 	],
 	"the_grounds": [
-		{"label": "Search the grounds (15m)", "mins": 15, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
+		{"label": "Search the grounds (15m)", "mins": 15, "audio": "search_outdoors", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
 	],
 	"broken_hearth": [
 		{"label": "Rebuild the hearth", "buildsite": "manor_hearth"},
 	],
 	"spoiled_meat": [
-		{"label": "Choke it down (10m)", "mins": 10, "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will turn on you for it."},
+		{"label": "Choke it down (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will turn on you for it."},
 	],
 	"rain_barrel": [
 		{"label": "Drink from the barrel (5m)", "mins": 5, "drink": true, "clean": false},
@@ -71,40 +71,40 @@ var ACTIONS := {
 		{"label": "Drink from the stream (5m)", "mins": 5, "drink": true, "clean": false},
 	],
 	"canned_food": [
-		{"label": "Eat cold (15m)", "mins": 15, "fx": {"Satiation": 35.0, "Mental": 1.0}, "consume": true, "log": "You eat cold from the tin. It helps, a little."},
+		{"label": "Eat cold (15m)", "mins": 15, "audio": "eat_tinned", "fx": {"Satiation": 35.0, "Mental": 1.0}, "consume": true, "log": "You eat cold from the tin. It helps, a little."},
 	],
 	"wool_blanket": [
-		{"label": "Wrap up (30m)", "mins": 30, "fx": {"Warmth": 12.0, "Mental": 2.0}, "log": "You pull the blanket close. Quiet warmth, the kind that draws nothing."},
+		{"label": "Wrap up (30m)", "mins": 30, "audio": "cloth_wrap", "fx": {"Warmth": 12.0, "Mental": 2.0}, "log": "You pull the blanket close. Quiet warmth, the kind that draws nothing."},
 	],
 	"hide_coat": [
 		{"label": "Wear it", "wear": "hide_coat", "log": "You shrug the coat on. Stiff and heavy, but it cuts the cold at once."},
 	],
 	"cellar": [
-		{"label": "Search the cellar (30m)", "mins": 30, "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
+		{"label": "Search the cellar (30m)", "mins": 30, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
 	],
 	"forage_food": [
-		{"label": "Eat (10m)", "mins": 10, "fx": {"Satiation": 18.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
+		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 18.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
 	],
 	"rat_meat": [
-		{"label": "Eat it raw (10m)", "mins": 10, "fx": {"Satiation": 8.0, "Mental": -12.0}, "cond": {"gut_bug": 20.0}, "cond_cause": "raw rat meat", "consume": true, "log": "You force the raw meat down cold, gagging. Your gut coils in protest."},
+		{"label": "Eat it raw (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 8.0, "Mental": -12.0}, "cond": {"gut_bug": 20.0}, "cond_cause": "raw rat meat", "consume": true, "log": "You force the raw meat down cold, gagging. Your gut coils in protest."},
 	],
 	"cooked_rat_meat": [
-		{"label": "Eat (10m)", "mins": 10, "fx": {"Satiation": 18.0, "Calories": 4.0, "Mental": -3.0}, "consume": true, "log": "You eat it off the fire, chewing slow. Not good, but it stays down."},
+		{"label": "Eat (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 18.0, "Calories": 4.0, "Mental": -3.0}, "consume": true, "log": "You eat it off the fire, chewing slow. Not good, but it stays down."},
 	],
 	"preserved_meat": [
-		{"label": "Eat (10m)", "mins": 10, "fx": {"Satiation": 16.0, "Calories": 3.0}, "consume": true, "log": "You gnaw a strip of the smoked meat. Lean and tough, but it holds you together."},
+		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 16.0, "Calories": 3.0}, "consume": true, "log": "You gnaw a strip of the smoked meat. Lean and tough, but it holds you together."},
 	],
 	"log": [
-		{"label": "Split for firewood (15m)", "mins": 15, "fx": {"Energy": -6.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 4.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
+		{"label": "Split for firewood (15m)", "mins": 15, "audio": "wood_split", "fx": {"Energy": -6.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 4.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
 	],
 	"herbal_remedy": [
-		{"label": "Drink the remedy (5m)", "mins": 5, "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
+		{"label": "Drink the remedy (5m)", "mins": 5, "audio": "drink", "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
 	],
 	"antibiotics": [
-		{"label": "Take antibiotics (5m)", "mins": 5, "cure": {"gut_bug": -50.0, "infection": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine, and not much left."},
+		{"label": "Take antibiotics (5m)", "mins": 5, "audio": "medicine_pills", "cure": {"gut_bug": -50.0, "infection": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine, and not much left."},
 	],
 	"bandage": [
-		{"label": "Bind your wounds (10m)", "mins": 10, "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
+		{"label": "Bind your wounds (10m)", "mins": 10, "audio": "bandage_apply", "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
 	],
 	"radio": [
 		{"label": "Listen (15m)", "mins": 15, "fx": {"Mental": -2.0}, "radio_listen": true},
@@ -125,14 +125,14 @@ var ACTIONS := {
 
 ## Two-card (drag item onto target) recipes: item_id -> target_id -> {label, mins}.
 var RECIPES := {
-	"firewood": {"hearth": {"label": "Lay on wood", "mins": 10, "effect": "add_fuel", "amount": 40}},
+	"firewood": {"hearth": {"label": "Lay on wood", "mins": 10, "effect": "add_fuel", "amount": 40, "audio": "hearth_add_wood"}},
 	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "plastic_bottle": {"label": "Pour into bottle", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
 	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "gas_canister": {"label": "Pour into canister", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
-	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3, "effect": "light_tinder"}},
-	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3, "effect": "set_alight"}},
-	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15, "effect": "steep_remedy"}},
-	"rat_meat": {"hearth": {"label": "Cook the meat", "mins": 15, "effect": "cook", "spawn": "cooked_rat_meat"}},
-	"cooked_rat_meat": {"hearth": {"label": "Smoke it to keep", "mins": 60, "effect": "smoke", "spawn": "preserved_meat"}},
+	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3, "effect": "light_tinder", "audio": "lighter_flick"}},
+	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3, "effect": "set_alight", "audio": "hearth_ignite"}},
+	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15, "effect": "steep_remedy", "audio": "herbs_steep"}},
+	"rat_meat": {"hearth": {"label": "Cook the meat", "mins": 15, "effect": "cook", "spawn": "cooked_rat_meat", "audio": "cook_meat"}},
+	"cooked_rat_meat": {"hearth": {"label": "Smoke it to keep", "mins": 60, "effect": "smoke", "spawn": "preserved_meat", "audio": "cook_meat"}},
 }
 
 var rows := {}
@@ -229,6 +229,7 @@ func _ready() -> void:
 	Game.changed.connect(_refresh)
 	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
+	_sync_world_audio()
 	on_layout_changed()
 	_validate_content()
 
@@ -832,6 +833,7 @@ func _dur_text(mins: int) -> String:
 func _show_time_passing(mins: int) -> void:
 	if mins <= 0 or _clock_face == null or Game.dead:
 		return
+	Audio.play_cue("ui_time_pass")
 	_clock_dur.text = _dur_text(mins)
 	_clock_sub.text = Game.hhmm()
 	_clock_face.set_sweep(0.0)
@@ -906,6 +908,7 @@ func _detail_action_btn(txt: String) -> Button:
 	return b
 
 func _open_detail() -> void:
+	var was_hidden := not detail_layer.visible
 	for c in detail_body.get_children():
 		detail_body.remove_child(c)
 		c.queue_free()
@@ -917,6 +920,8 @@ func _open_detail() -> void:
 		_: _render_card_detail()
 	detail_panel.reset_size()
 	detail_layer.visible = true
+	if was_hidden:
+		Audio.play_cue("ui_card_detail_open")
 
 func _wrapped(txt: String, col: Color, sz: int, w: int = 396) -> Label:
 	var l := _label(txt, col, sz)
@@ -1118,10 +1123,11 @@ func _do_build_phase(id: String) -> void:
 	var mats: Dictionary = phase.get("materials", {})
 	for mid in mats:
 		if _count_available(str(mid)) < int(mats[mid]):
-			Game.add_log("You do not have the materials for that yet.")
+			_blocked("You do not have the materials for that yet.")
 			return
 	for mid in mats:
 		_consume_materials(str(mid), int(mats[mid]))
+	Audio.play_cue(str(phase.get("audio", "construction_wood")))
 	var wmin: int = int(phase.get("work_mins", 60))
 	var before := Game.meters.duplicate()
 	var fx := {"Energy": -6.0, "Calories": -4.0, "Hydration": -4.0, "Warmth": 4.0}
@@ -1152,10 +1158,11 @@ func _do_craft(id: String) -> void:
 	var mats: Dictionary = craft.get("materials", {})
 	for mid in mats:
 		if _count_available(str(mid)) < int(mats[mid]):
-			Game.add_log("You do not have the materials for that yet.")
+			_blocked("You do not have the materials for that yet.")
 			return
 	for mid in mats:
 		_consume_materials(str(mid), int(mats[mid]))
+	Audio.play_cue(str(craft.get("audio", "construction_wood")))
 	var wmin: int = int(craft.get("work_mins", 30))
 	var before := Game.meters.duplicate()
 	var fx := {"Energy": -5.0, "Calories": -3.0, "Hydration": -3.0}
@@ -1181,8 +1188,10 @@ func _on_detail_pick(i: int) -> void:
 		_perform(_menu_card, _menu_actions[i])
 
 func _hide_detail() -> void:
-	if detail_layer:
-		detail_layer.visible = false
+	if detail_layer == null or not detail_layer.visible:
+		return
+	Audio.play_cue("ui_panel_close")
+	detail_layer.visible = false
 
 func _on_detail_dim_input(e: InputEvent) -> void:
 	if e is InputEventMouseButton and e.pressed:
@@ -1367,6 +1376,7 @@ func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "t
 	_combat_hp = _combat_hp_max
 	_combat_before = Game.meters.duplicate()
 	_combat_log = []
+	Audio.play_cue("encounter_rat" if enemy_id == "rat" else "encounter_zombie")
 	_combat_say("A %s, and it has seen you." % enemy_data(_combat_id).title.to_lower())
 	if combat_flee_btn:
 		combat_flee_btn.visible = (context == "table")  # a siege is unfleeable
@@ -1409,6 +1419,7 @@ func _combat_strike() -> void:
 	var enemy_name: String = e.title.to_lower()
 	var roll := Game.strike_roll()
 	var dmg: float = float(roll["dmg"])
+	Audio.play_cue("combat_swing")
 	_combat_hp -= dmg
 	match str(roll["q"]):
 		"miss":
@@ -1420,13 +1431,17 @@ func _combat_strike() -> void:
 		_:
 			_combat_say("You strike the %s." % enemy_name)
 	if dmg > 0.0:
+		Audio.play_cue("combat_hit")
 		_screen_shake(3.0 + dmg * 0.35)
 	var killed := _combat_hp <= 0.0
 	if killed:
+		Audio.play_cue("combat_enemy_down")
 		_combat_say("The %s drops, and does not get up." % enemy_name)
 	else:
 		var edmg: float = Game.enemy_damage_roll(e.damage)
 		Game.take_wound(edmg)
+		Audio.play_cue("combat_rat_attack" if _combat_id == "rat" else "combat_zombie_attack")
+		Audio.play_cue("combat_player_hurt", -5.0)
 		_flash_hurt()
 		_screen_shake(6.0 + edmg * 0.25)
 		_combat_say("The %s %s you." % [enemy_name, (e.verb if e.verb != "" else "hits")])
@@ -1453,6 +1468,7 @@ func _combat_flee() -> void:
 	if not combat_layer.visible or _combat_resolving or _combat_context != "table":
 		return  # a siege wave cannot be fled
 	var e: CardData = enemy_data(_combat_id)
+	Audio.play_cue("combat_flee")
 	var hit: float = Game.enemy_damage_roll(e.flee_hit)
 	Game.take_wound(hit)
 	if hit > 0.0:
@@ -1541,6 +1557,8 @@ func _end_siege() -> void:
 		Game.add_log(Game._pick(Game.SIEGE["repelled"]))
 
 func _show_death() -> void:
+	Audio.stop_all(1.0)
+	Audio.play_cue("death")
 	if death_obit_label:
 		death_obit_label.text = Game.obituary
 	death_layer.visible = true
@@ -1556,6 +1574,7 @@ func _hide_death_modal() -> void:
 	death_badge.visible = true
 
 func _restart() -> void:
+	Audio.stop_all(0.2)
 	Game.reset()
 	LOCATIONS = _locations_initial.duplicate(true)
 	for key in rows:
@@ -1575,6 +1594,7 @@ func _restart() -> void:
 		d["bar"].value = Game.meters[m]
 	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
+	_sync_world_audio()
 	on_layout_changed()
 
 func _populate() -> void:
@@ -1664,11 +1684,13 @@ func _travel_to(dest: String, mins: int) -> void:
 	Game.current_location = dest
 	Game.location_indoor = bool(LOCATIONS[dest].get("indoor", true))
 	if mins > 0:
+		Audio.play_cue("travel_outdoor")
 		# a real expedition out into the world: time passes and the light moves on
 		Game.advance_time(mins)
 		_show_time_passing(mins)
 		Game.add_log("You set out. You reach %s as the light thins." % _place_prose(dest))
 	else:
+		Audio.play_cue("threshold_interior")
 		# free movement within the base compound: a threshold, not a journey
 		Game.add_log(_step_log(from_loc, dest))
 	_animate_meters(before, {})
@@ -1801,6 +1823,7 @@ func _reveal(e: Dictionary, is_loot := false) -> bool:
 				gc.fill_with(str(e["content"]), float(e.get("fill", 100.0)))
 			var default_log: String = ("You turn up %s among what the place still holds." % _card_title(e["id"]).to_lower()) if is_loot else ("You turn up: %s." % _card_title(e["id"]))
 			Game.add_log(str(e.get("log", default_log)))
+			Audio.play_cue("ui_item_revealed")
 			return true
 		"fixture":
 			var fxs: Array = LOCATIONS[loc]["fixtures"]
@@ -1808,6 +1831,7 @@ func _reveal(e: Dictionary, is_loot := false) -> bool:
 				return false
 			fxs.append(e["id"])
 			Game.add_log(str(e.get("log", "You uncover the %s." % _card_title(e["id"]))))
+			Audio.play_cue("ui_item_revealed")
 			_rebuild_out_there()
 			return true
 		"location":
@@ -1816,6 +1840,7 @@ func _reveal(e: Dictionary, is_loot := false) -> bool:
 				return false
 			conns[e["id"]] = int(e.get("mins", 30))
 			Game.add_log(str(e.get("log", "A way opens toward %s." % _place_prose(e["id"]))))
+			Audio.play_cue("ui_item_revealed")
 			_rebuild_out_there()
 			return true
 	return false
@@ -1861,12 +1886,14 @@ func on_card_right_clicked(card: CardIcon) -> void:
 	var parent := card.get_parent()
 	if parent == rows.get("inv"):
 		_move_card(card, "middle")
+		Audio.play_cue("ui_card_place")
 		Game.add_log("You set the %s down here." % card.data.title.to_lower())
 	elif parent == rows.get("middle"):
 		if rows["inv"].get_child_count() >= INV_CAP:
 			Game.add_log("Your hands and pockets are full.")
 			return
 		_move_card(card, "inv")
+		Audio.play_cue("ui_card_place")
 		Game.add_log("You pick up the %s." % card.data.title.to_lower())
 	else:
 		return
@@ -1906,13 +1933,14 @@ func _swap_fixture(old_id: String, new_id: String) -> void:
 func _set_snare(card: CardIcon, mins: int) -> void:
 	var loc := Game.current_location
 	if Game.location_indoor:
-		Game.add_log("There is nothing to catch in here. A snare wants open ground.")
+		_blocked("There is nothing to catch in here. A snare wants open ground.")
 		return
 	var fxs: Array = LOCATIONS[loc]["fixtures"]
 	if "set_snare" in fxs:
-		Game.add_log("You already have a snare set here.")
+		_blocked("You already have a snare set here.")
 		return
 	Game.place_snare(loc)
+	Audio.play_cue("snare_set")
 	fxs.append("set_snare")
 	_consume_card(card)
 	Game.advance_time(mins)
@@ -1926,10 +1954,12 @@ func _check_snare(mins: int) -> void:
 	Game.advance_time(mins)
 	_show_time_passing(mins)
 	if Game.snare_ready(loc):
+		Audio.play_cue("snare_catch")
 		for yid in Game.collect_snare(loc):
 			_spawn(str(yid), "middle")
 		Game.add_log("The noose has pulled tight on something small. Meat, and a hide worth keeping.")
 	else:
+		Audio.play_cue("snare_empty")
 		Game.add_log("The snare sits sprung on nothing. No catch yet.")
 	on_layout_changed()
 
@@ -1947,6 +1977,11 @@ func _is_recipe_target(id: String) -> bool:
 
 func on_drag_begin(card: CardIcon) -> void:
 	_dragging = card
+	Audio.play_cue("ui_card_lift")
+
+func on_card_reordered() -> void:
+	Audio.play_cue("ui_card_place")
+	on_layout_changed()
 
 func on_drag_end() -> void:
 	_dragging = null
@@ -1987,7 +2022,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		on_drag_end()
 		return
 	if target.data.state_kind == "water" and target.state_value <= 0.0:
-		Game.add_log("The %s is empty." % target.data.title.to_lower())
+		_blocked("The %s is empty." % target.data.title.to_lower())
 		on_drag_end()
 		return
 	var before := Game.meters.duplicate()
@@ -2004,7 +2039,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				_consume_card(src)
 			"light_tinder":
 				if src.state_value <= 0.0:
-					Game.add_log("The lighter sparks and dies. No charge left.")
+					_blocked("The lighter sparks and dies. No charge left.")
 					on_drag_end()
 					return
 				src.set_state(src.state_value - 1.0)
@@ -2019,7 +2054,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				Game.add_log("You feed the burning tinder in. The fire takes: warm light, and a beacon.")
 			"steep_remedy":
 				if not Game.is_fire_lit():
-					Game.add_log("You need a live fire to steep them.")
+					_blocked("You need a live fire to steep them.")
 					on_drag_end()
 					return
 				_consume_card(src)
@@ -2028,7 +2063,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				Game.gain_skill("cooking", 2.5)
 			"cook":
 				if not Game.is_fire_lit():
-					Game.add_log("You need a live fire to cook it.")
+					_blocked("You need a live fire to cook it.")
 					on_drag_end()
 					return
 				_consume_card(src)
@@ -2037,7 +2072,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				Game.gain_skill("cooking", 2.0)
 			"smoke":
 				if not Game.is_fire_lit():
-					Game.add_log("You need a live fire to smoke it.")
+					_blocked("You need a live fire to smoke it.")
 					on_drag_end()
 					return
 				_consume_card(src)
@@ -2046,12 +2081,12 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				Game.gain_skill("cooking", 1.5)
 	elif src.data.is_container and target.data.id == "lighter":
 		if src.content != "fuel" or src.state_value <= 0.0:
-			Game.add_log("There's no fuel in the %s to draw from." % src.data.title.to_lower())
+			_blocked("There's no fuel in the %s to draw from." % src.data.title.to_lower())
 			on_drag_end()
 			return
 		var room: float = 100.0 - target.state_value
 		if room <= 0.0:
-			Game.add_log("The lighter is already full.")
+			_blocked("The lighter is already full.")
 			on_drag_end()
 			return
 		var moved: float = minf(room, src.state_value)
@@ -2060,19 +2095,19 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		Game.add_log("You top the lighter up from the %s." % src.data.title.to_lower())
 	elif src.data.is_container and target.data.is_container:
 		if src.content == "":
-			Game.add_log("The %s is empty." % src.data.title.to_lower())
+			_blocked("The %s is empty." % src.data.title.to_lower())
 			on_drag_end()
 			return
 		var room: float = target.data.capacity - target.state_value
 		if room <= 0.0:
-			Game.add_log("The %s is already full." % target.data.title.to_lower())
+			_blocked("The %s is already full." % target.data.title.to_lower())
 			on_drag_end()
 			return
 		var moved: float = minf(src.state_value, room)
 		var poured: String = src.content
 		var target_was: String = target.content
 		if not target.fill_with(src.content, moved):
-			Game.add_log("You can't mix %s and %s." % [target._content_display(target.content).to_lower(), src._content_display(src.content).to_lower()])
+			_blocked("You can't mix %s and %s." % [target._content_display(target.content).to_lower(), src._content_display(src.content).to_lower()])
 			on_drag_end()
 			return
 		src.drain_content(moved)
@@ -2082,11 +2117,11 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			Game.add_log("You pour %s into the %s." % [src._content_display(poured).to_lower(), target.data.title.to_lower()])
 	elif src.data.is_container and target.data.id == "hearth":
 		if src.content != "dirty_water" or src.state_value <= 0.0:
-			Game.add_log("There's no dirty water in the %s to boil." % src.data.title.to_lower())
+			_blocked("There's no dirty water in the %s to boil." % src.data.title.to_lower())
 			on_drag_end()
 			return
 		if not Game.is_fire_lit():
-			Game.add_log("You need a live fire to boil it.")
+			_blocked("You need a live fire to boil it.")
 			on_drag_end()
 			return
 		src.boil()
@@ -2095,18 +2130,18 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 	elif src.data.is_container and (target.data.id == "stream" or target.data.id == "rain_barrel"):
 		var room: float = src.data.capacity - src.state_value
 		if room <= 0.0:
-			Game.add_log("The %s is already full." % src.data.title.to_lower())
+			_blocked("The %s is already full." % src.data.title.to_lower())
 			on_drag_end()
 			return
 		var avail: float = target.state_value if target.data.state_kind == "water" else room
 		var moved2: float = minf(room, avail)
 		if moved2 <= 0.0:
-			Game.add_log("The %s is empty." % target.data.title.to_lower())
+			_blocked("The %s is empty." % target.data.title.to_lower())
 			on_drag_end()
 			return
 		var src_was: String = src.content
 		if not src.fill_with("dirty_water", moved2):
-			Game.add_log("The %s already holds %s." % [src.data.title.to_lower(), src._content_display(src.content).to_lower()])
+			_blocked("The %s already holds %s." % [src.data.title.to_lower(), src._content_display(src.content).to_lower()])
 			on_drag_end()
 			return
 		if target.data.state_kind == "water":
@@ -2117,6 +2152,16 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			Game.add_log("You fill the %s with cold, clouded water." % src.data.title.to_lower())
 	for k in fx:
 		Game.modify(k, fx[k])
+	if rec.has("audio"):
+		Audio.play_cue(str(rec["audio"]))
+	elif src.data.is_container and target.data.id == "lighter":
+		Audio.play_cue("liquid_pour", -4.0)
+	elif src.data.is_container and target.data.is_container:
+		Audio.play_cue("liquid_pour")
+	elif src.data.is_container and target.data.id == "hearth":
+		Audio.play_cue("water_boiling")
+	elif src.data.is_container and (target.data.id == "stream" or target.data.id == "rain_barrel"):
+		Audio.play_cue("water_fill")
 	var rmins := int(rec.get("mins", 10))
 	Game.advance_time(rmins)
 	_show_time_passing(rmins)
@@ -2144,6 +2189,7 @@ func _do_drink(card: CardIcon, clean: bool, mins: int) -> void:
 		Game.add_log("The %s is empty." % card.data.title.to_lower())
 		return
 	var drunk: float = minf(SIP, avail)
+	Audio.play_cue("drink")
 	var frac: float = drunk / SIP
 	var before := Game.meters.duplicate()
 	var fx := {"Hydration": (20.0 if clean else 18.0) * frac}
@@ -2243,6 +2289,7 @@ func _on_portrait_input(event: InputEvent) -> void:
 		_open_char_menu()
 
 func _sleep() -> void:
+	Audio.play_cue("sleep_settle")
 	var before := Game.meters.duplicate()
 	var guard := 0
 	var _t0 := Game.day * 1440 + Game.minute
@@ -2270,6 +2317,7 @@ func _collapse_sleep() -> void:
 	if Game.dead:
 		return
 	_collapsing = true
+	Audio.play_cue("collapse")
 	var before := Game.meters.duplicate()
 	Game.add_log("Your legs go. You are asleep before you hit the floor.")
 	var guard := 0
@@ -2316,6 +2364,7 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		_travel_to(act["travel_to"], int(act.get("mins", 30)))
 		return
 	if act.has("wear"):
+		Audio.play_cue("coat_on_off")
 		Game.worn = str(act["wear"])
 		if act.has("log"):
 			Game.add_log(str(act["log"]))
@@ -2327,6 +2376,7 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		var wid: String = Game.worn
 		Game.worn = ""
 		if wid != "":
+			Audio.play_cue("coat_on_off")
 			var row_key := "inv" if (rows.has("inv") and rows["inv"].get_child_count() < INV_CAP) else "middle"
 			_spawn(wid, row_key)
 			Game.add_log("You shrug the %s off." % _card_title(wid).to_lower())
@@ -2348,7 +2398,10 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		_check_snare(int(act.get("mins", 10)))
 		return
 	if act.has("radio_listen"):
+		var was_powered := Game.radio_powered
+		var previous_broadcast_day := Game.radio_last_broadcast_day
 		var line := Game.radio_listen()
+		Audio.play_radio_listen(was_powered, Game.radio_last_broadcast_day != previous_broadcast_day)
 		var rbefore := Game.meters.duplicate()
 		var rfx: Dictionary = act.get("fx", {})
 		for k in rfx:
@@ -2390,6 +2443,8 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		for cid in act["cure"]:
 			Game.cure_condition(cid, float(act["cure"][cid]))
 	var _mins := int(act.get("mins", 30))
+	if act.has("audio"):
+		Audio.play_cue(str(act["audio"]))
 	if float(fx.get("Energy", 0.0)) < 0.0:
 		_mins = int(round(float(_mins) * Game.weight_toll()))  # overweight = physical work runs longer
 	var wood_work: bool = card != null and (card.data.state_kind == "fell" or card.data.state_kind == "wood")
@@ -2409,6 +2464,7 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		if card.data.kind == "location":
 			_process_reveals(card.data.id, old_pct, card.state_value)
 		elif card.data.state_kind == "fell" and card.state_value >= 100.0 and card.data.becomes != "":
+			Audio.play_cue("wood_oak_fall")
 			_transform_fixture(card, card.data.becomes)
 		elif card.data.state_kind == "wood" and card.state_value <= 0.0:
 			Game.add_log("The %s is split down to the last of it." % card.data.title.to_lower())
@@ -2459,7 +2515,16 @@ func on_layout_changed() -> void:
 	if inv_head and rows.has("inv"):
 		inv_head.text = "INVENTORY   ·   %d / %d" % [rows["inv"].get_child_count(), INV_CAP]
 
+func _blocked(line: String) -> void:
+	Game.add_log(line)
+	Audio.play_cue("ui_action_blocked")
+
+func _sync_world_audio() -> void:
+	Audio.set_location(Game.current_location)
+	Audio.set_hearth_active(Game.current_location == "lordly_manor" and Game.is_fire_lit())
+
 func _refresh() -> void:
+	_sync_world_audio()
 	if clock_label:
 		clock_label.text = Game.time_string()
 	if temp_label:
