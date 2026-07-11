@@ -391,7 +391,7 @@ func _drop_data(at: Vector2, incoming) -> void:
 		src.get_parent().remove_child(src)
 		row.add_child(src)
 	row.move_child(src, clampi(idx, 0, row.get_child_count() - 1))
-	main.on_layout_changed()
+	main.on_card_reordered()
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:

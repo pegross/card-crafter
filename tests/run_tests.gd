@@ -9,6 +9,8 @@ extends SceneTree
 ## (add_child in _init does NOT auto-fire _ready before we quit), a fixed rng seed, then reset().
 
 ## Build a fresh, seeded simulation instance.
+var audio: Node
+
 func make_sim(seed_val: int = 1) -> Node:
 	var g = preload("res://autoload/game.gd").new()
 	get_root().add_child(g)
@@ -18,6 +20,11 @@ func make_sim(seed_val: int = 1) -> Node:
 	return g
 
 func _init() -> void:
+	# A script-run SceneTree does not instantiate project autoloads, so construct the
+	# same service once for registry checks. Gameplay suites remain simulation-only.
+	audio = preload("res://autoload/audio.gd").new()
+	get_root().add_child(audio)
+	audio._ready()
 	var h = preload("res://tests/test_helpers.gd").new()
 	var suites := {
 		"seasons": preload("res://tests/test_seasons.gd").new(),
@@ -34,6 +41,7 @@ func _init() -> void:
 		"food": preload("res://tests/test_food.gd").new(),
 		"equipment": preload("res://tests/test_equipment.gd").new(),
 		"determinism": preload("res://tests/test_determinism.gd").new(),
+		"audio": preload("res://tests/test_audio.gd").new(),
 	}
 	for name in suites:
 		h.ctx(name)
