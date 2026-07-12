@@ -133,6 +133,7 @@ var RECIPES := {
 var rows := {}
 var bars := {}
 var clock_label: Label
+var celestial_arc: CelestialArc
 var temp_label: Label
 var top_head: Label
 var log_label: Label
@@ -461,6 +462,10 @@ func _build_left() -> Control:
 
 	clock_label = _label("", INK_STRONG, 18)
 	vb.add_child(clock_label)
+	celestial_arc = CelestialArc.new()
+	celestial_arc.custom_minimum_size = Vector2(0, 78)
+	celestial_arc.mouse_filter = Control.MOUSE_FILTER_PASS
+	vb.add_child(celestial_arc)
 	temp_label = _label("", COLD, 14)
 	vb.add_child(temp_label)
 	weather_label = _label("Overcast, still.", MUTED, 12)
@@ -3019,6 +3024,8 @@ func _refresh() -> void:
 	_cool_hot_containers()
 	if clock_label:
 		clock_label.text = Game.time_string()
+	if celestial_arc:
+		celestial_arc.set_time(Game.minute, Game.season())
 	if temp_label:
 		var indoors: bool = LOCATIONS.get(Game.current_location, {}).get("indoor", true)
 		var t: float = Game.temperature if indoors else Game.outdoor_temp
