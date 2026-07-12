@@ -32,6 +32,10 @@ extends Resource
 @export var bite_infection: float = 0.0  ## creature: infection seeded per hit (0 = none)
 @export var enemy_mins: int = 0  ## creature: in-game minutes an encounter costs
 @export var drops: String = ""  ## creature: card id spawned when this creature dies ("" = nothing)
+@export var is_weapon: bool = false  ## usable from inventory in the combat weapon selector
+@export var weapon_damage: float = 0.0
+@export var weapon_accuracy: float = 1.0
+@export var weapon_stamina: float = 3.0  ## small fixed cost per attack; never prevents attacking
 @export var spoil_hours: float = 0.0  ## perishable food: in-game hours until it spoils (0 = keeps)
 @export var spoils_to: String = ""  ## when it spoils, the card id it becomes ("" = it just rots away)
 @export var lifetime_mins: int = 0  ## temporary card: removed this many in-game minutes after spawning

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/crowbar.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "crowbar"
+title = "Crowbar"
+kind = "tool"
+cover_image = ExtResource("2")
+blurb = "Leverage for sealed places. Weight for everything else."
+is_weapon = true
+weapon_damage = 12.0
+weapon_accuracy = 0.84
+weapon_stamina = 3.0

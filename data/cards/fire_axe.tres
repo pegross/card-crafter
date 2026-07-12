@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/fire_axe.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "fire_axe"
+title = "Fire Axe"
+kind = "tool"
+cover_image = ExtResource("2")
+blurb = "A rescue axe, chipped and heavy. It was made to go through doors."
+is_weapon = true
+weapon_damage = 18.0
+weapon_accuracy = 0.72
+weapon_stamina = 5.0

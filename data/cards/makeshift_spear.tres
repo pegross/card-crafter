@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/makeshift_spear.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "makeshift_spear"
+title = "Makeshift Spear"
+kind = "tool"
+cover_image = ExtResource("2")
+blurb = "Scrap steel lashed to a straight shaft. Distance is the useful part."
+is_weapon = true
+weapon_damage = 14.0
+weapon_accuracy = 0.76
+weapon_stamina = 3.0

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/lead_pipe.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "lead_pipe"
+title = "Lead Pipe"
+kind = "tool"
+cover_image = ExtResource("2")
+blurb = "A length of old plumbing wrapped for a grip. Ugly, dense, dependable."
+is_weapon = true
+weapon_damage = 13.0
+weapon_accuracy = 0.78
+weapon_stamina = 4.0
