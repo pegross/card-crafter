@@ -11,3 +11,4 @@ title = "Rat Meat"
 kind = "item"
 blurb = "A few stringy scraps, dark and gamey. Raw, it turns the stomach, and it will not keep."
 spoil_hours = 8.0
+spoils_to = "spoiled_meat"

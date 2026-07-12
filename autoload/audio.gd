@@ -1,6 +1,13 @@
 extends Node
 ## Presentation-only audio service. Semantic cue names keep paths and players out of gameplay.
 
+## The gathered location beds have not passed a listening review. Some are music/drone
+## rather than neutral environmental ambience, so continuous location audio stays off
+## until purpose-made loops are approved.
+const LOCATION_AMBIENCE_ENABLED := false
+const DEFAULT_MAX_ONE_SHOT_SECONDS := 3.0
+const RADIO_LISTEN_CUE := "radio_dead_switch"
+
 var REQUIRED_P0_CUES := PackedStringArray([
 	"ui_card_lift", "ui_card_place", "ui_card_detail_open", "ui_panel_close", "ui_action_commit", "ui_action_blocked", "ui_item_revealed", "ui_time_pass",
 	"travel_outdoor", "threshold_interior", "search_outdoors", "search_interior", "wood_axe_oak", "wood_oak_fall", "wood_split", "wood_handling", "construction_wood", "construction_stone",
@@ -13,7 +20,9 @@ const CUES := {
 	"ui_card_lift": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_card_lift_01_DEMO_ONLY.ogg"), preload("res://assets/audio/ui/ui_card_lift_02_DEMO_ONLY.ogg"), preload("res://assets/audio/ui/ui_card_lift_03_DEMO_ONLY.ogg")], "volume_db": -10.0, "pitch_min": 0.98, "pitch_max": 1.02},
 	"ui_card_place": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_card_place_01_DEMO_ONLY.ogg"), preload("res://assets/audio/ui/ui_card_place_02_DEMO_ONLY.ogg"), preload("res://assets/audio/ui/ui_card_place_03_DEMO_ONLY.ogg")], "volume_db": -11.0, "pitch_min": 0.98, "pitch_max": 1.02},
 	"ui_card_detail_open": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_card_detail_open_DEMO_ONLY.ogg")], "volume_db": -12.0},
-	"ui_panel_close": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_panel_close_DEMO_ONLY.ogg")], "volume_db": -13.0},
+	# The dedicated close sample has a bright, dominant tail. A quiet paper movement
+	# reads as dismissing a card without competing with the game state underneath.
+	"ui_panel_close": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_card_lift_02_DEMO_ONLY.ogg"), preload("res://assets/audio/ui/ui_card_lift_03_DEMO_ONLY.ogg")], "volume_db": -20.0, "pitch_min": 0.92, "pitch_max": 0.98},
 	"ui_action_commit": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_action_commit_DEMO_ONLY.ogg")], "volume_db": -12.0},
 	"ui_action_blocked": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_action_blocked_DEMO_ONLY.ogg")], "volume_db": -10.0},
 	"ui_item_revealed": {"bus": "UI", "streams": [preload("res://assets/audio/ui/ui_item_revealed_01_DEMO_ONLY.ogg"), preload("res://assets/audio/ui/ui_item_revealed_02_DEMO_ONLY.ogg")], "volume_db": -16.0},
@@ -22,7 +31,9 @@ const CUES := {
 	"threshold_interior": {"bus": "SFX", "streams": [preload("res://assets/audio/ambience/threshold_interior_01_DEMO_ONLY.ogg"), preload("res://assets/audio/ambience/threshold_interior_02_DEMO_ONLY.ogg")], "volume_db": -9.0},
 	"search_outdoors": {"bus": "SFX", "streams": [preload("res://assets/audio/search/search_outdoors_01_DEMO_ONLY.ogg"), preload("res://assets/audio/search/search_outdoors_02_DEMO_ONLY.ogg"), preload("res://assets/audio/search/search_outdoors_03_DEMO_ONLY.ogg")], "volume_db": -8.0},
 	"search_interior": {"bus": "SFX", "streams": [preload("res://assets/audio/search/search_interior_01_DEMO_ONLY.ogg"), preload("res://assets/audio/search/search_interior_02_DEMO_ONLY.wav"), preload("res://assets/audio/search/search_interior_03_DEMO_ONLY.wav")], "volume_db": -8.0},
-	"wood_axe_oak": {"bus": "SFX", "streams": [preload("res://assets/audio/wood/wood_axe_oak_01_DEMO_ONLY.mp3")], "volume_db": -5.0, "pitch_min": 0.98, "pitch_max": 1.02},
+	# This take is Kenney RPG Audio's actual `chop.ogg`. The other short wood
+	# variants are generic heavy impacts and read as dull knocks on a standing tree.
+	"wood_axe_oak": {"bus": "SFX", "streams": [preload("res://assets/audio/wood/wood_split_01_DEMO_ONLY.ogg")], "volume_db": -5.0, "pitch_min": 0.98, "pitch_max": 1.02},
 	"wood_oak_fall": {"bus": "SFX", "streams": [preload("res://assets/audio/wood/wood_oak_fall_DEMO_ONLY.ogg")], "volume_db": -4.0},
 	"wood_split": {"bus": "SFX", "streams": [preload("res://assets/audio/wood/wood_split_01_DEMO_ONLY.ogg"), preload("res://assets/audio/wood/wood_split_02_DEMO_ONLY.ogg"), preload("res://assets/audio/wood/wood_split_03_DEMO_ONLY.ogg"), preload("res://assets/audio/wood/wood_split_04_DEMO_ONLY.ogg")], "volume_db": -6.0},
 	"wood_handling": {"bus": "SFX", "streams": [preload("res://assets/audio/wood/wood_handling_01_DEMO_ONLY.ogg"), preload("res://assets/audio/wood/wood_handling_02_DEMO_ONLY.ogg"), preload("res://assets/audio/wood/wood_handling_03_DEMO_ONLY.ogg")], "volume_db": -9.0},
@@ -30,13 +41,14 @@ const CUES := {
 	"construction_stone": {"bus": "SFX", "streams": [preload("res://assets/audio/wood/construction_stone_01_DEMO_ONLY.ogg"), preload("res://assets/audio/wood/construction_stone_02_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"lighter_flick": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/lighter_flick_02_DEMO_ONLY.ogg"), preload("res://assets/audio/fire_cooking/lighter_flick_03_DEMO_ONLY.ogg")], "volume_db": -8.0},
 	"tinder_catch": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/tinder_catch_01_DEMO_ONLY.ogg"), preload("res://assets/audio/fire_cooking/tinder_catch_02_DEMO_ONLY.ogg")], "volume_db": -7.0},
-	"hearth_ignite": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/hearth_ignite_01_DEMO_ONLY.wav")], "volume_db": -6.0},
+	# Do not use hearth_ignite_01 here: it is the full 29-second fireplace bed.
+	"hearth_ignite": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/tinder_catch_01_DEMO_ONLY.ogg"), preload("res://assets/audio/fire_cooking/tinder_catch_02_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"hearth_add_wood": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/hearth_add_wood_01_DEMO_ONLY.ogg"), preload("res://assets/audio/fire_cooking/hearth_add_wood_02_DEMO_ONLY.ogg"), preload("res://assets/audio/fire_cooking/hearth_add_wood_03_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"cook_meat": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/cook_meat_01_DEMO_ONLY.ogg"), preload("res://assets/audio/fire_cooking/cook_meat_02_DEMO_ONLY.ogg")], "volume_db": -9.0},
-	"water_boiling": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/water_boiling_DEMO_ONLY.ogg")], "volume_db": -10.0},
+	"water_boiling": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/water_boiling_DEMO_ONLY.ogg")], "volume_db": -12.0, "max_seconds": 1.5},
 	"herbs_steep": {"bus": "SFX", "streams": [preload("res://assets/audio/fire_cooking/herbs_steep_DEMO_ONLY.ogg")], "volume_db": -9.0},
-	"water_fill": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/water_fill_01_DEMO_ONLY.ogg"), preload("res://assets/audio/survival/water_fill_02_DEMO_ONLY.ogg")], "volume_db": -9.0},
-	"liquid_pour": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/liquid_pour_01_DEMO_ONLY.ogg"), preload("res://assets/audio/survival/liquid_pour_02_DEMO_ONLY.ogg")], "volume_db": -10.0},
+	"water_fill": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/water_fill_01_DEMO_ONLY.ogg"), preload("res://assets/audio/survival/water_fill_02_DEMO_ONLY.ogg")], "volume_db": -11.0, "max_seconds": 1.25},
+	"liquid_pour": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/liquid_pour_01_DEMO_ONLY.ogg"), preload("res://assets/audio/survival/liquid_pour_02_DEMO_ONLY.ogg")], "volume_db": -12.0, "max_seconds": 1.25},
 	"drink": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/drink_01_DEMO_ONLY.wav"), preload("res://assets/audio/survival/drink_02_DEMO_ONLY.wav")], "volume_db": -11.0},
 	"eat_tinned": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/eat_tinned_DEMO_ONLY.ogg")], "volume_db": -9.0},
 	"eat_dry": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/eat_dry_01_DEMO_ONLY.ogg"), preload("res://assets/audio/survival/eat_dry_02_DEMO_ONLY.ogg")], "volume_db": -10.0},
@@ -55,11 +67,12 @@ const CUES := {
 	"snare_empty": {"bus": "SFX", "streams": [preload("res://assets/audio/creatures/snare_empty_DEMO_ONLY.ogg")], "volume_db": -9.0},
 	"snare_catch": {"bus": "SFX", "streams": [preload("res://assets/audio/creatures/snare_catch_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"encounter_rat": {"bus": "SFX", "streams": [preload("res://assets/audio/creatures/encounter_rat_DEMO_ONLY.mp3")], "volume_db": -7.0},
-	"encounter_zombie": {"bus": "SFX", "streams": [preload("res://assets/audio/creatures/encounter_zombie_01_DEMO_ONLY.ogg"), preload("res://assets/audio/creatures/encounter_zombie_02_DEMO_ONLY.ogg")], "volume_db": -7.0},
+	"encounter_zombie": {"bus": "SFX", "streams": [preload("res://assets/audio/creatures/encounter_zombie_02_DEMO_ONLY.ogg")], "volume_db": -10.0, "pitch_min": 0.72, "pitch_max": 0.78, "max_seconds": 0.9},
 	"combat_swing": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_swing_01_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_swing_02_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_swing_03_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"combat_hit": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_hit_01_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_hit_02_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_hit_03_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"combat_rat_attack": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_rat_attack_01_DEMO_ONLY.mp3"), preload("res://assets/audio/combat/combat_rat_attack_02_DEMO_ONLY.ogg")], "volume_db": -6.0},
-	"combat_zombie_attack": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_zombie_attack_01_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_zombie_attack_02_DEMO_ONLY.ogg")], "volume_db": -6.0},
+	# Use the shortest vocal take and pitch it down into a compact, weightier strike.
+	"combat_zombie_attack": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_zombie_attack_02_DEMO_ONLY.ogg")], "volume_db": -9.0, "pitch_min": 0.72, "pitch_max": 0.78, "max_seconds": 0.85},
 	"combat_player_hurt": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_player_hurt_01_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_player_hurt_02_DEMO_ONLY.ogg")], "volume_db": -13.0},
 	"combat_enemy_down": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_enemy_down_01_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_enemy_down_02_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"combat_flee": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_flee_DEMO_ONLY.ogg")], "volume_db": -8.0},
@@ -75,6 +88,7 @@ const LOCATION_AMBIENCE := {
 	"cellar": preload("res://assets/audio/ambience/amb_cellar_loop_FALLBACK_DEMO_ONLY.mp3"),
 }
 const HEARTH_STREAM = preload("res://assets/audio/fire_cooking/hearth_fire_loop_DEMO_ONLY.wav")
+const BGM_STREAM = preload("res://assets/audio/music/bgm.wav")
 
 var audio_rng := RandomNumberGenerator.new()
 var _one_shots: Array[AudioStreamPlayer] = []
@@ -85,10 +99,14 @@ var _ambience_players: Array[AudioStreamPlayer] = []
 var _active_ambience: int = -1
 var _current_location := ""
 var _hearth_player: AudioStreamPlayer
+var _hearth_stream: AudioStream
+var _bgm_player: AudioStreamPlayer
+var _bgm_stream: AudioStream
 var _radio_player: AudioStreamPlayer
 var _hearth_active := false
 var _ambience_tweens: Array[Tween] = []
 var _hearth_tween: Tween
+var _bgm_tween: Tween
 var _radio_sequence: int = 0
 
 func _ready() -> void:
@@ -106,7 +124,16 @@ func _ready() -> void:
 		_ambience_tweens.append(null)
 	_hearth_player = AudioStreamPlayer.new()
 	_hearth_player.bus = &"Ambience"
+	_hearth_stream = HEARTH_STREAM
 	add_child(_hearth_player)
+	_bgm_player = AudioStreamPlayer.new()
+	_bgm_player.bus = &"Music"
+	_bgm_stream = BGM_STREAM
+	_bgm_player.stream = _bgm_stream
+	add_child(_bgm_player)
+	_bgm_player.finished.connect(start_bgm)
+	if is_inside_tree():
+		start_bgm()
 	_radio_player = AudioStreamPlayer.new()
 	_radio_player.bus = &"Radio"
 	add_child(_radio_player)
@@ -131,12 +158,20 @@ func play_cue(cue_name: String, volume_offset_db: float = 0.0) -> void:
 			stream_index = (stream_index + 1 + audio_rng.randi_range(0, streams.size() - 2)) % streams.size()
 	_last_stream_indices[cue_name] = stream_index
 	var player := _next_one_shot()
+	var play_token := _age
 	player.stop()
 	player.stream = streams[stream_index]
 	player.bus = StringName(cue["bus"])
 	player.volume_db = float(cue.get("volume_db", 0.0)) + volume_offset_db
 	player.pitch_scale = audio_rng.randf_range(float(cue.get("pitch_min", 1.0)), float(cue.get("pitch_max", 1.0)))
+	player.set_meta("audio_play_token", play_token)
 	player.play()
+	var max_seconds := float(cue.get("max_seconds", DEFAULT_MAX_ONE_SHOT_SECONDS))
+	if player.stream.get_length() > max_seconds:
+		get_tree().create_timer(max_seconds).timeout.connect(func() -> void:
+			if is_instance_valid(player) and int(player.get_meta("audio_play_token", -1)) == play_token:
+				player.stop()
+		)
 
 func _next_one_shot() -> AudioStreamPlayer:
 	_age += 1
@@ -152,6 +187,10 @@ func _next_one_shot() -> AudioStreamPlayer:
 	return _one_shots[oldest]
 
 func set_location(location_id: String) -> void:
+	if not LOCATION_AMBIENCE_ENABLED:
+		_stop_location_ambience()
+		_current_location = location_id
+		return
 	if location_id == _current_location or not LOCATION_AMBIENCE.has(location_id):
 		return
 	var next_index := 0 if _active_ambience != 0 else 1
@@ -181,6 +220,12 @@ func _kill_ambience_tween(index: int) -> void:
 	if tween and tween.is_valid():
 		tween.kill()
 
+func _stop_location_ambience() -> void:
+	for i in _ambience_players.size():
+		_kill_ambience_tween(i)
+		_ambience_players[i].stop()
+	_active_ambience = -1
+
 func set_hearth_active(active: bool) -> void:
 	if active == _hearth_active:
 		return
@@ -190,7 +235,7 @@ func set_hearth_active(active: bool) -> void:
 	_hearth_tween = create_tween()
 	if active:
 		_hearth_player.stop()
-		_hearth_player.stream = HEARTH_STREAM
+		_hearth_player.stream = _hearth_stream
 		_hearth_player.bus = &"Ambience"
 		_hearth_player.volume_db = -40.0
 		_hearth_player.play()
@@ -199,23 +244,10 @@ func set_hearth_active(active: bool) -> void:
 		_hearth_tween.tween_property(_hearth_player, "volume_db", -40.0, 0.4)
 		_hearth_tween.tween_callback(_hearth_player.stop)
 
-func play_radio_listen(is_powered: bool, found_signal: bool) -> void:
+func play_radio_listen(_is_powered: bool, _found_signal: bool) -> void:
 	_radio_sequence += 1
-	var token := _radio_sequence
 	_radio_player.stop()
-	if not is_powered:
-		_play_radio_cue("radio_dead_switch")
-		return
-	_play_radio_cue("radio_switch_on")
-	_schedule_radio_cue(token, "radio_tuning", 0.28)
-	_schedule_radio_cue(token, "radio_signal_found" if found_signal else "radio_static_loop", 0.75)
-	_schedule_radio_cue(token, "radio_switch_off", 1.8)
-
-func _schedule_radio_cue(token: int, cue_name: String, delay: float) -> void:
-	get_tree().create_timer(delay).timeout.connect(func() -> void:
-		if token == _radio_sequence:
-			_play_radio_cue(cue_name)
-	)
+	_play_radio_cue(RADIO_LISTEN_CUE)
 
 func _play_radio_cue(cue_name: String) -> void:
 	var cue: Dictionary = CUES[cue_name]
@@ -227,6 +259,15 @@ func _play_radio_cue(cue_name: String) -> void:
 	_radio_player.pitch_scale = 1.0
 	_radio_player.play()
 
+func start_bgm() -> void:
+	if _bgm_tween and _bgm_tween.is_valid():
+		_bgm_tween.kill()
+	if not _bgm_player.playing:
+		_bgm_player.volume_db = -40.0
+		_bgm_player.play()
+	_bgm_tween = create_tween()
+	_bgm_tween.tween_property(_bgm_player, "volume_db", 0.0, 1.5)
+
 func stop_all(fade_seconds: float = 0.0) -> void:
 	_radio_sequence += 1
 	for player in _one_shots:
@@ -235,6 +276,7 @@ func stop_all(fade_seconds: float = 0.0) -> void:
 		for ambience in _ambience_players:
 			ambience.stop()
 		_hearth_player.stop()
+		_bgm_player.stop()
 		_radio_player.stop()
 		_active_ambience = -1
 		_current_location = ""
@@ -252,6 +294,11 @@ func stop_all(fade_seconds: float = 0.0) -> void:
 	_hearth_tween = create_tween()
 	_hearth_tween.tween_property(_hearth_player, "volume_db", -40.0, fade_seconds)
 	_hearth_tween.tween_callback(_hearth_player.stop)
+	if _bgm_tween and _bgm_tween.is_valid():
+		_bgm_tween.kill()
+	_bgm_tween = create_tween()
+	_bgm_tween.tween_property(_bgm_player, "volume_db", -40.0, fade_seconds)
+	_bgm_tween.tween_callback(_bgm_player.stop)
 	_radio_player.stop()
 	_active_ambience = -1
 	_current_location = ""

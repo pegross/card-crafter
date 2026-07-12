@@ -2,7 +2,16 @@ extends RefCounted
 ## FOOD: rats drop meat, which is eaten raw or cooked over a fire.
 ## Verifies the meat cards load, the rat's drop is wired, and the generic cook recipe exists.
 
-func run(_tree, h) -> void:
+func run(tree, h) -> void:
+	var g = tree.make_sim(41)
+	var burning_tinder: CardData = load("res://data/cards/burning_tinder.tres")
+	h.expect_eq(burning_tinder.lifetime_mins, 30, "burning tinder expires after thirty in-game minutes")
+	g.card_state["hearth"] = 50.0
+	g.lit_sources["hearth"] = true
+	g.extinguish("hearth")
+	h.expect(not g.is_lit("hearth"), "a lit fire source can be extinguished")
+	h.expect_eq(g.card_state["hearth"], 50.0, "extinguishing preserves remaining fuel")
+
 	# the two meat cards load as items
 	var raw: CardData = load("res://data/cards/rat_meat.tres")
 	h.expect(raw != null, "rat_meat.tres loads")

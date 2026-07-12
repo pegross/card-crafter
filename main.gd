@@ -26,7 +26,7 @@ var CARD_FILES := {}
 ## Locations: the fixtures/stations present there, and where you can travel from it.
 var LOCATIONS := {
 	"lordly_manor": {"title": "Manor", "the": true, "indoor": true, "fixtures": ["radio"], "connections": {"the_grounds": 0}, "stripped_log": "You have been through every room. The house has given up all it holds.",
-		"pool": {"finite": [{"kind": "fixture", "id": "broken_hearth", "milestone": 1, "log": "A hearth at the far end of the hall, fallen in and long cold."}, {"kind": "location", "id": "cellar", "milestone": 50, "mins": 0}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}, {"kind": "flavor", "milestone": 65, "log": "Framed faces on the mantel, gone soft and brown with the damp. No one you know, and no one left to ask."}, {"kind": "ground", "id": "wool_blanket", "milestone": 90, "log": "In a back bedroom, folded in a cedar chest, a heavy wool blanket. Dry, somehow, after all this time."}], "renewable": []}},
+		"pool": {"finite": [{"kind": "fixture", "id": "broken_hearth", "milestone": 1, "log": "A hearth at the far end of the hall, fallen in and long cold."}, {"kind": "location", "id": "cellar", "milestone": 50, "mins": 0, "log": "A door you had not tried opens onto stairs going down."}, {"kind": "ground", "id": "canned_food", "between": [15, 85]}, {"kind": "ground", "id": "bandage", "milestone": 30, "log": "A first-aid tin in the bathroom cabinet, most of it still intact."}, {"kind": "ground", "id": "plastic_bottle", "milestone": 55, "log": "An empty bottle rolled under the kitchen sink."}, {"kind": "ground", "id": "canned_food", "milestone": 78, "log": "A dented tin at the back of the pantry."}, {"kind": "flavor", "milestone": 65, "log": "Framed faces on the mantel, gone soft and brown with the damp. No one you know, and no one left to ask."}, {"kind": "ground", "id": "wool_blanket", "milestone": 90, "log": "In a back bedroom, folded in a cedar chest, a heavy wool blanket. Dry, somehow, after all this time."}], "renewable": []}},
 	"the_grounds": {"title": "Grounds", "the": true, "indoor": false, "fixtures": ["rain_barrel"], "connections": {"the_woods": 45},
 		"pool": {"finite": [{"kind": "location", "id": "lordly_manor", "milestone": 40, "mins": 0, "log": "Past a fallen gate, the house stands dark. A way in, at last."}], "renewable": [{"kind": "ground", "id": "firewood", "max": 2}, {"kind": "ground", "id": "stone", "max": 4}]}},
 	"the_woods": {"title": "Woods", "the": true, "indoor": false, "fixtures": ["oak_tree"], "connections": {"the_grounds": 45},
@@ -44,22 +44,19 @@ var GROUND_START := {
 ## Single-card (click) actions.
 var ACTIONS := {
 	"hearth": [
-		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "audio": "hearth_add_wood", "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands.", "once_log": "You reach back for how you came to be here. Only the edge of it, and cold beyond.", "once_key": "fireside_amnesia"},
+		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "audio": "sleep_settle", "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands.", "once_log": "You reach back for how you came to be here. Only the edge of it, and cold beyond.", "once_key": "fireside_amnesia"},
 	],
 	"oak_tree": [
-		{"label": "Fell the tree (30m)", "mins": 30, "audio": "wood_axe_oak", "fx": {"Energy": -8.0, "Calories": -7.0, "Hydration": -6.0, "Warmth": 5.0}, "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
+		{"label": "Fell the tree (30m)", "mins": 30, "physical": true, "effort": 1.5, "audio": "wood_axe_oak", "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
 	],
 	"the_woods": [
-		{"label": "Forage (45m)", "mins": 45, "audio": "search_outdoors", "fx": {"Energy": -6.0, "Mental": 2.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 3.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
+		{"label": "Forage (45m)", "mins": 45, "physical": true, "audio": "search_outdoors", "fx": {"Mental": 2.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
 	],
 	"lordly_manor": [
-		{"label": "Search the manor (30m)", "mins": 30, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms. A door you had not tried opens onto stairs going down."},
+		{"label": "Search the manor (30m)", "mins": 30, "physical": true, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms, one after another."},
 	],
 	"the_grounds": [
-		{"label": "Search the grounds (15m)", "mins": 15, "audio": "search_outdoors", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
-	],
-	"broken_hearth": [
-		{"label": "Rebuild the hearth", "buildsite": "manor_hearth"},
+		{"label": "Search the grounds (15m)", "mins": 15, "physical": true, "audio": "search_outdoors", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
 	],
 	"spoiled_meat": [
 		{"label": "Choke it down (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will turn on you for it."},
@@ -80,7 +77,7 @@ var ACTIONS := {
 		{"label": "Wear it", "wear": "hide_coat", "log": "You shrug the coat on. Stiff and heavy, but it cuts the cold at once."},
 	],
 	"cellar": [
-		{"label": "Search the cellar (30m)", "mins": 30, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
+		{"label": "Search the cellar (30m)", "mins": 30, "physical": true, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
 	],
 	"forage_food": [
 		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 18.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
@@ -95,7 +92,7 @@ var ACTIONS := {
 		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 16.0, "Calories": 3.0}, "consume": true, "log": "You gnaw a strip of the smoked meat. Lean and tough, but it holds you together."},
 	],
 	"log": [
-		{"label": "Split for firewood (15m)", "mins": 15, "audio": "wood_split", "fx": {"Energy": -6.0, "Calories": -6.0, "Hydration": -5.0, "Warmth": 4.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
+		{"label": "Split for firewood (15m)", "mins": 15, "physical": true, "effort": 1.4, "audio": "wood_split", "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
 	],
 	"herbal_remedy": [
 		{"label": "Drink the remedy (5m)", "mins": 5, "audio": "drink", "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
@@ -107,7 +104,7 @@ var ACTIONS := {
 		{"label": "Bind your wounds (10m)", "mins": 10, "audio": "bandage_apply", "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
 	],
 	"radio": [
-		{"label": "Listen (15m)", "mins": 15, "fx": {"Mental": -2.0}, "radio_listen": true},
+		{"label": "Listen (15m)", "mins": 15, "fx": {"Mental": 6.0}, "radio_listen": true},
 	],
 	"rat": [
 		{"label": "Deal with it", "fight": true},
@@ -143,7 +140,6 @@ var top_head: Label
 var log_label: Label
 var inv_head: Label
 var cond_tray: VBoxContainer
-var fatigue_bar: ProgressBar
 var weight_bar: ProgressBar
 var weight_fill: StyleBoxFlat
 var weather_label: Label
@@ -189,6 +185,7 @@ var _combat_context: String = "table"  ## table (normal) | siege (unfleeable hor
 var _siege_waves_left: int = 0
 var combat_flee_btn: Button
 var hurt_flash: ColorRect
+var passout_dim: ColorRect
 var _shake_tween: Tween
 var time_layer: Control
 var _clock_face: ClockFace
@@ -225,7 +222,9 @@ func _ready() -> void:
 	_build_death()
 	_build_combat()
 	_build_hurt_flash()
+	_build_passout_dim()
 	_populate()
+	Audio.start_bgm()
 	Game.changed.connect(_refresh)
 	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
@@ -441,24 +440,8 @@ func _build_left() -> Control:
 
 	vb.add_child(HSeparator.new())
 	vb.add_child(_label("CONDITION", COLD, 11))
-	for m in ["Calories", "Satiation", "Hydration", "Warmth", "Energy", "Immune", "Mental"]:
+	for m in ["Calories", "Satiation", "Hydration", "Warmth", "Energy", "Sleep", "Immune", "Mental"]:
 		vb.add_child(_make_meter(m))
-	var fbox := VBoxContainer.new()
-	fbox.add_theme_constant_override("separation", 4)
-	fbox.add_child(_label("Sleep-debt", INK, 12))
-	fatigue_bar = ProgressBar.new()
-	fatigue_bar.min_value = 0.0
-	fatigue_bar.max_value = 100.0
-	fatigue_bar.show_percentage = false
-	fatigue_bar.custom_minimum_size = Vector2(0, 11)
-	fatigue_bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 5))
-	var ffill := StyleBoxFlat.new()
-	ffill.bg_color = WARM
-	ffill.set_corner_radius_all(5)
-	fatigue_bar.add_theme_stylebox_override("fill", ffill)
-	fatigue_bar.tooltip_text = Game.need_desc("Sleep-debt")
-	fbox.add_child(fatigue_bar)
-	vb.add_child(fbox)
 	var wbox := VBoxContainer.new()
 	wbox.add_theme_constant_override("separation", 4)
 	wbox.add_child(_label("Weight", INK, 12))
@@ -633,7 +616,7 @@ func _on_research_pick(id: String) -> void:
 func _make_meter(m: String) -> Control:
 	var box := VBoxContainer.new()
 	box.add_theme_constant_override("separation", 4)
-	box.add_child(_label("Immunity" if m == "Immune" else m, INK, 12))
+	box.add_child(_label({"Immune": "Immunity", "Energy": "Stamina"}.get(m, m), INK, 12))
 	var bar := ProgressBar.new()
 	bar.min_value = 0.0
 	bar.max_value = 100.0
@@ -963,6 +946,7 @@ func _wrapped(txt: String, col: Color, sz: int, w: int = 396) -> Label:
 
 func _render_card_detail() -> void:
 	var card := _menu_card
+	var build_project_id := "" if card == null else card.data.build_project
 	if card == null:
 		detail_body.add_child(_char_tabs("card"))
 	detail_body.add_child(_label("YOU" if card == null else _detail_category(card), COLD, 11))
@@ -977,8 +961,14 @@ func _render_card_detail() -> void:
 		var st := card.state_summary()
 		if st != "":
 			detail_body.add_child(_label(st, WARM_SOFT, 12))
-	detail_body.add_child(HSeparator.new())
+	if build_project_id != "":
+		detail_body.add_child(HSeparator.new())
+		_render_build_project(build_project_id, false)
+	if not _menu_actions.is_empty() or build_project_id == "":
+		detail_body.add_child(HSeparator.new())
 	if _menu_actions.is_empty():
+		if build_project_id != "":
+			return
 		var hint := "Nothing to do with it just now."
 		if card != null:
 			if RECIPES.has(card.data.id):
@@ -1082,15 +1072,29 @@ func _render_buildsite() -> void:
 	if not Game.CONSTRUCTION.has(id):
 		_open_craft_hub()
 		return
+	_render_build_project(id, true)
+	var back := _detail_action_btn("Back")
+	back.pressed.connect(_open_craft_hub)
+	detail_body.add_child(back)
+
+## Shared construction recipe UI. A blueprint card gets its normal full card art
+## from _render_card_detail, while a world fixture (such as the broken hearth)
+## embeds exactly the same controls beneath its own description.
+func _render_build_project(id: String, show_project_identity: bool) -> void:
+	if not Game.CONSTRUCTION.has(id):
+		detail_body.add_child(_wrapped("This construction plan is no longer available.", BLOOD, 12))
+		return
 	var proj: Dictionary = Game.CONSTRUCTION[id]
-	detail_body.add_child(_label("CONSTRUCTION", COLD, 11))
+	detail_body.add_child(_label("CONSTRUCTION" if show_project_identity else str(proj["label"]).to_upper(), COLD, 11))
 	if Game.build_done(id):
-		detail_body.add_child(_label(str(proj.get("done_label", proj["label"])), INK_STRONG, 20))
-		detail_body.add_child(_wrapped(str(proj.get("done_desc", "")), MUTED, 13))
+		if show_project_identity:
+			detail_body.add_child(_label(str(proj.get("done_label", proj["label"])), INK_STRONG, 20))
+			detail_body.add_child(_wrapped(str(proj.get("done_desc", "")), MUTED, 13))
 		detail_body.add_child(_label("Finished.", WARM_SOFT, 12))
 	else:
-		detail_body.add_child(_label(str(proj["label"]), INK_STRONG, 20))
-		detail_body.add_child(_wrapped(str(proj.get("broken_desc", "")), MUTED, 13))
+		if show_project_identity:
+			detail_body.add_child(_label(str(proj["label"]), INK_STRONG, 20))
+			detail_body.add_child(_wrapped(str(proj.get("broken_desc", "")), MUTED, 13))
 		var phases: Array = proj["phases"]
 		var idx := Game.build_phase_idx(id)
 		var phase: Dictionary = phases[idx]
@@ -1111,9 +1115,6 @@ func _render_buildsite() -> void:
 		detail_body.add_child(wb)
 		if not have_all:
 			detail_body.add_child(_wrapped("You need the materials to hand first, on the ground here or in your pack.", MUTED, 11))
-	var back := _detail_action_btn("Back")
-	back.pressed.connect(_open_craft_hub)
-	detail_body.add_child(back)
 
 func _goto_detail_mode(mode: String) -> void:
 	_detail_mode = mode
@@ -1161,22 +1162,25 @@ func _do_build_phase(id: String) -> void:
 	Audio.play_cue(str(phase.get("audio", "construction_wood")))
 	var wmin: int = int(phase.get("work_mins", 60))
 	var before := Game.meters.duplicate()
-	var fx := {"Energy": -6.0, "Calories": -4.0, "Hydration": -4.0, "Warmth": 4.0}
-	for k in fx:
-		Game.modify(k, fx[k])
-	Game.advance_time(wmin)
+	var fx := {}  # all effort costs (Stamina, food, water, sleep) come from the physical flag below
+	Game.advance_time(wmin, false, true, 1.3)  # construction is heavy physical work
 	_show_time_passing(wmin)
 	Game.gain_skill("crafting", 3.0)
 	if phase.has("log"):
 		Game.add_log(str(phase["log"]))
 	Game.complete_build_phase(id)
+	var replacement_card: CardIcon = null
+	var follow_replacement := false
 	# a finished project can swap a board fixture in place (the broken hearth becomes the working one)
 	if Game.build_done(id) and Game.CONSTRUCTION[id].has("on_done_swap"):
 		var sw: Array = Game.CONSTRUCTION[id]["on_done_swap"]
-		_swap_fixture(str(sw[0]), str(sw[1]))
+		follow_replacement = detail_layer != null and detail_layer.visible and _detail_mode == "card" and is_instance_valid(_menu_card) and _menu_card.data.id == str(sw[0])
+		replacement_card = _swap_fixture(str(sw[0]), str(sw[1]))
 	_animate_meters(before, fx)
 	on_layout_changed()
-	if detail_layer and detail_layer.visible:
+	if follow_replacement and is_instance_valid(replacement_card):
+		on_card_clicked(replacement_card)
+	elif detail_layer and detail_layer.visible:
 		_open_detail()
 
 func _do_craft(id: String) -> void:
@@ -1196,7 +1200,8 @@ func _do_craft(id: String) -> void:
 	Audio.play_cue(str(craft.get("audio", "construction_wood")))
 	var wmin: int = int(craft.get("work_mins", 30))
 	var before := Game.meters.duplicate()
-	var fx := {"Energy": -5.0, "Calories": -3.0, "Hydration": -3.0}
+	# crafting/tailoring is light bench work: no Stamina cost, so the time at it lets Stamina recover
+	var fx := {"Calories": -3.0, "Hydration": -3.0}
 	for k in fx:
 		Game.modify(k, fx[k])
 	Game.advance_time(wmin)
@@ -1421,6 +1426,15 @@ func _build_hurt_flash() -> void:
 	hurt_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hurt_flash)
 
+func _build_passout_dim() -> void:
+	# a full-screen black used to fade the world out and back in when you pass out
+	passout_dim = ColorRect.new()
+	passout_dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	passout_dim.color = Color(0.0, 0.0, 0.0, 0.0)
+	passout_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	passout_dim.visible = false
+	add_child(passout_dim)
+
 func _screen_shake(intensity: float) -> void:
 	if _shake_tween and _shake_tween.is_valid():
 		_shake_tween.kill()  # one shake at a time — no overlapping jitter-fight
@@ -1472,7 +1486,6 @@ func _combat_strike() -> void:
 		var edmg: float = Game.enemy_damage_roll(e.damage)
 		Game.take_wound(edmg)
 		Audio.play_cue("combat_rat_attack" if _combat_id == "rat" else "combat_zombie_attack")
-		Audio.play_cue("combat_player_hurt", -5.0)
 		_flash_hurt()
 		_screen_shake(6.0 + edmg * 0.25)
 		_combat_say("The %s %s you." % [enemy_name, (e.verb if e.verb != "" else "hits")])
@@ -1488,7 +1501,7 @@ func _combat_strike() -> void:
 				Game.add_condition("infection", add, "a bite")
 	# each swing costs time — the survival sim ticks for the round (may turn a wound
 	# or a low need lethal); death is surfaced by _combat_end, not mid-swing
-	Game.advance_time(COMBAT_ROUND_MINS)
+	Game.advance_time(COMBAT_ROUND_MINS, false, true)  # fighting is physical exertion
 	_refresh_combat()
 	if killed:
 		_combat_end("win")
@@ -1506,7 +1519,7 @@ func _combat_flee() -> void:
 		_flash_hurt()
 		_screen_shake(6.0)
 	_combat_say("You break away. It gets a piece of you as you go.")
-	Game.advance_time(COMBAT_ROUND_MINS)
+	Game.advance_time(COMBAT_ROUND_MINS, false, true)  # scrambling away is physical exertion
 	_refresh_combat()
 	if Game.dead:
 		_combat_end("downed")
@@ -1606,6 +1619,7 @@ func _hide_death_modal() -> void:
 
 func _restart() -> void:
 	Audio.stop_all(0.2)
+	Audio.start_bgm()
 	Game.reset()
 	LOCATIONS = _locations_initial.duplicate(true)
 	for key in rows:
@@ -1671,28 +1685,36 @@ func _load_ground(loc: String) -> void:
 		if entry is Dictionary:
 			var c := _spawn(str(entry["id"]), "middle")
 			c.spoil_at = int(entry.get("spoil_at", -1))  # keep perishables aging on absolute time
+			c.expires_at = int(entry.get("expires_at", c.expires_at))
 		else:
 			_spawn(str(entry), "middle")
-	# renewables are NOT laid out on arrival; they are found only by SEARCHING (see _process_reveals),
-	# which surfaces up to floor(stock). The stock is what is there to find, not scenery on the ground.
+	# Items already discovered here remain on the floor across travel. Searches can still
+	# surface additional renewable items up to the location's current stock ceiling.
 	_rot_food()  # catch anything that spoiled here while you were away, on arrival
+	_expire_temporary_cards()  # do not let a temporary item reappear after expiring while we were away
 
 func _save_ground(loc: String) -> void:
-	var renewable := _renewable_ground_ids(loc)
+	Game.location_ground[loc] = serialize_ground_cards(rows["middle"].get_children())
+
+static func serialize_ground_cards(cards: Array) -> Array:
 	var ids: Array = []
-	for c in rows["middle"].get_children():
+	for c in cards:
 		if c is CardIcon:
 			var ci := c as CardIcon
-			if str(ci.data.id) in renewable:
-				continue  # renewable ground is re-derived from the stock on arrival, never persisted
-			if ci.spoil_at >= 0:
-				ids.append({"id": ci.data.id, "spoil_at": ci.spoil_at})
+			if ci.spoil_at >= 0 or ci.expires_at >= 0:
+				var entry := {"id": ci.data.id}
+				if ci.spoil_at >= 0:
+					entry["spoil_at"] = ci.spoil_at
+				if ci.expires_at >= 0:
+					entry["expires_at"] = ci.expires_at
+				ids.append(entry)
 			else:
 				ids.append(ci.data.id)
-	Game.location_ground[loc] = ids
+	return ids
 
 func _rot_food() -> void:
-	# perishables past their spoil time turn to spoiled_meat, wherever they sit
+	# perishables past their spoil time spoil where they sit: meat turns to spoiled_meat (its
+	# spoils_to), plant matter (spoils_to "") simply rots away.
 	var rotting: Array = []
 	for key in ["middle", "inv"]:
 		if not rows.has(key):
@@ -1700,13 +1722,18 @@ func _rot_food() -> void:
 		for c in rows[key].get_children():
 			if c is CardIcon:
 				var ci := c as CardIcon
-				if ci.spoil_at >= 0 and ci.data.id != "spoiled_meat" and Game.spoil_stage(ci.spoil_at) == 2:
+				if ci.spoil_at >= 0 and ci.data.id != ci.data.spoils_to and Game.spoil_stage(ci.spoil_at) == 2:
 					rotting.append([ci, key])
 	for pair in rotting:
 		var rc: CardIcon = pair[0]
-		Game.add_log("The %s has turned. It is not fit to eat now." % rc.data.title.to_lower())
-		_consume_card(rc)
-		_spawn("spoiled_meat", str(pair[1]))
+		var becomes := str(rc.data.spoils_to)
+		if becomes != "":
+			Game.add_log("The %s has turned. It is not fit to eat now." % rc.data.title.to_lower())
+			_consume_card(rc)
+			_spawn(becomes, str(pair[1]))
+		else:
+			Game.add_log("The %s has spoiled to mush. You toss it." % rc.data.title.to_lower())
+			_consume_card(rc)
 
 func _travel_to(dest: String, mins: int) -> void:
 	var from_loc := Game.current_location
@@ -1771,18 +1798,24 @@ func _process_reveals(loc: String, old_pct: float, new_pct: float) -> void:
 			_reveal(e, true)  # finite = looted from the place's limited stash
 	_check_pool_stripped(loc, finite, st)
 	var renew: Array = pool.get("renewable", [])
-	for j in renew.size():
-		var e2: Dictionary = renew[j]
-		if str(e2.get("kind", "")) == "ground":
-			# GROUND renewables: a search turns up at most ONE (rarely two), never the whole stock.
-			# The stock is the ceiling you draw down over repeated searches, not a one-time dump.
-			var room := Game.stock_count(loc, str(e2["id"])) - _renew_present(loc, e2)
-			if room > 0:
-				_reveal(e2)
-				if room >= 2 and Game.rng.randf() < 0.15:
-					_reveal(e2)  # now and then a search turns up a second
-		else:
-			# FIXTURE renewables (oak_tree, rat) keep the present-count cap + chance roll unchanged.
+	# GROUND renewables: a search turns up ONE item TOTAL (rarely a second), chosen at random among
+	# whatever still has stock here - NOT one of every resource. The stock is the ceiling, drawn down
+	# over repeated searches; regrowth refills it.
+	var finds := 2 if Game.rng.randf() < 0.15 else 1
+	for _n in finds:
+		var findable: Array = []
+		for e2 in renew:
+			if str(e2.get("kind", "")) == "ground" and Game.stock_count(loc, str(e2["id"])) - _renew_present(loc, e2) > 0:
+				findable.append(e2)
+		if findable.is_empty():
+			break
+		var pick: Dictionary = findable[Game.rng.randi() % findable.size()]
+		# not guaranteed: the emptier the pool, the likelier you turn up nothing (~0.9 full to 0.1 bare)
+		if Game.rng.randf() < clampf(0.9 * Game.stock_fraction(loc, str(pick["id"])), 0.1, 0.9):
+			_reveal(pick)
+	# FIXTURE renewables (oak_tree, rat) keep their own per-fixture presence cap + chance roll
+	for e2 in renew:
+		if str(e2.get("kind", "")) == "fixture":
 			var mx: int = int(e2.get("max", 1))
 			if _renew_present(loc, e2) < mx and _roll_renewable(new_pct):
 				_reveal(e2)
@@ -1945,7 +1978,7 @@ func _transform_fixture(card: CardIcon, new_id: String) -> void:
 	_rebuild_out_there()
 
 # swap one FIXTURE for another in place (stays in the location row), e.g. broken hearth -> hearth
-func _swap_fixture(old_id: String, new_id: String) -> void:
+func _swap_fixture(old_id: String, new_id: String) -> CardIcon:
 	var loc := Game.current_location
 	var fxs: Array = LOCATIONS[loc]["fixtures"]
 	var idx := fxs.find(old_id)
@@ -1959,6 +1992,10 @@ func _swap_fixture(old_id: String, new_id: String) -> void:
 	else:
 		fxs.append(new_id)
 	_rebuild_out_there()
+	for node in rows["top"].get_children():
+		if node is CardIcon and (node as CardIcon).data.id == new_id:
+			return node as CardIcon
+	return null
 
 # ---------- trapping ----------
 func _set_snare(card: CardIcon, mins: int) -> void:
@@ -2255,7 +2292,13 @@ func on_card_clicked(card: CardIcon) -> void:
 	elif card.data.is_container:
 		_menu_actions = _container_actions(card)
 	else:
-		_menu_actions = ACTIONS.get(card.data.id, [])
+		_menu_actions = []
+		for action in ACTIONS.get(card.data.id, []):
+			if action.get("needs_fire", false) and not Game.is_fire_lit():
+				continue
+			_menu_actions.append(action)
+	if card.data.is_fire_source and Game.is_lit(card.data.id):
+		_menu_actions.append({"label": "Extinguish", "extinguish": true})
 	_open_detail()
 
 func _open_menu() -> void:
@@ -2299,8 +2342,9 @@ func _open_char_menu() -> void:
 	_menu_card = null
 	_detail_mode = "card"
 	_menu_actions = [
-		{"label": "Rest (15m)", "mins": 15, "fx": {"Mental": 3.0}, "log": "You sit a while, eyes shut. Not sleep, but it steadies you a little."},
-		{"label": "Sleep until rested", "sleep": true},
+		{"label": "Rest (15m)", "mins": 15, "fx": {"Energy": 25.0, "Mental": 2.0}, "log": "You sit a while, easing the ache from your limbs. Not sleep, but you get your wind back."},
+		{"label": "Nap (a few hours)", "nap": true},
+		{"label": "Sleep until morning", "sleep": true},
 	]
 	if Game.worn != "":
 		_menu_actions.append({"label": "Take off the %s" % _card_title(Game.worn).to_lower(), "take_off": true})
@@ -2310,50 +2354,106 @@ func _on_portrait_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
 		_open_char_menu()
 
+# A jolt-awake check shared by sleeping. Returns true (and logs) if cold/thirst/hunger breaks the rest.
+func _sleep_interrupted(floor_v: float) -> bool:
+	if Game.meters["Hydration"] >= floor_v and Game.meters["Satiation"] >= floor_v and Game.meters["Warmth"] >= floor_v:
+		return false
+	var hyd: float = Game.meters["Hydration"]
+	var sat: float = Game.meters["Satiation"]
+	var wrm: float = Game.meters["Warmth"]
+	if wrm <= hyd and wrm <= sat:
+		Game.add_log("You jolt awake shivering, too cold to lie still. A ruined night.")
+	elif hyd <= sat:
+		Game.add_log("You jolt awake with your throat like paper, too parched to sleep. A ruined night.")
+	else:
+		Game.add_log("You jolt awake with your stomach clawing at itself, too hungry to rest. A ruined night.")
+	return true
+
+# Sleep restores the deep Sleep need (and refreshes Stamina). Wakes when fully rested or after ~12h.
 func _sleep() -> void:
 	Audio.play_cue("sleep_settle")
 	var before := Game.meters.duplicate()
 	var guard := 0
 	var _t0 := Game.day * 1440 + Game.minute
-	while guard < 48 and not Game.dead and Game.fatigue > 0.0:
+	while guard < 24 and not Game.dead and Game.meters["Sleep"] < 100.0:
 		guard += 1
 		Game.advance_time(30, true)
-		if Game.meters["Hydration"] < 10.0 or Game.meters["Calories"] < 10.0 or Game.meters["Warmth"] < 10.0:
-			var hyd: float = Game.meters["Hydration"]
-			var cal: float = Game.meters["Calories"]
-			var wrm: float = Game.meters["Warmth"]
-			if wrm <= hyd and wrm <= cal:
-				Game.add_log("You jolt awake shivering, too cold to lie still. A ruined night.")
-			elif hyd <= cal:
-				Game.add_log("You jolt awake with your throat like paper, too parched to sleep. A ruined night.")
-			else:
-				Game.add_log("You jolt awake with your stomach clawing at itself, too hungry to rest. A ruined night.")
+		if _sleep_interrupted(10.0):
 			break
 	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
-	if not Game.dead and Game.fatigue <= 0.0:
-		Game.add_log("You sleep hard and wake clear-headed. The debt is paid.")
+	if not Game.dead and Game.meters["Sleep"] >= 99.0:
+		Game.add_log("You sleep hard and wake clear-headed and rested.")
 	_animate_meters(before, {})
 	on_layout_changed()
 
+# A nap tops up Sleep partway: a capped span (up to 4h), never a substitute for a full night.
+func _nap() -> void:
+	Audio.play_cue("sleep_settle")
+	var before := Game.meters.duplicate()
+	var guard := 0
+	var _t0 := Game.day * 1440 + Game.minute
+	while guard < 8 and not Game.dead and Game.meters["Sleep"] < 100.0:
+		guard += 1
+		Game.advance_time(30, true)
+		if _sleep_interrupted(10.0):
+			break
+	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
+	if not Game.dead:
+		if Game.meters["Sleep"] >= 99.0:
+			Game.add_log("You wake from the nap fully rested.")
+		else:
+			Game.add_log("You wake from the nap, some of the edge off but not truly rested.")
+	_animate_meters(before, {})
+	on_layout_changed()
+
+# Fade the whole screen to/from black (used when you pass out). Awaitable.
+func _fade_black(from_a: float, to_a: float, dur: float) -> void:
+	if passout_dim == null:
+		return
+	passout_dim.visible = true
+	passout_dim.mouse_filter = Control.MOUSE_FILTER_STOP  # block input while you're out cold
+	passout_dim.color.a = from_a
+	var t := create_tween()
+	t.tween_property(passout_dim, "color:a", to_a, dur)
+	await t.finished
+	if to_a <= 0.0:
+		passout_dim.visible = false
+		passout_dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+# Forced collapse when a rest axis bottoms out. "rest" = spent (Stamina 0): a short, poor-quality
+# forced rest. "sleep" = passed out (Sleep 0): a real collapse-sleep. The screen fades to black.
 func _collapse_sleep() -> void:
 	if Game.dead:
 		return
 	_collapsing = true
+	var kind: String = Game.force_sleep_kind
+	Game.force_sleep_kind = ""
 	Audio.play_cue("collapse")
 	var before := Game.meters.duplicate()
-	Game.add_log("Your legs go. You are asleep before you hit the floor.")
-	var guard := 0
-	var _t0 := Game.day * 1440 + Game.minute
-	while guard < 48 and not Game.dead and Game.fatigue > 0.0:
-		guard += 1
-		Game.advance_time(30, true)
-		if Game.meters["Hydration"] < 5.0 or Game.meters["Calories"] < 5.0 or Game.meters["Warmth"] < 5.0:
-			break  # wake before a cold/thirst/hunger collapse turns lethal
-	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
-	if not Game.dead:
-		Game.meters["Energy"] = maxf(Game.meters["Energy"], 20.0)
+	if kind == "sleep":
+		Game.add_log("You cannot keep your eyes open. You are asleep before you hit the floor.")
+	else:
+		Game.add_log("Your legs go out from under you. You slump down where you stand.")
+	# black out
+	await _fade_black(0.0, 1.0, 0.35)
+	# time passes in the dark — at least an hour is gone when you come to
+	if kind == "sleep":
+		var guard := 0
+		while guard < 24 and not Game.dead and Game.meters["Sleep"] < 60.0:
+			guard += 1
+			Game.advance_time(30, true)
+			if _sleep_interrupted(5.0):
+				break
+	else:
+		# spent to nothing: you slump for a forced hour and get back only a little (poor quality)
+		Game.advance_time(60, false)
+		if not Game.dead:
+			Game.meters["Energy"] = maxf(Game.meters["Energy"], 20.0)
 	_animate_meters(before, {})
 	on_layout_changed()
+	# hold the dark a beat, then come to
+	await get_tree().create_timer(0.7).timeout
+	await _fade_black(1.0, 0.0, 0.55)
 	_collapsing = false
 
 func _clamp_menu() -> void:
@@ -2382,6 +2482,9 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 	if act.has("sleep"):
 		_sleep()
 		return
+	if act.has("nap"):
+		_nap()
+		return
 	if act.has("travel_to"):
 		_travel_to(act["travel_to"], int(act.get("mins", 30)))
 		return
@@ -2402,6 +2505,13 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 			var row_key := "inv" if (rows.has("inv") and rows["inv"].get_child_count() < INV_CAP) else "middle"
 			_spawn(wid, row_key)
 			Game.add_log("You shrug the %s off." % _card_title(wid).to_lower())
+		on_layout_changed()
+		return
+	if act.has("extinguish"):
+		Game.extinguish(card.data.id)
+		card.sync_state()
+		Game.add_log("You smother the fire. The remaining fuel can be lit again.")
+		_sync_world_audio()
 		on_layout_changed()
 		return
 	if act.get("needs_fire", false) and not Game.is_fire_lit():
@@ -2467,12 +2577,14 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 	var _mins := int(act.get("mins", 30))
 	if act.has("audio"):
 		Audio.play_cue(str(act["audio"]))
-	if float(fx.get("Energy", 0.0)) < 0.0:
+	var physical: bool = bool(act.get("physical", false))
+	var effort: float = float(act.get("effort", 1.0))
+	if physical:
 		_mins = int(round(float(_mins) * Game.weight_toll()))  # overweight = physical work runs longer
 	var wood_work: bool = card != null and (card.data.state_kind == "fell" or card.data.state_kind == "wood")
 	if wood_work:
 		_mins = maxi(1, int(round(float(_mins) * Game.wood_speed())))  # skill makes wood work quicker
-	Game.advance_time(_mins)
+	Game.advance_time(_mins, false, physical, effort)
 	_show_time_passing(_mins)
 	if wood_work:
 		Game.gain_skill("woodworking", 3.0)
@@ -2545,8 +2657,22 @@ func _sync_world_audio() -> void:
 	Audio.set_location(Game.current_location)
 	Audio.set_hearth_active(Game.current_location == "lordly_manor" and Game.is_fire_lit())
 
+func _expire_temporary_cards() -> void:
+	var now := Game.abs_minute()
+	for key in ["middle", "inv"]:
+		if not rows.has(key):
+			continue
+		for node in rows[key].get_children().duplicate():
+			if node is CardIcon:
+				var card := node as CardIcon
+				if card.expires_at >= 0 and now >= card.expires_at:
+					if card.data.expiry_log != "":
+						Game.log_quiet(card.data.expiry_log)
+					_consume_card(card)
+
 func _refresh() -> void:
 	_sync_world_audio()
+	_expire_temporary_cards()
 	if clock_label:
 		clock_label.text = Game.time_string()
 	if temp_label:
@@ -2565,8 +2691,6 @@ func _refresh() -> void:
 		bars[m]["fill"].bg_color = c
 		bars[m]["bar"].tooltip_text = Game.need_tooltip(m)
 		bars[m]["bar"].queue_redraw()
-	if fatigue_bar:
-		fatigue_bar.value = Game.fatigue
 	if weight_bar:
 		weight_bar.value = Game.weight
 		var wc := GREEN

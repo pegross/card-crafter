@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://dp13ffovpgmbp"
+path="res://.godot/imported/Stationery_26.wav-ae6367304829124d2b9d3b0c606f8fc3.sample"
+
+[deps]
+
+source_file="res://demos/audio_source_library/extracted/oga_more_household_sounds_cc0/Paper & Stationery/Stationery_26.wav"
+dest_files=["res://.godot/imported/Stationery_26.wav-ae6367304829124d2b9d3b0c606f8fc3.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

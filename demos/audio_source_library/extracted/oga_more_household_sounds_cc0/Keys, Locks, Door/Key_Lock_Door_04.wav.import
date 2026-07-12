@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://cht383mpe38as"
+path="res://.godot/imported/Key_Lock_Door_04.wav-65f9cbe9f5f9edab40446e7af67b5072.sample"
+
+[deps]
+
+source_file="res://demos/audio_source_library/extracted/oga_more_household_sounds_cc0/Keys, Locks, Door/Key_Lock_Door_04.wav"
+dest_files=["res://.godot/imported/Key_Lock_Door_04.wav-65f9cbe9f5f9edab40446e7af67b5072.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -5,6 +5,9 @@ extends RefCounted
 
 func run(tree, h) -> void:
 	var g = tree.make_sim(3)
+	var broken_hearth: CardData = load("res://data/cards/broken_hearth.tres")
+	h.expect_eq(broken_hearth.build_project, "manor_hearth", "world fixture links directly to its construction recipe")
+	h.expect(g.CONSTRUCTION.has(broken_hearth.build_project), "world fixture construction recipe exists")
 
 	# gating: only manor projects, and research-locked ones are hidden until unlocked
 	var avail = g.construction_for("lordly_manor")

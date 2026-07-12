@@ -30,6 +30,7 @@ func keep_alive(g) -> void:
 	g.meters["Hydration"] = 80.0
 	g.meters["Warmth"] = 80.0
 	g.meters["Energy"] = 80.0
+	g.meters["Sleep"] = 80.0
 	g.meters["Immune"] = 80.0
 	g.meters["Mental"] = 80.0
 

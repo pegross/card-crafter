@@ -11,4 +11,22 @@ func run(tree, h) -> void:
 		h.expect(bus_name in ["UI", "SFX", "Ambience", "Radio"], "cue uses a configured child bus: " + cue_name)
 	for location_id in ["the_grounds", "the_woods", "lordly_manor", "cellar"]:
 		h.expect(audio.LOCATION_AMBIENCE.has(location_id), "location ambience exists: " + location_id)
+	h.expect(not audio.LOCATION_AMBIENCE_ENABLED, "unreviewed location ambience remains disabled")
+	h.expect_eq(audio.RADIO_LISTEN_CUE, "radio_dead_switch", "radio listen uses the short click only")
+	h.expect(audio.DEFAULT_MAX_ONE_SHOT_SECONDS <= 3.0, "one-shot cues have a global duration safety cap")
+	h.expect(float(audio.CUES["ui_panel_close"].get("volume_db", 0.0)) <= -18.0, "card close cue remains subtle")
+	h.expect(AudioServer.get_bus_index(&"Music") >= 0, "dedicated music bus exists")
+	h.expect(AudioServer.get_bus_volume_db(AudioServer.get_bus_index(&"Music")) >= -10.0, "music bus remains audibly mixed")
+	h.expect(audio.BGM_STREAM != null and audio.BGM_STREAM.get_length() > 60.0, "background music is registered")
+	h.expect(audio._bgm_stream == audio.BGM_STREAM, "BGM player uses the playable imported stream directly")
+	h.expect(audio._bgm_player.finished.is_connected(audio.start_bgm), "background music restarts when the track finishes")
+	h.expect(float(audio.CUES["combat_zombie_attack"].get("max_seconds", 99.0)) <= 1.0, "zombie strike stays short")
+	h.expect(float(audio.CUES["combat_zombie_attack"].get("pitch_max", 1.0)) < 0.8, "zombie strike is pitched deeper")
+	h.expect(float(audio.CUES["encounter_zombie"].get("max_seconds", 99.0)) <= 1.0, "zombie encounter vocal stays short")
+	h.expect(float(audio.CUES["encounter_zombie"].get("pitch_max", 1.0)) < 0.8, "zombie encounter vocal is pitched deeper")
+	for stream in audio.CUES["wood_axe_oak"]["streams"]:
+		h.expect(stream.get_length() < 1.0, "tree chop selects a single short impact")
+	h.expect_eq(audio.CUES["wood_axe_oak"]["streams"].size(), 1, "tree chopping always uses the dedicated axe chop")
+	for stream in audio.CUES["hearth_ignite"]["streams"]:
+		h.expect(stream.get_length() < 1.0, "hearth ignition selects a short event")
 	h.expect(audio.audio_rng is RandomNumberGenerator, "audio manager owns an isolated audio RNG")

@@ -9,4 +9,5 @@ cover_image = ExtResource("2_cover")
 id = "herbs"
 title = "Herbs"
 kind = "item"
-blurb = "Wild yarrow and mint. Bitter, and good for a sour gut."
+blurb = "Wild yarrow and mint. Bitter, and good for a sour gut. Fresh-cut, they wilt in a few days."
+spoil_hours = 72.0

@@ -11,3 +11,4 @@ title = "Cooked Rat Meat"
 kind = "item"
 blurb = "Charred until the worst of it is gone. Still rat, but warm, and food. It will not keep."
 spoil_hours = 30.0
+spoils_to = "spoiled_meat"

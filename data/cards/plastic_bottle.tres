@@ -1,11 +1,20 @@
-[gd_resource type="Resource" load_steps=3 format=3]
+[gd_resource type="Resource" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://data/card_data.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/card_art/plastic_bottle.png" id="2_cover"]
+[ext_resource type="Texture2D" path="res://assets/card_art/plastic_bottle_water.png" id="3_water"]
+[ext_resource type="Texture2D" path="res://assets/card_art/plastic_bottle_dirty_water.png" id="4_dirty"]
+[ext_resource type="Texture2D" path="res://assets/card_art/plastic_bottle_boiling_water.png" id="5_boiling"]
+[ext_resource type="Texture2D" path="res://assets/card_art/plastic_bottle_fuel.png" id="6_fuel"]
 
 [resource]
 script = ExtResource("1")
 cover_image = ExtResource("2_cover")
+cover_image_empty = ExtResource("2_cover")
+cover_image_water = ExtResource("3_water")
+cover_image_dirty_water = ExtResource("4_dirty")
+cover_image_boiling_water = ExtResource("5_boiling")
+cover_image_fuel = ExtResource("6_fuel")
 id = "plastic_bottle"
 title = "Bottle"
 kind = "item"

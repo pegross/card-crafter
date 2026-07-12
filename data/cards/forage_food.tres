@@ -9,4 +9,5 @@ cover_image = ExtResource("2_cover")
 id = "forage_food"
 title = "Forage"
 kind = "item"
-blurb = "Berries and roots. Bitter, but food."
+blurb = "Berries and roots. Bitter, but food. Fresh-picked, so it will not keep long."
+spoil_hours = 48.0

@@ -85,8 +85,9 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   `main._refresh()` re-reads everything (meters, conditions, log, card state via
   `CardIcon.sync_state()`) and repaints. Cards read their own persisted state on build.
 - **Sim -> UI one-shot flags**: `Game` sets a flag, `_refresh` consumes it. `force_sleep`
-  (Energy hit 0) triggers `_collapse_sleep`; `pending_siege` (a horde event fired) triggers
-  `_start_siege`. Both are cleared the moment `_refresh` acts on them.
+  (Exertion/`Energy` hit 0 -> a short forced rest, or `Sleep` hit 0 -> a real collapse-sleep;
+  `force_sleep_kind` says which) triggers `_collapse_sleep`; `pending_siege` (a horde event
+  fired) triggers `_start_siege`. Both are cleared the moment `_refresh` acts on them.
 - **Event director**: deterministic and telegraphed. `_director_tick` runs once per new day
   inside `advance_time`, telegraphs/fires scheduled events, and the radio only ever broadcasts
   the Director's own upcoming events (`_radio_broadcast_for_today`). No hidden RNG spikes —
@@ -140,7 +141,8 @@ still fine (run it with the same `-s` form).
   concern. Combat is the only RNG in the game.
 - `LETHAL_METERS` is `[]`. No need kills instantly at 0 anymore; deprivation feeds a growing
   condition (low Warmth -> `hypo`, low Hydration -> `dehydration`, low Calories burns
-  `weight` -> starvation). Energy at 0 forces sleep, not death.
+  `weight` -> starvation, low Exertion -> `exhaustion`). Neither rest axis is lethal: Exertion
+  (`Energy`) at 0 drops you into a short forced rest, `Sleep` at 0 into a collapse-sleep.
 - `shelter_damp()` / `shelter_defense()` are **global**, hardcoded to the manor's build ids.
   When a second shelter lands they must become per-location (noted in the source comments).
 - Two-place edits are easy to half-do: a `RECIPES` entry with no `perform_recipe` branch

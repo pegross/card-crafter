@@ -22,6 +22,11 @@ func run(tree, h) -> void:
 	h.expect_eq(g.stock_count("nowhere", "firewood"), 0, "stock_count of an absent location is 0")
 	h.expect_eq(g.stock_count("loc_a", "nothing"), 0, "stock_count of an absent id is 0")
 
+	# stock_fraction is S/K clamped 0..1 (drives how likely a search turns something up); 0 if absent
+	g.stocks["loc_a"]["firewood"]["S"] = 2.0
+	h.expect_near(g.stock_fraction("loc_a", "firewood"), 0.5, "stock_fraction is S/K", 0.0001)
+	h.expect_eq(g.stock_fraction("nowhere", "firewood"), 0.0, "stock_fraction of an absent slot is 0")
+
 	# _tick_stocks grows S toward K and clamps: it never exceeds K no matter how long it runs
 	g.day = 1  # Autumn (firewood's season multiplier is 1.0 in every season)
 	g.stocks["loc_a"]["firewood"]["S"] = 2.0

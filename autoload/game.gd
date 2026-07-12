@@ -11,8 +11,27 @@ var day: int = 1
 var minute: int = 8 * 60  ## minutes since midnight (starts 08:00)
 const HEARTH_BURN_PER_HOUR := 12.0  ## the hearth's Fuel % burns down this fast
 const SNARE_CATCH_PER_HOUR := 7.0  ## a set snare fills this much per in-world hour; a catch comes at 100 (~14h)
-const FATIGUE_ACCRUAL := 4.5   ## sleep-debt gained per waking hour (scales with duration)
-const FATIGUE_SLEEP_CLEAR := 14.0  ## sleep-debt cleared per sleeping hour * sleep_quality
+## TWO REST AXES. The "Energy" meter is your STAMINA right now (100 = fresh, 0 = collapse): physical
+## work burns it fast, and it climbs back on its own during light activity or rest — so play runs in
+## bursts (explore, explore, catch your breath, explore). The "Sleep" meter is the deeper rest need:
+## it drains across the waking day (faster the more spent you are) and only a nap or a full night
+## restores it — resting your stamina back up can never touch it.
+const STAMINA_DRAIN_PHYSICAL := 40.0  ## Stamina burned per hour of PHYSICAL action (heavy work / exploring)
+const STAMINA_RECOVER := 24.0      ## Stamina regained per waking hour of light activity / rest
+const SLEEP_DRAIN_BASE := 3.5      ## Sleep lost per waking hour when fresh (full Stamina)
+const SLEEP_DRAIN_SPENT := 3.5     ## extra Sleep lost per hour, scaled by how spent your Stamina is
+const SLEEP_RESTORE := 12.0        ## Sleep regained per sleeping hour * sleep_quality
+const WARMTH_NEUTRAL := 17.0       ## ambient °C at which body Warmth holds steady; below it you shed heat
+const WARMTH_RATE := 0.5           ## Warmth °-delta per hour per degree away from neutral
+const WARMTH_PER_EXERTION := 0.5   ## body heat gained per point of Stamina burned on physical work
+const SWEAT_LIGHT := 0.08          ## wetness gained per point of Stamina burned, when fresh
+const SWEAT_HEAVY := 0.30          ## extra wetness per point, scaling up as you run yourself down
+## Physical work is FUELLED by food and water and wears you toward sleep — a whole day of heavy
+## labour means you must eat, drink and sleep to keep it up. All per point of Stamina burned.
+const SATIATION_PER_EXERTION := 0.25  ## hunger from work: refill it by eating
+const HYDRATION_PER_EXERTION := 0.15  ## thirst from work: refill it by drinking
+const CALORIES_PER_EXERTION := 0.10   ## a small bite into the deeper food reserve on top of hunger
+const SLEEP_PER_EXERTION := 0.08      ## extra Sleep debt per point of Stamina burned (heavy days need real rest)
 var temperature: float = 14.0  ## indoor °C — rises while the fire is lit, falls when it's out
 var outdoor_temp: float = 1.0  ## outdoor °C (weather + season drive it)
 ## SEASONS — start in Autumn so the first winter is on its way. Cyclical: Autumn/Winter/Spring/Summer.
@@ -31,7 +50,8 @@ var location_indoor: bool = false  ## is the current location sheltered (drives 
 var lit_sources: Dictionary = {}  ## fire-source card id -> currently burning (fuel can sit unlit)
 var weather: String = "overcast"  ## clear / overcast / rain
 var wet: float = 0.0  ## 0..100; rises outdoors in rain, dries indoors/by fire
-var force_sleep: bool = false  ## set when Energy hits 0 -> main triggers a collapse-sleep
+var force_sleep: bool = false  ## set when Stamina or Sleep hits 0 -> main triggers a forced collapse
+var force_sleep_kind: String = ""  ## "rest" (spent, a short forced rest) or "sleep" (passed out, a real collapse-sleep)
 
 ## EQUIPMENT — a single worn slot. The card id of the garment on your back, "" = nothing worn.
 ## Worn clothing has no loose card while it is on you; taking it off re-spawns the card.
@@ -327,16 +347,16 @@ var meters := {
 	"Hydration": 74.0,
 	"Warmth": 70.0,
 	"Energy": 85.0,
+	"Sleep": 90.0,
 	"Immune": 78.0,
 	"Mental": 64.0,
 }
 
-## Drain per in-game HOUR of elapsed action-time (provisional). Warmth is handled
-## separately by the fire, so it is not in this table.
+## Drain per in-game HOUR of elapsed action-time (provisional). Warmth, Energy (stamina) and
+## Sleep are handled separately (they can rise as well as fall), so they are not in this table.
 var _drain := {
 	"Satiation": 4.0,
-	"Hydration": 5.0,
-	"Energy": 2.5,
+	"Hydration": 2.0,
 	"Immune": 0.2,
 	"Mental": 0.3,
 }
@@ -396,6 +416,16 @@ const CONDITIONS := {
 			{"name": "Failing", "enter": 82.0, "exit": 68.0, "tell": "Your body is shutting down for want of water.", "mult": {"Mental": 1.6}, "decay": 0.0, "lethal": true, "death": "thirst"},
 		],
 	},
+	"exhaustion": {
+		"decay_per_hour": 0.0,
+		"title": "Exhaustion",
+		"desc": "You have pushed past your limits and your body is running on its reserves.",
+		"stages": [
+			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 0.0},
+			{"name": "Worn Out", "enter": 25.0, "exit": 15.0, "tell": "Your limbs are heavy and slow. You need to ease off.", "mult": {"Mental": 1.3}, "decay": 0.0},
+			{"name": "Burning Out", "enter": 60.0, "exit": 45.0, "tell": "You are running on fumes now, and it is starting to cost you.", "mult": {"Mental": 1.5, "Immune": 1.3}, "decay": 0.0},
+		],
+	},
 	"infection": {
 		"decay_per_hour": 0.0,
 		"incubation_hours": 8.0,
@@ -419,7 +449,6 @@ var health_log: Array[String] = []  ## persistent, cause-stamped condition histo
 var dead: bool = false
 var obituary: String = ""
 var cond_pending: Array = []  ## incubating doses: {id, amt, ready (abs minute), cause}
-var fatigue: float = 0.0  ## sleep-debt 0..100; accrues awake, cleared only by sleep; caps Energy
 var mental_driver: String = ""  ## biggest current Mental drain source (for tooltip + obituary)
 var weight: float = 55.0  ## body mass 0..100 (~50 ideal); Calorie surplus feeds it, deficit burns it
 var weight_warned: bool = false  ## one-shot "wasting away" tell latch
@@ -434,8 +463,8 @@ func is_fire_lit() -> bool:
 func is_lit(id: String) -> bool:
 	return bool(lit_sources.get(id, false)) and card_state.get(id, 0.0) > 0.0
 
-func energy_cap() -> float:
-	return 100.0 - 0.6 * fatigue
+func extinguish(id: String) -> void:
+	lit_sources[id] = false
 
 func hhmm() -> String:
 	@warning_ignore("integer_division")
@@ -610,6 +639,14 @@ func stock_count(loc: String, id: String) -> int:
 	if stocks.has(loc) and stocks[loc].has(id):
 		return int(floor(float(stocks[loc][id]["S"])))
 	return 0
+
+func stock_fraction(loc: String, id: String) -> float:
+	# 0..1 fullness of a stock; the search uses it so an emptier pool is likelier to turn up nothing
+	if stocks.has(loc) and stocks[loc].has(id):
+		var K: float = float(stocks[loc][id]["K"])
+		if K > 0.0:
+			return clampf(float(stocks[loc][id]["S"]) / K, 0.0, 1.0)
+	return 0.0
 
 func harvest_stock(loc: String, id: String, n: int = 1) -> void:
 	if stocks.has(loc) and stocks[loc].has(id):
@@ -847,7 +884,7 @@ func _radio_broadcast_for_today() -> String:
 			best_is_threat = is_threat
 	return best
 
-func advance_time(mins: int, sleeping := false) -> void:
+func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0) -> void:
 	var hours := float(mins) / 60.0
 	# mature any incubating doses that come due within this step: full fixed dose, drink-time cause kept (earliest wins)
 	var target_abs: int = day * 1440 + minute + mins
@@ -924,28 +961,51 @@ func advance_time(mins: int, sleeping := false) -> void:
 	var target := 19.0 if is_fire_lit() else (7.0 + season_offset() * damp)
 	temperature = lerpf(temperature, target, clampf(hours * 0.6, 0.0, 1.0))
 	# your Warmth follows the AMBIENT temperature where you actually are:
-	# indoors = the room (fire-warmed); outdoors = the weather. Below ~10C you lose heat.
+	# indoors = the room (fire-warmed); outdoors = the weather. Below the comfort point you shed heat.
 	var ambient := temperature if location_indoor else outdoor_temp
-	var warm_delta := (ambient - 10.0) * 0.6 * hours
+	var warm_delta := (ambient - WARMTH_NEUTRAL) * WARMTH_RATE * hours
 	if warm_delta < 0.0:
 		warm_delta *= (1.0 + wet / 100.0)  # being wet steepens the chill
 		if worn != "":
 			warm_delta *= warmth_insulation()  # a worn garment cuts the heat you shed
 	meters["Warmth"] = clampf(meters["Warmth"] + warm_delta, 0.0, 100.0)
-	# FATIGUE: cleared only by sleep (raising the Energy ceiling FIRST), accrues while awake
+	# STAMINA & SLEEP — the two rest axes.
 	if sleeping:
-		var f0 := fatigue
-		fatigue = maxf(0.0, fatigue - FATIGUE_SLEEP_CLEAR * sleep_quality() * hours)
-		# Energy recovered is tied to fatigue ACTUALLY cleared (kills the nap/oversleep farm)
-		meters["Energy"] = clampf(meters["Energy"] + (f0 - fatigue) * 1.4, 0.0, energy_cap())
+		# you wake un-spent: Stamina refills quickly, and the deep Sleep need rebuilds by the hour,
+		# scaled by how well you're actually sleeping (cold or a frayed mind make for poor rest).
+		var q := sleep_quality()
+		meters["Sleep"] = clampf(meters["Sleep"] + SLEEP_RESTORE * q * hours, 0.0, 100.0)
+		meters["Energy"] = clampf(meters["Energy"] + 20.0 * hours, 0.0, 100.0)
 	else:
-		fatigue = clampf(fatigue + FATIGUE_ACCRUAL * hours, 0.0, 100.0)
+		# how spent you were over this span (before the recover/burn below) drives the Sleep drain
+		var spent := 1.0 - float(meters["Energy"]) / 100.0
+		if physical:
+			# heavy work / exploring burns Stamina fast (harder work = higher effort). It is fuelled
+			# by food and water and generates body heat while it makes you sweat (the more spent you
+			# are, the more), so overexerting leaves you hungry, thirsty, damp and cooling fast.
+			var burn := STAMINA_DRAIN_PHYSICAL * hours * effort
+			meters["Energy"] = clampf(meters["Energy"] - burn, 0.0, 100.0)
+			meters["Satiation"] = clampf(meters["Satiation"] - burn * SATIATION_PER_EXERTION, 0.0, 100.0)
+			meters["Hydration"] = clampf(meters["Hydration"] - burn * HYDRATION_PER_EXERTION, 0.0, 100.0)
+			meters["Calories"] = clampf(meters["Calories"] - burn * CALORIES_PER_EXERTION, 0.0, 100.0)
+			modify("Warmth", burn * WARMTH_PER_EXERTION)
+			var sweat_frac := clampf((75.0 - float(meters["Energy"])) / 75.0, 0.0, 1.0)
+			wet = clampf(wet + burn * (SWEAT_LIGHT + SWEAT_HEAVY * sweat_frac), 0.0, 100.0)
+		else:
+			# light activity or plain rest lets Stamina climb back
+			meters["Energy"] = clampf(meters["Energy"] + STAMINA_RECOVER * hours, 0.0, 100.0)
+		# the more spent you are (and the deeper into burnout), the faster the deep Sleep need grows —
+		# and physical work drives it directly on top, so a hard day costs far more sleep than an easy one.
+		var ex_boost := 1.0 + float(cond_stage.get("exhaustion", 0)) * 0.5
+		var sleep_rate := (SLEEP_DRAIN_BASE + SLEEP_DRAIN_SPENT * spent) * ex_boost
+		if physical:
+			sleep_rate += STAMINA_DRAIN_PHYSICAL * effort * SLEEP_PER_EXERTION
+		meters["Sleep"] = clampf(meters["Sleep"] - sleep_rate * hours, 0.0, 100.0)
 		# RESEARCH advances in the background, in your waking hours (never while asleep)
 		if current_research != "":
 			research_progress += hours
 			if research_progress >= research_hours(current_research):
 				_complete_research(current_research)
-	meters["Energy"] = minf(meters["Energy"], energy_cap())
 	# WEIGHT: the slow body-mass reservoir — Calorie surplus feeds it, a deficit burns it
 	weight = clampf(weight + (meters["Calories"] - 50.0) * 0.025 * hours, 0.0, 100.0)
 	if weight < 20.0 and not weight_warned:
@@ -1025,8 +1085,8 @@ func _tick_conditions(hours: float) -> void:
 func _apply_influences(hours: float) -> void:
 	# additive cross-influences (base drains already applied). First edges -> Mental.
 	var contrib := {}
-	if fatigue > 20.0:
-		contrib["fatigue"] = (fatigue / 100.0) * 3.0 * hours
+	if meters["Sleep"] < 50.0:
+		contrib["weariness"] = ((50.0 - meters["Sleep"]) / 100.0) * 3.0 * hours
 	if cond_stage.get("gut_bug", 0) >= 3:
 		contrib["Dysentery"] = 2.0 * hours
 	var total := 0.0
@@ -1052,6 +1112,15 @@ func _apply_influences(hours: float) -> void:
 	var hst: int = cond_stage.get("hypo", 0)
 	if hst >= 1:
 		meters["Energy"] = clampf(meters["Energy"] - float(hst) * 1.5 * hours, 0.0, 100.0)
+	# EXHAUSTION: pushing Stamina below 40 draws on your reserves and burns you out; resting your
+	# stamina back up lets it recede. Its stage mults fray Mental/Immune and speed the Sleep drain.
+	var ex: float = float(conditions.get("exhaustion", 0.0))
+	if meters["Energy"] < 40.0:
+		ex += (40.0 - meters["Energy"]) * 0.25 * hours
+	else:
+		ex -= 12.0 * hours
+	conditions["exhaustion"] = clampf(ex, 0.0, 100.0)
+	_eval_stage("exhaustion")
 	# DEHYDRATION: low Hydration drives it up; drinking (raising Hydration) lets it recede.
 	# Thirst is a growing condition now, never an instant Hydration-zero death.
 	var dh: float = float(conditions.get("dehydration", 0.0))
@@ -1077,13 +1146,13 @@ func need_desc(m: String) -> String:
 		"Warmth":
 			return "Body heat. Cold, wet, and time outdoors\nbleed it away; fire and shelter bring it back.\nLet it fall far and hypothermia sets in."
 		"Energy":
-			return "What you have left in you. Spent by action,\nand capped by your sleep-debt. At zero you\ncollapse into sleep where you stand."
+			return "Your stamina right now. Heavy work and\nexploring burn it fast; light tasks and rest\nbring it back. Run it to nothing and you drop\nwhere you stand for a while."
+		"Sleep":
+			return "How rested you are. It drains through the\nwaking day, faster the harder you push\nyourself. Only a nap or a full night brings\nit back, never rest alone."
 		"Immune":
 			return "Your resistance to illness. When it's low,\ninfections take hold and worsen faster.\nNot deadly on its own."
 		"Mental":
 			return "Your grip. Frayed by exhaustion, sickness\nand cold; steadied by rest, warmth and food.\nWon't kill you, but it colours everything."
-		"Sleep-debt":
-			return "How tired you are, built up over the\nwaking day. The higher it climbs, the lower\nyour Energy can rise. Only sleep clears it."
 		"Weight":
 			return "Your body mass, the slow reserve beneath\nhunger. Eat well and it builds; go hungry\nand it burns. Bottom out and you starve;\nrun heavy and hard work costs more."
 		_:
@@ -1095,16 +1164,19 @@ func need_influences(m: String) -> String:
 		notes.append("illness is draining it faster")
 	match m:
 		"Mental":
-			if fatigue > 40.0:
-				notes.append("exhaustion is wearing on you")
+			if meters["Sleep"] < 40.0:
+				notes.append("weariness is wearing on you")
 			if cond_stage.get("gut_bug", 0) >= 3:
 				notes.append("the sickness drags at you")
 		"Energy":
-			if fatigue > 15.0:
-				notes.append("sleep-debt is holding the ceiling down")
+			if cond_stage.get("exhaustion", 0) > 0:
+				notes.append("you are burning through your reserves")
+		"Sleep":
+			if meters["Energy"] < 75.0:
+				notes.append("pushing yourself hard is wearing you down faster")
 		"Warmth":
 			var ambient: float = temperature if location_indoor else outdoor_temp
-			if ambient < 10.0:
+			if ambient < WARMTH_NEUTRAL:
 				notes.append("the cold is pulling it down" + (", worse while you're wet" if wet > 40.0 else ""))
 			elif is_fire_lit() and location_indoor:
 				notes.append("the fire is holding it up")
@@ -1149,15 +1221,20 @@ func drain_breakdown(m: String) -> String:
 	if cm.has(m):
 		parts.append("illness x%.2f" % float(cm[m]))
 	if m == "Mental":
-		if fatigue > 20.0:
-			parts.append("fatigue -%.1f/hr" % ((fatigue / 100.0) * 3.0))
+		if meters["Sleep"] < 50.0:
+			parts.append("weariness -%.1f/hr" % (((50.0 - meters["Sleep"]) / 100.0) * 3.0))
 		if cond_stage.get("gut_bug", 0) >= 3:
 			parts.append("dysentery -2.0/hr")
 	if m == "Energy":
-		parts.append("ceiling %d%% (sleep-debt)" % int(energy_cap()))
+		parts.append("burned by heavy work and exploring; light tasks or rest recover it")
+	if m == "Sleep":
+		var spent := 1.0 - float(meters["Energy"]) / 100.0
+		var ex_boost := 1.0 + float(cond_stage.get("exhaustion", 0)) * 0.5
+		parts.append("awake -%.1f/hr" % ((SLEEP_DRAIN_BASE + SLEEP_DRAIN_SPENT * spent) * ex_boost))
+		parts.append("nap or sleep to recover")
 	if m == "Warmth":
 		var ambient := temperature if location_indoor else outdoor_temp
-		var rate := (ambient - 10.0) * 0.6
+		var rate := (ambient - WARMTH_NEUTRAL) * WARMTH_RATE
 		if rate >= 0.0:
 			parts.append("warming +%.1f/hr (%d°C)" % [rate, int(round(ambient))])
 		else:
@@ -1187,6 +1264,8 @@ func _eval_stage(id: String) -> void:
 				msg = "The fever breaks and the swelling goes down."
 			elif id == "dehydration":
 				msg = "The thirst loosens its grip."
+			elif id == "exhaustion":
+				msg = "The worst of the weariness lifts. You have something back in the tank."
 			add_log(msg)
 	cond_stage[id] = cur
 
@@ -1232,9 +1311,15 @@ func _check_collapse() -> void:
 			log_lines.pop_front()
 		health_log.append(obituary)
 		return
-	# Energy at 0 forces a collapse-sleep, not death
-	if meters["Energy"] <= 0.0:
-		force_sleep = true
+	# neither rest axis is lethal: Stamina at 0 drops you into a short forced rest; Sleep at 0
+	# means you pass out into a real collapse-sleep. Stamina takes priority if both bottom out.
+	if not force_sleep:
+		if meters["Energy"] <= 0.0:
+			force_sleep = true
+			force_sleep_kind = "rest"
+		elif meters["Sleep"] <= 0.0:
+			force_sleep = true
+			force_sleep_kind = "sleep"
 
 func _cond_obituary(id: String, stage: int) -> String:
 	var s: Dictionary = CONDITIONS[id]["stages"][stage]
@@ -1295,7 +1380,7 @@ func reset() -> void:
 	stocks = {}
 	loc_indoor = {}
 	lit_sources = {}
-	meters = {"Satiation": 65.0, "Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Immune": 78.0, "Mental": 64.0}
+	meters = {"Satiation": 65.0, "Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Sleep": 90.0, "Immune": 78.0, "Mental": 64.0}
 	conditions = {}
 	cond_stage = {}
 	cond_prev = {}
@@ -1306,11 +1391,11 @@ func reset() -> void:
 	log_lines = []
 	dead = false
 	obituary = ""
-	fatigue = 0.0
 	mental_driver = ""
 	weather = "overcast"
 	wet = 0.0
 	force_sleep = false
+	force_sleep_kind = ""
 	worn = ""
 	weight = 55.0
 	weight_warned = false

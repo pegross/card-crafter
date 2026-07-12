@@ -37,7 +37,12 @@ var _click_candidate: bool = false
 var _drag_started: bool = false
 var _press_position := Vector2.ZERO
 var content: String = ""  ## for containers: current contents id ("" = empty)
+var cools_at: int = -1  ## boiling liquid: absolute game-minute when it becomes normal water
 var spoil_at: int = -1  ## perishable food: absolute game-minute it spoils (-1 = never)
+var _fresh_label: Label
+var _fresh_bar: ProgressBar
+var _fresh_fill: StyleBoxFlat
+var expires_at: int = -1  ## temporary card: absolute game-minute it disappears (-1 = permanent)
 
 func setup(card_data: CardData, main_ref) -> void:
 	data = card_data
@@ -45,6 +50,8 @@ func setup(card_data: CardData, main_ref) -> void:
 	mobile = data.kind in ["item", "resource", "tool"]
 	if data.spoil_hours > 0.0:
 		spoil_at = Game.abs_minute() + int(data.spoil_hours * 60.0)  # fresh; a loader may override
+	if data.lifetime_mins > 0:
+		expires_at = Game.abs_minute() + data.lifetime_mins  # a loader may restore the original deadline
 	custom_minimum_size = CARD_SIZE
 	self.clip_contents = true
 	size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -106,10 +113,38 @@ func setup(card_data: CardData, main_ref) -> void:
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(_title_label)
 
+	# perishables show a freshness read-out (a word + a shrinking bar) so you can see them turning
+	if data.spoil_hours > 0.0:
+		var fbox := VBoxContainer.new()
+		fbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fbox.add_theme_constant_override("separation", 2)
+		vb.add_child(fbox)
+		_fresh_label = _ilabel("", GREEN, 10)
+		fbox.add_child(_fresh_label)
+		_fresh_bar = ProgressBar.new()
+		_fresh_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_fresh_bar.min_value = 0.0
+		_fresh_bar.max_value = 100.0
+		_fresh_bar.show_percentage = false
+		_fresh_bar.custom_minimum_size = Vector2(0, 5)
+		var fbg := StyleBoxFlat.new()
+		fbg.bg_color = Color(0.039, 0.055, 0.075)
+		fbg.border_color = BORDER
+		fbg.set_border_width_all(1)
+		fbg.set_corner_radius_all(3)
+		_fresh_bar.add_theme_stylebox_override("background", fbg)
+		_fresh_fill = StyleBoxFlat.new()
+		_fresh_fill.bg_color = GREEN
+		_fresh_fill.set_corner_radius_all(3)
+		_fresh_bar.add_theme_stylebox_override("fill", _fresh_fill)
+		fbox.add_child(_fresh_bar)
+		_refresh_freshness()
+
 	if data.is_container:
 		var cst: Dictionary = Game.card_state.get(data.id, {})
 		content = str(cst.get("content", ""))
 		state_value = float(cst.get("fill", 0.0))
+		cools_at = int(cst.get("cools_at", -1))
 	else:
 		state_value = Game.card_state.get(data.id, data.state_start)
 	if data.state_kind != "" or data.is_container:
@@ -194,18 +229,65 @@ func _refresh_state() -> void:
 func _refresh_cover_image() -> void:
 	if _cover_rect == null:
 		return
-	if data.is_fire_source and Game.is_lit(data.id) and data.cover_image_lit != null:
-		_cover_rect.texture = data.cover_image_lit
-	else:
-		_cover_rect.texture = data.cover_image
+	_cover_rect.texture = current_cover_image()
+
+func current_cover_image() -> Texture2D:
+	if data.is_container:
+		match content:
+			"water":
+				if data.cover_image_water != null: return data.cover_image_water
+			"dirty_water":
+				if data.cover_image_dirty_water != null: return data.cover_image_dirty_water
+			"boiling_water":
+				if data.cover_image_boiling_water != null: return data.cover_image_boiling_water
+			"fuel":
+				if data.cover_image_fuel != null: return data.cover_image_fuel
+			"":
+				if data.cover_image_empty != null: return data.cover_image_empty
+	if data.is_fire_source:
+		var low_fuel := state_value > 0.0 and state_value < 40.0
+		if Game.is_lit(data.id):
+			if low_fuel and data.cover_image_lit_low != null:
+				return data.cover_image_lit_low
+			if data.cover_image_lit != null:
+				return data.cover_image_lit
+		if state_value <= 0.0 and data.cover_image_empty != null:
+			return data.cover_image_empty
+		if low_fuel and data.cover_image_low != null:
+			return data.cover_image_low
+	return data.cover_image
+
+func _refresh_freshness() -> void:
+	# read the perishable's remaining life off its absolute spoil-minute: a shrinking bar that
+	# goes green -> amber -> red, with a plain-language word (Fresh / Turning / Spoiled).
+	if _fresh_bar == null or spoil_at < 0:
+		return
+	var total := maxf(1.0, data.spoil_hours * 60.0)
+	var remain := float(spoil_at - Game.abs_minute())
+	_fresh_bar.value = clampf(remain / total, 0.0, 1.0) * 100.0
+	var stage := Game.spoil_stage(spoil_at)
+	var col := GREEN
+	var word := "Fresh"
+	if stage == 2:
+		col = BLOOD
+		word = "Spoiled"
+	elif stage == 1:
+		col = WARM
+		word = "Turning"
+	_fresh_fill.bg_color = col
+	_fresh_label.text = word
+	_fresh_label.add_theme_color_override("font_color", col)
 
 func sync_state() -> void:
 	# Re-read persistent state (e.g. the hearth fuel burning down over time) so
 	# passive changes from advance_time show without an explicit set_state.
+	if spoil_at >= 0:
+		_refresh_freshness()
 	if data.is_container:
 		var cst: Dictionary = Game.card_state.get(data.id, {})
 		content = str(cst.get("content", ""))
 		state_value = float(cst.get("fill", 0.0))
+		cools_at = int(cst.get("cools_at", -1))
 		_refresh_container()
 	elif data.state_kind != "":
 		state_value = Game.card_state.get(data.id, data.state_start)
@@ -254,6 +336,7 @@ func _content_display(c: String) -> String:
 	match c:
 		"water": return "Water"
 		"dirty_water": return "Dirty Water"
+		"boiling_water": return "Boiling Water"
 		"fuel": return "Fuel"
 		_: return c.capitalize()
 
@@ -261,13 +344,15 @@ func _content_color(c: String) -> Color:
 	match c:
 		"water": return COLD
 		"dirty_water": return Color(0.46, 0.42, 0.30)
+		"boiling_water": return Color(0.72, 0.82, 0.86)
 		"fuel": return WARM
 		_: return COLD
 
 func _persist_container() -> void:
-	Game.card_state[data.id] = {"content": content, "fill": state_value}
+	Game.card_state[data.id] = {"content": content, "fill": state_value, "cools_at": cools_at}
 
 func _refresh_container() -> void:
+	_refresh_cover_image()
 	# Title stays plain ("Plastic Bottle"); the contents read as a small tag by the bar.
 	if _title_label:
 		_title_label.text = data.title
@@ -285,16 +370,23 @@ func _refresh_container() -> void:
 			_state_label.text = "Empty"
 
 func _is_water(c: String) -> bool:
-	return c == "water" or c == "dirty_water"
+	return c == "water" or c == "dirty_water" or c == "boiling_water"
 
 func fill_with(content_id: String, amount: float) -> bool:
 	if content_id == "fuel" and not data.sealable:
 		return false  # only sealable containers (bottle/jerry) hold fuel
 	if content == "":
 		content = content_id
+		cools_at = Game.abs_minute() + 30 if content_id == "boiling_water" else -1
 	elif content != content_id:
 		if _is_water(content) and _is_water(content_id):
-			content = "dirty_water"  # clean + dirty always contaminates to dirty
+			if content == "dirty_water" or content_id == "dirty_water":
+				content = "dirty_water"  # any dirty water contaminates the whole container
+				cools_at = -1
+			else:
+				content = "boiling_water" if content == "boiling_water" or content_id == "boiling_water" else "water"
+				if content == "boiling_water":
+					cools_at = Game.abs_minute() + 30
 		else:
 			return false  # water and fuel do not mix
 	state_value = clampf(state_value + amount, 0.0, data.capacity)
@@ -306,15 +398,26 @@ func drain_content(amount: float) -> void:
 	state_value = maxf(0.0, state_value - amount)
 	if state_value <= 0.0:
 		content = ""
+		cools_at = -1
 	_persist_container()
 	_refresh_container()
 
-func boil() -> void:
+func boil(ready_in_mins: int = 30) -> void:
 	# dirty water boiled clean; fuel or empty containers are unaffected
 	if content == "dirty_water":
-		content = "water"
+		content = "boiling_water"
+		cools_at = Game.abs_minute() + ready_in_mins
 		_persist_container()
 		_refresh_container()
+
+func cool_if_ready() -> bool:
+	if content != "boiling_water" or cools_at < 0 or Game.abs_minute() < cools_at:
+		return false
+	content = "water"
+	cools_at = -1
+	_persist_container()
+	_refresh_container()
+	return true
 
 func set_location_badge(mode: String) -> void:
 	if _kind_label == null:

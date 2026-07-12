@@ -10,3 +10,5 @@ id = "burning_tinder"
 title = "Burning Tinder"
 kind = "item"
 blurb = "A fistful of flame. Use it now, before it's ash."
+lifetime_mins = 30
+expiry_log = "The burning tinder gutters out, leaving only cold ash."
