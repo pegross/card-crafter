@@ -33,8 +33,9 @@ when all pass, `1` otherwise.
 - `test_seasons.gd` — `season()` / `season_name()` boundaries, Winter on day 7,
   `days_left_in_season()`.
 - `test_conditions.gd` — incubation maturing after its window, `_eval_stage` thresholds,
-  hypothermia Deep Cold as a lethal condition, a large `take_wound` as instant death, the
-  composed drain multiplier capped at 1.8.
+  hypothermia Deep Cold as a lethal condition, and the composed drain multiplier cap.
+- `test_combat.gd` — weapon profiles, exhausted attacks, unique wounds, bleeding, Blood
+  lethality, pain, cleaning, bandaging, delayed infection, and wound reset behavior.
 - `test_director.gd` — the 4-event spine, telegraph timing, `_fire_event` effects
   (radio power, siege, cold-snap temp drop), the deterministic radio (threat outranks
   weather; a same-day repeat is static), and `_extend_schedule` being idempotent.

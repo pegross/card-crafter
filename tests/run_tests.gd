@@ -30,6 +30,7 @@ func _init() -> void:
 		"seasons": preload("res://tests/test_seasons.gd").new(),
 		"spoilage": preload("res://tests/test_spoilage.gd").new(),
 		"conditions": preload("res://tests/test_conditions.gd").new(),
+		"combat": preload("res://tests/test_combat.gd").new(),
 		"hunger": preload("res://tests/test_hunger.gd").new(),
 		"director": preload("res://tests/test_director.gd").new(),
 		"research": preload("res://tests/test_research.gd").new(),

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/kitchen_knife.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "kitchen_knife"
+title = "Kitchen Knife"
+kind = "tool"
+cover_image = ExtResource("2")
+blurb = "Still sharp enough. Far too close for comfort."
+is_weapon = true
+weapon_damage = 9.0
+weapon_accuracy = 0.90
+weapon_stamina = 2.0

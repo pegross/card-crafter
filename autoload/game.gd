@@ -345,6 +345,7 @@ var meters := {
 	"Satiation": 65.0,
 	"Weight": 55.0,
 	"Hydration": 74.0,
+	"Blood": 100.0,
 	"Warmth": 70.0,
 	"Energy": 85.0,
 	"Sleep": 90.0,
@@ -366,9 +367,10 @@ var log_lines: Array[String] = []
 ## NO need is instantly lethal at 0 now — deprivation spawns a growing CONDITION that kills:
 ## low Hydration -> Dehydration, low Warmth -> Hypothermia, low Weight -> starvation.
 ## Energy -> forced sleep; Immune/Mental are modifiers.
-const LETHAL_METERS := []
+const LETHAL_METERS := ["Blood"]
 
-## Conditions: hidden gauges (0..100) that bend a slider's drain and surface as a chip
+## Conditions: hidden gauges (0..100) that bend a slider's drain and surface as a chip.
+## Physical wounds are deliberately NOT conditions; they are persistent instances below.
 ## at breakpoints. Stage 0 = latent (no chip). enter/exit give hysteresis; mult scales _drain.
 const CONDITIONS := {
 	"gut_bug": {
@@ -394,15 +396,15 @@ const CONDITIONS := {
 			{"name": "Deep Cold", "enter": 82.0, "exit": 68.0, "tell": "You feel almost warm now. That is the cold lying to you.", "mult": {}, "decay": 0.0, "lethal": true, "death": "the cold"},
 		],
 	},
-	"wound": {
-		"decay_per_hour": 1.2,
-		"title": "Wound",
-		"desc": "Torn flesh from a fight. Bind it before it turns bad.",
+	"pain": {
+		"decay_per_hour": 0.0,
+		"title": "Pain",
+		"desc": "Pain from your physical wounds. It eases only as the injuries are treated and heal.",
 		"stages": [
-			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 1.2},
-			{"name": "Scratched", "enter": 15.0, "exit": 8.0, "tell": "Cuts and scrapes, stinging but shallow.", "mult": {}, "decay": 1.2},
-			{"name": "Bleeding", "enter": 45.0, "exit": 34.0, "tell": "You are bleeding, and it will not stop on its own.", "mult": {"Immune": 1.3}, "decay": 0.5},
-			{"name": "Grievous", "enter": 80.0, "exit": 66.0, "tell": "Deep wounds. You are losing more blood than you can spare.", "mult": {"Immune": 1.6}, "decay": 0.3, "lethal": true, "death": "your wounds"},
+			{"name": "", "enter": 0.0, "exit": 0.0, "tell": "", "mult": {}, "decay": 0.0},
+			{"name": "Aching", "enter": 12.0, "exit": 7.0, "tell": "Every movement pulls at the injury.", "mult": {}, "decay": 0.0},
+			{"name": "Severe Pain", "enter": 35.0, "exit": 25.0, "tell": "Pain crowds out everything else.", "mult": {"Sleep": 1.2}, "decay": 0.0},
+			{"name": "Agony", "enter": 70.0, "exit": 55.0, "tell": "You can barely think around it.", "mult": {"Sleep": 1.4}, "decay": 0.0},
 		],
 	},
 	"dehydration": {
@@ -452,6 +454,15 @@ var cond_pending: Array = []  ## incubating doses: {id, amt, ready (abs minute),
 var mental_driver: String = ""  ## biggest current Mental drain source (for tooltip + obituary)
 ## Weight is now a meter (meters["Weight"]) — the single body reserve: a full belly builds it, hunger
 ## and hard work burn it, bottoming out starves you and running heavy taxes physical work.
+var wounds: Array[Dictionary] = []  ## unique physical wound instances; rendered as cards on the survivor
+var next_wound_id: int = 1
+
+const WOUND_SEVERITY := {
+	1: {"label": "Minor", "bleed": 0.08, "pain": 12.0, "contamination": 18.0},
+	2: {"label": "Deep", "bleed": 0.80, "pain": 35.0, "contamination": 30.0},
+	3: {"label": "Grievous", "bleed": 3.50, "pain": 65.0, "contamination": 45.0},
+}
+const WOUND_PARTS := ["left arm", "right arm", "side", "left leg", "right leg", "shoulder"]
 var weight_warned: bool = false  ## one-shot "wasting away" tell latch
 
 func _ready() -> void:
@@ -735,18 +746,24 @@ func shelter_defense(loc: String) -> float:
 	return minf(d, 0.90)                 # never total: a big enough surge always gets someone through
 
 # ---------- COMBAT / SIEGE MATH (pure, uses rng — headlessly testable) ----------
-const PLAYER_STRIKE := 10.0  ## unarmed base damage per Strike (varies: miss/glance/solid/good)
+const PLAYER_STRIKE := 5.0  ## bare-hands fallback; real weapons supply their own profile
 
-func strike_roll() -> Dictionary:
-	# combat is NOT deterministic — a swing can miss, glance, land solid, or land hard
-	var r := rng.randf()
-	if r < 0.10:
+func strike_roll(base_damage: float = PLAYER_STRIKE, accuracy: float = 0.70) -> Dictionary:
+	# Exhaustion never locks the button. Adrenaline keeps the player moving, but a completely
+	# spent survivor loses at most 15% accuracy and 20% damage until the post-fight collapse.
+	var stamina: float = float(meters.get("Energy", 100.0))
+	var fatigue := clampf(stamina / 25.0, 0.0, 1.0)
+	var actual_accuracy := accuracy * lerpf(0.85, 1.0, fatigue)
+	if rng.randf() > actual_accuracy:
 		return {"dmg": 0.0, "q": "miss"}
-	elif r < 0.32:
-		return {"dmg": PLAYER_STRIKE * 0.6, "q": "glance"}
-	elif r < 0.84:
-		return {"dmg": PLAYER_STRIKE, "q": "solid"}
-	return {"dmg": PLAYER_STRIKE * 1.6, "q": "good"}
+	var quality := rng.randf()
+	var mult := 0.65 if quality < 0.24 else (1.45 if quality > 0.86 else 1.0)
+	var q := "glance" if quality < 0.24 else ("good" if quality > 0.86 else "solid")
+	return {"dmg": base_damage * mult * lerpf(0.80, 1.0, fatigue), "q": q}
+
+func spend_combat_stamina(cost: float) -> void:
+	# Always succeeds. The UI deliberately keeps combat actions available at zero.
+	meters["Energy"] = maxf(0.0, float(meters.get("Energy", 0.0)) - maxf(0.0, cost))
 
 func enemy_damage_roll(base: float) -> float:
 	return base * rng.randf_range(0.6, 1.4)
@@ -890,7 +907,7 @@ func _radio_broadcast_for_today() -> String:
 			best_is_threat = is_threat
 	return best
 
-func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0) -> void:
+func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0, combat := false) -> void:
 	var hours := float(mins) / 60.0
 	# mature any incubating doses that come due within this step: full fixed dose, drink-time cause kept (earliest wins)
 	var target_abs: int = day * 1440 + minute + mins
@@ -903,6 +920,9 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 		else:
 			still.append(dose)
 	cond_pending = still
+	# Physical injuries use the exact elapsed minutes, so a major unbandaged wound remains
+	# dangerous even during otherwise harmless actions or travel.
+	_tick_wounds(mins)
 	# trajectory basis: each gauge as of the END of the previous action (before any new insult)
 	for id in conditions:
 		cond_prev[id] = cond_last.get(id, 0.0)
@@ -996,7 +1016,7 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 			modify("Warmth", burn * WARMTH_PER_EXERTION)
 			var sweat_frac := clampf((75.0 - float(meters["Energy"])) / 75.0, 0.0, 1.0)
 			wet = clampf(wet + burn * (SWEAT_LIGHT + SWEAT_HEAVY * sweat_frac), 0.0, 100.0)
-		else:
+		elif not combat:
 			# light activity or plain rest lets Stamina climb back
 			meters["Energy"] = clampf(meters["Energy"] + STAMINA_RECOVER * hours, 0.0, 100.0)
 		# the more spent you are (and the deeper into burnout), the faster the deep Sleep need grows —
@@ -1056,12 +1076,113 @@ func cure_condition(id: String, amt: float) -> void:
 	if conditions.has(id):
 		conditions[id] = clampf(conditions[id] + amt, 0.0, 100.0)
 
-func take_wound(amount: float) -> void:
-	conditions["wound"] = clampf(conditions.get("wound", 0.0) + amount, 0.0, 100.0)
-	# combat-only: surface the stage and register a lethal wound the instant it lands,
-	# before _tick_conditions can decay the gauge back under the Grievous threshold
-	_eval_stage("wound")
-	_check_collapse()
+func create_wound(amount: float, cause: String = "combat", wound_type: String = "laceration") -> Dictionary:
+	if amount <= 0.0:
+		return {}
+	var severity := 1 if amount < 8.0 else (2 if amount < 15.0 else 3)
+	var profile: Dictionary = WOUND_SEVERITY[severity]
+	var wound := {
+		"uid": next_wound_id,
+		"type": wound_type,
+		"body_part": str(WOUND_PARTS[rng.randi() % WOUND_PARTS.size()]),
+		"severity": severity,
+		"label": "%s %s" % [str(profile["label"]), wound_type.capitalize()],
+		"bleed_per_minute": float(profile["bleed"]),
+		"pain": float(profile["pain"]),
+		"contamination": float(profile["contamination"]),
+		"cleaned": false,
+		"bandaged": false,
+		"created_at": abs_minute(),
+		"cause": cause,
+		"healing": 0.0,
+		"infection_load": 0.0,
+	}
+	next_wound_id += 1
+	wounds.append(wound)
+	_sync_wound_pain()
+	return wound
+
+func wound_index(uid: int) -> int:
+	for i in wounds.size():
+		if int(wounds[i].get("uid", -1)) == uid:
+			return i
+	return -1
+
+func get_wound(uid: int) -> Dictionary:
+	var idx := wound_index(uid)
+	return wounds[idx] if idx >= 0 else {}
+
+func clean_wound(uid: int) -> bool:
+	var idx := wound_index(uid)
+	if idx < 0 or bool(wounds[idx].get("cleaned", false)):
+		return false
+	wounds[idx]["cleaned"] = true
+	wounds[idx]["contamination"] = float(wounds[idx]["contamination"]) * 0.20
+	_sync_wound_pain()
+	return true
+
+func bandage_wound(uid: int) -> bool:
+	var idx := wound_index(uid)
+	if idx < 0 or bool(wounds[idx].get("bandaged", false)):
+		return false
+	wounds[idx]["bandaged"] = true
+	_sync_wound_pain()
+	return true
+
+func wound_bleed_rate() -> float:
+	var rate := 0.0
+	for wound in wounds:
+		if not bool(wound.get("bandaged", false)):
+			rate += float(wound.get("bleed_per_minute", 0.0))
+	return rate
+
+func bleedout_minutes() -> int:
+	var rate := wound_bleed_rate()
+	return -1 if rate <= 0.0 else int(ceil(float(meters.get("Blood", 100.0)) / rate))
+
+func _sync_wound_pain() -> void:
+	var total := 0.0
+	for wound in wounds:
+		var p := float(wound.get("pain", 0.0))
+		if bool(wound.get("bandaged", false)):
+			p *= 0.78
+		if bool(wound.get("cleaned", false)):
+			p *= 0.88
+		total += p
+	if total <= 0.0:
+		conditions.erase("pain")
+		cond_stage.erase("pain")
+		return
+	conditions["pain"] = clampf(total, 0.0, 100.0)
+	_eval_stage("pain")
+
+func _tick_wounds(mins: int) -> void:
+	var hours := float(mins) / 60.0
+	var bleed := wound_bleed_rate()
+	if bleed > 0.0:
+		meters["Blood"] = maxf(0.0, float(meters.get("Blood", 100.0)) - bleed * float(mins))
+	elif meters.get("Hydration", 0.0) > 50.0 and meters.get("Weight", 0.0) > 50.0:
+		meters["Blood"] = minf(100.0, float(meters.get("Blood", 100.0)) + 0.35 * hours)
+	var healed: Array[int] = []
+	for i in wounds.size():
+		var wound: Dictionary = wounds[i]
+		if not bool(wound.get("cleaned", false)):
+			wound["infection_load"] = float(wound.get("infection_load", 0.0)) + float(wound.get("contamination", 0.0)) * hours * 0.15
+			if float(wound["infection_load"]) >= 12.0:
+				wound["infection_load"] = float(wound["infection_load"]) - 12.0
+				add_condition("infection", 18.0, str(wound.get("cause", "an unclean wound")))
+		if bool(wound.get("bandaged", false)):
+			wound["healing"] = float(wound.get("healing", 0.0)) + (4.0 if bool(wound.get("cleaned", false)) else 1.25) * hours
+		elif int(wound.get("severity", 1)) == 1:
+			wound["healing"] = float(wound.get("healing", 0.0)) + 1.0 * hours
+		wounds[i] = wound
+		if float(wound.get("healing", 0.0)) >= 100.0:
+			healed.append(int(wound["uid"]))
+	for uid in healed:
+		var idx := wound_index(uid)
+		if idx >= 0:
+			wounds.remove_at(idx)
+	_sync_wound_pain()
 
 func _condition_multipliers() -> Dictionary:
 	var m: Dictionary = {}
@@ -1091,12 +1212,20 @@ func _tick_conditions(hours: float) -> void:
 func _apply_influences(hours: float) -> void:
 	# additive cross-influences (base drains already applied). First edges -> Mental.
 	var contrib := {}
+	var blood: float = float(meters.get("Blood", 100.0))
+	if blood < 50.0:
+		var blood_weakness := (50.0 - blood) / 50.0
+		meters["Energy"] = maxf(0.0, meters["Energy"] - 3.0 * blood_weakness * hours)
+		meters["Warmth"] = maxf(0.0, meters["Warmth"] - 2.0 * blood_weakness * hours)
 	if meters["Sleep"] < 50.0:
 		contrib["weariness"] = ((50.0 - meters["Sleep"]) / 100.0) * 3.0 * hours
 	if meters["Satiation"] < 35.0:
 		contrib["hunger"] = ((35.0 - meters["Satiation"]) / 100.0) * 4.0 * hours
 	if cond_stage.get("gut_bug", 0) >= 3:
 		contrib["Dysentery"] = 2.0 * hours
+	var pain_stage: int = cond_stage.get("pain", 0)
+	if pain_stage > 0:
+		contrib["pain"] = [0.0, 0.5, 2.0, 4.0][pain_stage] * hours
 	var total := 0.0
 	var top := ""
 	var top_amt := 0.0
@@ -1159,6 +1288,8 @@ func need_desc(m: String) -> String:
 			return "Your resistance to illness. When it's low,\ninfections take hold and worsen faster.\nNot deadly on its own."
 		"Mental":
 			return "Your grip. Frayed by exhaustion, sickness\nand cold; steadied by rest, warmth and food.\nWon't kill you, but it colours everything."
+		"Blood":
+			return "How much blood remains in your body.\nUnbandaged wounds drain it continuously.\nAt zero, you bleed out."
 		"Weight":
 			return "Your body mass, the slow reserve beneath\nhunger. Eat well and it builds; go hungry\nand it burns. Bottom out and you starve;\nrun heavy and hard work costs more."
 		_:
@@ -1264,8 +1395,8 @@ func _eval_stage(id: String) -> void:
 			var msg := "The cramps pass. Your gut settles."
 			if id == "hypo":
 				msg = "The shivering fades; warmth creeps back."
-			elif id == "wound":
-				msg = "The bleeding has stopped. The wound is closing."
+			elif id == "pain":
+				msg = "The pain finally loosens its hold."
 			elif id == "infection":
 				msg = "The fever breaks and the swelling goes down."
 			elif id == "dehydration":
@@ -1333,7 +1464,7 @@ func _cond_obituary(id: String, stage: int) -> String:
 	return "%s It was %s. (%s)" % [lead, str(s.get("death", "it")), str(s["name"])]
 
 func _build_obituary(meter: String) -> String:
-	var death: String = {"Hydration": "dehydration", "Weight": "starvation", "Warmth": "the cold", "Energy": "sheer exhaustion", "Immune": "sickness", "Mental": "despair"}.get(meter, meter)
+	var death: String = {"Blood": "blood loss", "Hydration": "dehydration", "Weight": "starvation", "Warmth": "the cold", "Energy": "sheer exhaustion", "Immune": "sickness", "Mental": "despair"}.get(meter, meter)
 	var worst := ""
 	var worst_stage := 0
 	for id in conditions:
@@ -1386,7 +1517,7 @@ func reset() -> void:
 	stocks = {}
 	loc_indoor = {}
 	lit_sources = {}
-	meters = {"Satiation": 65.0, "Weight": 55.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Sleep": 90.0, "Immune": 78.0, "Mental": 64.0}
+	meters = {"Satiation": 65.0, "Weight": 55.0, "Hydration": 74.0, "Blood": 100.0, "Warmth": 55.0, "Energy": 70.0, "Sleep": 90.0, "Immune": 78.0, "Mental": 64.0}
 	conditions = {}
 	cond_stage = {}
 	cond_prev = {}
@@ -1398,6 +1529,8 @@ func reset() -> void:
 	dead = false
 	obituary = ""
 	mental_driver = ""
+	wounds = []
+	next_wound_id = 1
 	weather = "overcast"
 	wet = 0.0
 	force_sleep = false

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/claw_hammer.png" id="2"]
+
+[resource]
+script = ExtResource("1")
+id = "claw_hammer"
+title = "Claw Hammer"
+kind = "tool"
+cover_image = ExtResource("2")
+blurb = "A carpenter's hammer, balanced and close at hand."
+is_weapon = true
+weapon_damage = 10.0
+weapon_accuracy = 0.82
+weapon_stamina = 3.0

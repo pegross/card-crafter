@@ -101,9 +101,6 @@ var ACTIONS := {
 	"antibiotics": [
 		{"label": "Take an antibiotic (5m)", "mins": 5, "audio": "medicine_pills", "cure": {"gut_bug": -50.0, "infection": -50.0}, "state_delta": -1.0, "log": "You dry-swallow one. Real medicine, and one fewer left."},
 	],
-	"bandage": [
-		{"label": "Bind your wounds (10m)", "mins": 10, "audio": "bandage_apply", "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
-	],
 	"radio": [
 		{"label": "Listen (15m)", "mins": 15, "fx": {"Mental": 6.0}, "radio_listen": true},
 	],
@@ -141,6 +138,8 @@ var top_head: Label
 var log_label: Label
 var inv_head: Label
 var cond_tray: VBoxContainer
+var wound_tray: VBoxContainer
+var wound_scroll: ScrollContainer
 var weather_label: Label
 var _collapsing: bool = false
 var _locations_initial: Dictionary
@@ -162,7 +161,8 @@ var _dragging: CardIcon = null
 var detail_layer: Control
 var detail_panel: PanelContainer
 var detail_body: VBoxContainer
-var _detail_mode: String = "card"  ## card | craft | buildsite | skills | research
+var _detail_mode: String = "card"  ## card | wound | craft | buildsite | skills | research
+var _detail_wound_uid: int = -1
 var _build_project: String = ""
 var _craft_tab: String = "shelter"
 const CRAFT_TABS := [["shelter", "Shelter"], ["tools", "Tools"], ["tailoring", "Tailoring"]]
@@ -173,6 +173,11 @@ var combat_hp_fill: StyleBoxFlat
 var combat_blurb: Label
 var combat_log_label: Label
 var combat_wound_label: Label
+var combat_weapon_row: HBoxContainer
+var combat_strike_btn: Button
+var combat_new_wound: PanelContainer
+var combat_new_wound_title: Label
+var combat_new_wound_body: Label
 var _combat_id: String = ""
 var _combat_card: CardIcon = null
 var _combat_hp: float = 0.0
@@ -181,6 +186,7 @@ var _combat_log: Array = []
 var _combat_before: Dictionary = {}
 var _combat_resolving: bool = false
 var _combat_context: String = "table"  ## table (normal) | siege (unfleeable horde wave)
+var _combat_weapon_id: String = "__unset__"
 var _siege_waves_left: int = 0
 var combat_flee_btn: Button
 var hurt_flash: ColorRect
@@ -345,6 +351,13 @@ func _build_tooltip_theme() -> void:
 	theme = th
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and combat_layer and combat_layer.visible:
+		var slot: int = int({KEY_1: 0, KEY_2: 1, KEY_3: 2, KEY_4: 3, KEY_5: 4, KEY_6: 5, KEY_7: 6}.get(event.keycode, -1))
+		var options: Array = _combat_weapon_options()
+		if slot >= 0 and slot < options.size():
+			_select_combat_weapon(str(options[slot]["id"]))
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_ESCAPE:
 		if detail_layer and detail_layer.visible:
 			_hide_detail()
@@ -431,6 +444,16 @@ func _build_left() -> Control:
 	phint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pvb.add_child(phint)
 	vb.add_child(portrait)
+	vb.add_child(_label("WOUNDS", BLOOD, 11))
+	wound_scroll = ScrollContainer.new()
+	wound_scroll.custom_minimum_size = Vector2(0, 84)
+	wound_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	wound_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	wound_tray = VBoxContainer.new()
+	wound_tray.add_theme_constant_override("separation", 5)
+	wound_tray.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wound_scroll.add_child(wound_tray)
+	vb.add_child(wound_scroll)
 
 	var build_btn := _btn("Construction")
 	build_btn.pressed.connect(_open_craft_hub)
@@ -445,7 +468,7 @@ func _build_left() -> Control:
 
 	vb.add_child(HSeparator.new())
 	vb.add_child(_label("CONDITION", COLD, 11))
-	for m in ["Satiation", "Weight", "Hydration", "Warmth", "Energy", "Sleep", "Immune", "Mental"]:
+	for m in ["Satiation", "Weight", "Hydration", "Blood", "Warmth", "Energy", "Sleep", "Immune", "Mental"]:
 		vb.add_child(_make_meter(m))
 	cond_tray = VBoxContainer.new()
 	cond_tray.add_theme_constant_override("separation", 5)
@@ -614,7 +637,7 @@ func _make_meter(m: String) -> Control:
 	bar.custom_minimum_size = Vector2(0, 11)
 	bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 5))
 	var fillsb := StyleBoxFlat.new()
-	fillsb.bg_color = COLD
+	fillsb.bg_color = BLOOD if m == "Blood" else COLD
 	fillsb.set_corner_radius_all(5)
 	bar.add_theme_stylebox_override("fill", fillsb)
 	box.add_child(bar)
@@ -928,6 +951,7 @@ func _open_detail() -> void:
 		detail_body.remove_child(c)
 		c.queue_free()
 	match _detail_mode:
+		"wound": _render_wound_detail()
 		"craft": _render_craft_hub()
 		"buildsite": _render_buildsite()
 		"skills": _render_skills_screen()
@@ -937,6 +961,36 @@ func _open_detail() -> void:
 	detail_layer.visible = true
 	if was_hidden:
 		Audio.play_cue("ui_card_detail_open")
+
+func on_wound_clicked(uid: int) -> void:
+	_detail_wound_uid = uid
+	_detail_mode = "wound"
+	_menu_card = null
+	_open_detail()
+
+func _render_wound_detail() -> void:
+	var wound: Dictionary = Game.get_wound(_detail_wound_uid)
+	if wound.is_empty():
+		detail_body.add_child(_label("WOUND", BLOOD, 11))
+		detail_body.add_child(_wrapped("The injury has healed.", MUTED, 13))
+		return
+	detail_body.add_child(_label("WOUND · %s" % str(wound.get("body_part", "body")).to_upper(), BLOOD, 11))
+	detail_body.add_child(_label(str(wound.get("label", "Wound")), INK_STRONG, 22))
+	var bleed := 0.0 if bool(wound.get("bandaged", false)) else float(wound.get("bleed_per_minute", 0.0))
+	var state := "Bandaged — bleeding stopped." if bleed <= 0.0 else "Bleeding %.2f Blood per minute." % bleed
+	detail_body.add_child(_wrapped(state, WARM_SOFT if bleed <= 0.0 else BLOOD, 13))
+	if bleed > 0.0:
+		var left := Game.bleedout_minutes()
+		detail_body.add_child(_wrapped("At the current total rate, collapse is about %d minutes away." % left, BLOOD, 12))
+	detail_body.add_child(_wrapped("Pain: %d · %s" % [int(round(float(wound.get("pain", 0.0)))), ("clean" if wound.get("cleaned", false) else "unclean")], MUTED, 12))
+	detail_body.add_child(HSeparator.new())
+	if not bool(wound.get("cleaned", false)):
+		detail_body.add_child(_wrapped("Drag a bottle containing clean, cooled water onto this wound to wash it.", MUTED, 12))
+	if not bool(wound.get("bandaged", false)):
+		detail_body.add_child(_wrapped("Drag a bandage onto this wound to stop the bleeding.", MUTED, 12))
+	var closeb := _detail_action_btn("Close")
+	closeb.pressed.connect(_hide_detail)
+	detail_body.add_child(closeb)
 
 func _wrapped(txt: String, col: Color, sz: int, w: int = 396) -> Label:
 	var l := _label(txt, col, sz)
@@ -1338,7 +1392,7 @@ func _build_combat() -> void:
 	combat_layer.add_child(center)
 	var panel := PanelContainer.new()
 	panel.add_theme_stylebox_override("panel", _flat(PANEL, BORDER, 10))
-	panel.custom_minimum_size = Vector2(460, 0)
+	panel.custom_minimum_size = Vector2(680, 0)
 	center.add_child(panel)
 	var pad := MarginContainer.new()
 	pad.add_theme_constant_override("margin_left", 18)
@@ -1372,14 +1426,34 @@ func _build_combat() -> void:
 	vb.add_child(combat_log_label)
 	combat_wound_label = _label("", WARM, 13)
 	vb.add_child(combat_wound_label)
+	combat_new_wound = PanelContainer.new()
+	combat_new_wound.add_theme_stylebox_override("panel", _flat(Color(0.16, 0.07, 0.07), BLOOD, 8))
+	var wound_box := VBoxContainer.new()
+	wound_box.add_theme_constant_override("separation", 3)
+	_pad(combat_new_wound, 10).add_child(wound_box)
+	combat_new_wound_title = _label("", Color(1.0, 0.82, 0.76), 15)
+	wound_box.add_child(combat_new_wound_title)
+	combat_new_wound_body = _wrapped("", WARM_SOFT, 12, 600)
+	wound_box.add_child(combat_new_wound_body)
+	combat_new_wound.visible = false
+	vb.add_child(combat_new_wound)
+	vb.add_child(_label("WEAPON · click or press 1–7", COLD, 11))
+	var weapon_scroll := ScrollContainer.new()
+	weapon_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	weapon_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	weapon_scroll.custom_minimum_size = Vector2(0, 64)
+	combat_weapon_row = HBoxContainer.new()
+	combat_weapon_row.add_theme_constant_override("separation", 7)
+	weapon_scroll.add_child(combat_weapon_row)
+	vb.add_child(weapon_scroll)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	vb.add_child(row)
-	var strike_btn := Button.new()
-	strike_btn.text = "Strike"
-	strike_btn.custom_minimum_size = Vector2(120, 34)
-	strike_btn.pressed.connect(_combat_strike)
-	row.add_child(strike_btn)
+	combat_strike_btn = Button.new()
+	combat_strike_btn.text = "Strike"
+	combat_strike_btn.custom_minimum_size = Vector2(220, 38)
+	combat_strike_btn.pressed.connect(_combat_strike)
+	row.add_child(combat_strike_btn)
 	combat_flee_btn = Button.new()
 	combat_flee_btn.text = "Flee"
 	combat_flee_btn.custom_minimum_size = Vector2(120, 34)
@@ -1400,6 +1474,77 @@ func enemy_data(id: String) -> CardData:
 func is_enemy(id: String) -> bool:
 	return CARD_FILES.has(id) and load(CARD_FILES[id]).hp > 0.0
 
+func _combat_weapon_options() -> Array:
+	var out: Array = []
+	var seen := {}
+	if rows.has("inv"):
+		for child in rows["inv"].get_children():
+			if child is CardIcon and child.data.is_weapon and not seen.has(child.data.id):
+				seen[child.data.id] = true
+				out.append({"id": child.data.id, "title": child.data.title, "damage": child.data.weapon_damage, "accuracy": child.data.weapon_accuracy, "stamina": child.data.weapon_stamina, "image": child.data.cover_image})
+	out.append({"id": "", "title": "Bare Hands", "damage": Game.PLAYER_STRIKE, "accuracy": 0.70, "stamina": 3.0, "image": null})
+	return out
+
+func _combat_weapon_profile() -> Dictionary:
+	for option in _combat_weapon_options():
+		if str(option["id"]) == _combat_weapon_id:
+			return option
+	return _combat_weapon_options().back()
+
+func _ensure_combat_weapon() -> void:
+	var options := _combat_weapon_options()
+	for option in options:
+		if str(option["id"]) == _combat_weapon_id:
+			return
+	# Prefer the strongest carried weapon on the first encounter; bare hands remains fallback.
+	var best: Dictionary = options.back()
+	for option in options:
+		if float(option["damage"]) > float(best["damage"]):
+			best = option
+	_combat_weapon_id = str(best["id"])
+
+func _select_combat_weapon(id: String) -> void:
+	_combat_weapon_id = id
+	_refresh_combat_weapons()
+
+func _refresh_combat_weapons() -> void:
+	if combat_weapon_row == null:
+		return
+	_ensure_combat_weapon()
+	for child in combat_weapon_row.get_children():
+		combat_weapon_row.remove_child(child)
+		child.queue_free()
+	var options := _combat_weapon_options()
+	for i in options.size():
+		var option: Dictionary = options[i]
+		var b := Button.new()
+		b.text = "%d · %s\n%.0f dmg · %.0f%% · %.0f sta" % [i + 1, str(option["title"]), float(option["damage"]), float(option["accuracy"]) * 100.0, float(option["stamina"])]
+		b.custom_minimum_size = Vector2(138, 56)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.tooltip_text = "All attacks take %d minutes. Stamina changes power, never availability." % COMBAT_ROUND_MINS
+		if option["image"] != null:
+			b.icon = option["image"]
+			b.icon_max_width = 42
+			b.expand_icon = true
+		var selected := str(option["id"]) == _combat_weapon_id
+		b.add_theme_stylebox_override("normal", _flat(PANEL2 if selected else BG, WARM if selected else BORDER, 6))
+		b.pressed.connect(_select_combat_weapon.bind(str(option["id"])))
+		combat_weapon_row.add_child(b)
+	var profile := _combat_weapon_profile()
+	combat_strike_btn.text = "Strike with %s" % str(profile["title"])
+
+func _show_combat_wound(wound: Dictionary) -> void:
+	if wound.is_empty() or combat_new_wound == null:
+		return
+	combat_new_wound_title.text = "NEW WOUND · %s" % str(wound.get("label", "Wound")).to_upper()
+	var bleed := float(wound.get("bleed_per_minute", 0.0))
+	var left := Game.bleedout_minutes()
+	combat_new_wound_body.text = "%s · bleeding %.2f Blood/min · pain %d. About %d minutes to collapse at the current total rate. Strike again or flee." % [str(wound.get("body_part", "body")).capitalize(), bleed, int(round(float(wound.get("pain", 0.0)))), left]
+	combat_new_wound.visible = true
+	combat_new_wound.modulate.a = 0.25
+	var tween := create_tween()
+	tween.tween_property(combat_new_wound, "modulate:a", 1.0, 0.18)
+
 func _refresh_combat() -> void:
 	if _combat_id == "" or not is_enemy(_combat_id):
 		return
@@ -1411,8 +1556,10 @@ func _refresh_combat() -> void:
 		combat_blurb.text = "It came over the threshold, out of the crush of them. Put it down."
 	combat_hp_bar.max_value = _combat_hp_max
 	combat_hp_bar.value = maxf(0.0, _combat_hp)
-	combat_wound_label.text = "Your wounds: %d%%" % int(round(Game.conditions.get("wound", 0.0)))
+	var bleed := Game.wound_bleed_rate()
+	combat_wound_label.text = "Blood %d%% · %d wound%s · bleeding %.2f/min%s" % [int(round(float(Game.meters.get("Blood", 100.0)))), Game.wounds.size(), "" if Game.wounds.size() == 1 else "s", bleed, " · running on adrenaline; collapse follows" if Game.meters["Energy"] <= 0.0 else ""]
 	combat_log_label.text = "\n".join(_combat_tail())
+	_refresh_combat_weapons()
 
 func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "table") -> void:
 	if Game.dead or not is_enemy(enemy_id):
@@ -1424,6 +1571,8 @@ func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "t
 	_combat_hp = _combat_hp_max
 	_combat_before = Game.meters.duplicate()
 	_combat_log = []
+	if combat_new_wound:
+		combat_new_wound.visible = false
 	Audio.play_cue("encounter_rat" if enemy_id == "rat" else "encounter_zombie")
 	_combat_say("A %s, and it has seen you." % enemy_data(_combat_id).title.to_lower())
 	if combat_flee_btn:
@@ -1589,8 +1738,10 @@ func _combat_strike() -> void:
 		return
 	var e: CardData = enemy_data(_combat_id)
 	var enemy_name: String = e.title.to_lower()
-	var roll := Game.strike_roll()
+	var weapon := _combat_weapon_profile()
+	var roll := Game.strike_roll(float(weapon["damage"]), float(weapon["accuracy"]))
 	var dmg: float = float(roll["dmg"])
+	Game.spend_combat_stamina(float(weapon["stamina"]))
 	Audio.play_cue("combat_swing")
 	_combat_hp -= dmg
 	match str(roll["q"]):
@@ -1606,12 +1757,13 @@ func _combat_strike() -> void:
 		Audio.play_cue("combat_hit")
 		_screen_shake(3.0 + dmg * 0.35)
 	var killed := _combat_hp <= 0.0
+	var new_wound: Dictionary = {}
 	if killed:
 		Audio.play_cue("combat_enemy_down")
 		_combat_say("The %s drops, and does not get up." % enemy_name)
 	else:
 		var edmg: float = Game.enemy_damage_roll(e.damage)
-		Game.take_wound(edmg)
+		new_wound = Game.create_wound(edmg, "a %s attack" % enemy_name, "bite" if _combat_id in ["rat", "zombie"] else "laceration")
 		Audio.play_cue("combat_rat_attack" if _combat_id == "rat" else "combat_zombie_attack")
 		_flash_hurt()
 		_screen_shake(6.0 + edmg * 0.25)
@@ -1628,8 +1780,10 @@ func _combat_strike() -> void:
 				Game.add_condition("infection", add, "a bite")
 	# each swing costs time — the survival sim ticks for the round (may turn a wound
 	# or a low need lethal); death is surfaced by _combat_end, not mid-swing
-	Game.advance_time(COMBAT_ROUND_MINS, false, true)  # fighting is physical exertion
+	Game.advance_time(COMBAT_ROUND_MINS, false, false, 1.0, true)
 	_refresh_combat()
+	if not killed and not new_wound.is_empty():
+		_show_combat_wound(new_wound)
 	if killed:
 		_combat_end("win")
 	elif Game.dead:
@@ -1641,13 +1795,15 @@ func _combat_flee() -> void:
 	var e: CardData = enemy_data(_combat_id)
 	Audio.play_cue("combat_flee")
 	var hit: float = Game.enemy_damage_roll(e.flee_hit)
-	Game.take_wound(hit)
+	var flee_wound := Game.create_wound(hit, "fleeing a %s" % e.title.to_lower(), "bite" if _combat_id in ["rat", "zombie"] else "laceration")
 	if hit > 0.0:
 		_flash_hurt()
 		_screen_shake(6.0)
 	_combat_say("You break away. It gets a piece of you as you go.")
-	Game.advance_time(COMBAT_ROUND_MINS, false, true)  # scrambling away is physical exertion
+	Game.advance_time(COMBAT_ROUND_MINS, false, false, 1.0, true)
 	_refresh_combat()
+	if not flee_wound.is_empty():
+		_show_combat_wound(flee_wound)
 	if Game.dead:
 		_combat_end("downed")
 	else:
@@ -1780,7 +1936,7 @@ func _populate() -> void:
 		for e in LOCATIONS[loc].get("pool", {}).get("renewable", []):
 			if str((e as Dictionary).get("kind", "")) == "ground":
 				Game.register_stock(loc, str(e["id"]), int(e.get("max", 1)))
-	for id in ["canned_food", "plastic_bottle", "lighter"]:
+	for id in ["canned_food", "plastic_bottle", "lighter", "kitchen_knife"]:
 		_spawn(id, "inv")
 	_rebuild_out_there()
 	_load_ground(Game.current_location)
@@ -2165,6 +2321,43 @@ func recipe_for(item_id: String, target_id: String) -> Variant:
 	if RECIPES.has(item_id) and RECIPES[item_id].has(target_id):
 		return RECIPES[item_id][target_id]
 	return null
+
+func can_treat_wound(card: CardIcon, wound_uid: int) -> bool:
+	if card == null or Game.get_wound(wound_uid).is_empty():
+		return false
+	var wound: Dictionary = Game.get_wound(wound_uid)
+	if card.data.id == "bandage":
+		return not bool(wound.get("bandaged", false))
+	if card.data.is_container:
+		return card.content == "water" and card.state_value > 0.0 and not bool(wound.get("cleaned", false))
+	return false
+
+func treat_wound(card: CardIcon, wound_uid: int) -> void:
+	if Game.dead or not can_treat_wound(card, wound_uid):
+		on_drag_end()
+		return
+	var before := Game.meters.duplicate()
+	var treated := false
+	if card.data.id == "bandage":
+		treated = Game.bandage_wound(wound_uid)
+		if treated:
+			Audio.play_cue("bandage_apply")
+			_consume_card(card)
+			Game.add_log("You bind the wound tight. The bleeding stops.")
+	else:
+		treated = Game.clean_wound(wound_uid)
+		if treated:
+			card.drain_content(minf(10.0, card.state_value))
+			Audio.play_cue("water_fill")
+			Game.add_log("You wash the wound with clean water. It still needs binding.")
+	if treated:
+		Game.advance_time(5)
+		_show_time_passing(5)
+		_animate_meters(before, {})
+	on_drag_end()
+	on_layout_changed()
+	if detail_layer and detail_layer.visible and _detail_mode == "wound":
+		_open_detail()
 
 func _is_recipe_target(id: String) -> bool:
 	for src in RECIPES:
@@ -2873,6 +3066,16 @@ func _refresh() -> void:
 			_last_present[id] = present
 	_rot_food()
 	# condition chips: show only conditions that have surfaced (stage >= 1)
+	if wound_tray:
+		for c in wound_tray.get_children():
+			wound_tray.remove_child(c)
+			c.queue_free()
+		for wound in Game.wounds:
+			var wound_card := WoundCard.new()
+			wound_tray.add_child(wound_card)
+			wound_card.setup(int(wound["uid"]), self)
+		if wound_scroll:
+			wound_scroll.visible = not Game.wounds.is_empty()
 	if cond_tray:
 		for c in cond_tray.get_children():
 			cond_tray.remove_child(c)

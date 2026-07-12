@@ -1,7 +1,6 @@
 extends RefCounted
 ## CONDITIONS / LETHALITY: incubation maturing after its window, gut_bug stage thresholds via
-## _eval_stage, hypothermia Deep Cold as a lethal condition, a large wound as instant death, and
-## the composed drain multiplier being capped at 1.8.
+## _eval_stage, hypothermia Deep Cold as a lethal condition, and the composed drain multiplier.
 
 func run(tree, h) -> void:
 	# --- incubation matures only after its window (gut_bug = 6h) ---
@@ -37,15 +36,9 @@ func run(tree, h) -> void:
 	h.expect(g3.obituary != "", "hypothermia death writes an obituary")
 	h.expect_eq(g3.cond_stage.get("hypo", 0), 3, "hypo reached Deep Cold (stage 3)")
 
-	# --- a large wound is instantly lethal ---
-	var g4 = tree.make_sim(5)
-	g4.take_wound(100.0)
-	h.expect(g4.dead, "a massive wound is lethal on the spot")
-	h.expect(g4.obituary != "", "wound death writes an obituary")
-
 	# --- composed drain multiplier is capped at 1.8 ---
-	var g5 = tree.make_sim(5)
-	g5.conditions["gut_bug"] = 80.0
-	g5._eval_stage("gut_bug")  # Dysentery pushes Hydration x2.2, above the cap
-	var cm = g5._condition_multipliers()
+	var g4 = tree.make_sim(5)
+	g4.conditions["gut_bug"] = 80.0
+	g4._eval_stage("gut_bug")  # Dysentery pushes Hydration x2.2, above the cap
+	var cm = g4._condition_multipliers()
 	h.expect_near(float(cm.get("Hydration", 1.0)), 1.8, "composed Hydration drain mult capped at 1.8")

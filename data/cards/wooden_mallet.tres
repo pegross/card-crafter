@@ -10,3 +10,7 @@ id = "wooden_mallet"
 title = "Wooden Mallet"
 kind = "tool"
 blurb = "A heavy mallet carved from a single billet. Rough-hewn, but solid in the hand."
+is_weapon = true
+weapon_damage = 11.0
+weapon_accuracy = 0.78
+weapon_stamina = 4.0
