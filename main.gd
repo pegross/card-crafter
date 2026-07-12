@@ -460,17 +460,6 @@ func _build_left() -> Control:
 	build_btn.pressed.connect(_open_craft_hub)
 	vb.add_child(build_btn)
 
-	clock_label = _label("", INK_STRONG, 18)
-	vb.add_child(clock_label)
-	celestial_arc = CelestialArc.new()
-	celestial_arc.custom_minimum_size = Vector2(0, 78)
-	celestial_arc.mouse_filter = Control.MOUSE_FILTER_PASS
-	vb.add_child(celestial_arc)
-	temp_label = _label("", COLD, 14)
-	vb.add_child(temp_label)
-	weather_label = _label("Overcast, still.", MUTED, 12)
-	vb.add_child(weather_label)
-
 	vb.add_child(HSeparator.new())
 	vb.add_child(_label("CONDITION", COLD, 11))
 	for m in ["Satiation", "Weight", "Hydration", "Blood", "Warmth", "Energy", "Sleep", "Immune", "Mental"]:
@@ -754,12 +743,25 @@ func _row_section(title: String, key: String, accepts: bool, cap: int) -> Contro
 
 func _build_right() -> Control:
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(220, 0)
+	panel.custom_minimum_size = Vector2(236, 0)
 	panel.add_theme_stylebox_override("panel", _flat(PANEL, BORDER, 12))
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 10)
 	_pad(panel, 16).add_child(vb)
 
+	vb.add_child(_label("TIME & SKY", COLD, 11))
+	clock_label = _label("", INK_STRONG, 18)
+	vb.add_child(clock_label)
+	celestial_arc = CelestialArc.new()
+	celestial_arc.custom_minimum_size = Vector2(0, 78)
+	celestial_arc.mouse_filter = Control.MOUSE_FILTER_PASS
+	vb.add_child(celestial_arc)
+	temp_label = _label("", COLD, 14)
+	vb.add_child(temp_label)
+	weather_label = _label("Overcast, still.", MUTED, 12)
+	weather_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(weather_label)
+	vb.add_child(HSeparator.new())
 	vb.add_child(_label("THE DAY", COLD, 11))
 	log_label = _label("", INK, 12)
 	log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
