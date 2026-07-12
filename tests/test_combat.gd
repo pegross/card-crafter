@@ -58,3 +58,19 @@ func run(tree, h) -> void:
 	infected.reset()
 	h.expect(infected.wounds.is_empty(), "reset clears persistent wound cards")
 	h.expect_eq(infected.meters["Blood"], 100.0, "reset restores Blood")
+
+	# --- wound-card read-outs: Recovery tracks healing; Infection rises unclean, drops when washed ---
+	var ui = tree.make_sim(22)
+	var cut: Dictionary = ui.create_wound(11.0, "a scrape", "cut")  # severity 2 (contamination 30)
+	ui.bandage_wound(int(cut["uid"]))  # stop the bleeding so the wait does not kill the survivor
+	var inf0 := int(ui.wound_infection_pct(cut))
+	h.expect(inf0 > 0, "a fresh unclean wound reads some Infection")
+	h.expect_eq(ui.wound_recovery_pct(cut), 0, "a fresh wound reads 0% Recovery")
+	ui.meters["Hydration"] = 80.0
+	ui.meters["Weight"] = 80.0
+	ui.advance_time(120)  # left unclean, it festers
+	h.expect(ui.wound_infection_pct(cut) > inf0, "Infection rises while a wound is left unclean")
+	ui.clean_wound(int(cut["uid"]))
+	h.expect(ui.wound_infection_pct(cut) < inf0, "washing with clean water drops Infection below its fresh level")
+	cut["healing"] = 50.0
+	h.expect_eq(ui.wound_recovery_pct(cut), 50, "Recovery reads the wound's healing progress")

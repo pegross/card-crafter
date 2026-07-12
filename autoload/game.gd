@@ -1118,8 +1118,21 @@ func clean_wound(uid: int) -> bool:
 		return false
 	wounds[idx]["cleaned"] = true
 	wounds[idx]["contamination"] = float(wounds[idx]["contamination"]) * 0.20
+	wounds[idx]["infection_load"] = 0.0  # washing it out clears the festering that had built up
 	_sync_wound_pain()
 	return true
+
+## Display read-outs for the wound UI (0..100). Recovery = how far it has healed; Infection = how
+## dirty / likely to fester it is (washing it with clean water drops this sharply).
+func wound_recovery_pct(wound: Dictionary) -> int:
+	return int(round(clampf(float(wound.get("healing", 0.0)), 0.0, 100.0)))
+
+func wound_infection_pct(wound: Dictionary) -> int:
+	# how badly it is festering: its dirtiness (the baseline risk) PLUS the infection building in it
+	# over time. Washing with clean water cuts the dirtiness and clears the built-up load, so it drops.
+	var dirt := float(wound.get("contamination", 0.0)) / 45.0 * 75.0
+	var fester := clampf(float(wound.get("infection_load", 0.0)) / 12.0, 0.0, 1.0) * 25.0
+	return int(round(clampf(dirt + fester, 0.0, 100.0)))
 
 func bandage_wound(uid: int) -> bool:
 	var idx := wound_index(uid)
