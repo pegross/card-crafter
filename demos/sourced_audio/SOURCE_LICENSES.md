@@ -1,8 +1,31 @@
 # Sourced audio demos
 
-These files are reference/audition copies only. They are not integrated into the
-game. All four source pages displayed a Creative Commons Zero (CC0) license when
-the files were collected on 2026-07-11.
+Most files here are reference/audition copies only. Runtime-sourced audio is
+called out separately below. The original four source pages displayed a Creative
+Commons Zero (CC0) license when the files were collected on 2026-07-11.
+
+## Runtime source
+
+### `alarm_clock_wind_01_CC0_DEMO_ONLY.wav` / `alarm_clock_wind_02_CC0_DEMO_ONLY.wav`
+
+- Title: "Clock Wind Sounds" (`multiwind1.wav` and `multiwind2.wav`)
+- Creator: BMacZero / Brian MacIntosh
+- Source: https://opengameart.org/content/clock-wind-sounds
+- License: CC0 1.0 (attribution optional; commercial use permitted)
+- Collected: 2026-07-12
+- Runtime note: The two multi-turn recordings rotate when winding and setting
+  the alarm clock.
+
+### `alarm_clock_ring_PIXABAY_LICENSE_DEMO_ONLY.mp3`
+
+- Title: "Old Mechanic Alarm Clock"
+- Creator: SoundsForYou
+- Source: https://pixabay.com/sound-effects/household-old-mechanic-alarm-clock-140410/
+- Direct media: https://cdn.pixabay.com/download/audio/2023/02/24/audio_43dd869fed.mp3
+- License: Pixabay Content License (free use; see source page and license summary)
+- Collected: 2026-07-12
+- Runtime note: The full 22-second recording is retained, but playback is capped
+  to 2.5 seconds so the wake cue remains forceful without becoming irritating.
 
 ## Primary examples
 

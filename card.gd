@@ -30,6 +30,7 @@ var _state_label: Label
 var _kind_label: Label
 var _panel_sb: StyleBoxFlat
 var _title_label: Label
+var _card_status_label: Label
 var _cover_rect: TextureRect
 var _state_fill: StyleBoxFlat
 var _left_press_active: bool = false
@@ -112,6 +113,10 @@ func setup(card_data: CardData, main_ref) -> void:
 	_title_label = _ilabel(data.title, INK_STRONG, 16)
 	_title_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(_title_label)
+	if data.id == "alarm_clock":
+		_card_status_label = _ilabel("", MUTED, 10)
+		vb.add_child(_card_status_label)
+		_refresh_card_status()
 
 	# perishables show a freshness read-out (a word + a shrinking bar) so you can see them turning
 	if data.spoil_hours > 0.0:
@@ -307,6 +312,17 @@ func sync_state() -> void:
 	elif data.state_kind != "":
 		state_value = Game.card_state.get(data.id, data.state_start)
 		_refresh_state()
+	_refresh_card_status()
+
+func _refresh_card_status() -> void:
+	if _card_status_label == null:
+		return
+	if data.id == "alarm_clock" and Game.alarm_is_pending():
+		_card_status_label.text = "DAILY ALARM  ·  %s" % Game.alarm_hhmm()
+		_card_status_label.add_theme_color_override("font_color", WARM)
+	else:
+		_card_status_label.text = "ALARM NOT SET"
+		_card_status_label.add_theme_color_override("font_color", MUTED)
 
 # --- summaries for the card detail view ---
 func current_blurb() -> String:

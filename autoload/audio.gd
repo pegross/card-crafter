@@ -13,7 +13,7 @@ var REQUIRED_P0_CUES := PackedStringArray([
 	"travel_outdoor", "threshold_interior", "search_outdoors", "search_interior", "wood_axe_oak", "wood_oak_fall", "wood_split", "wood_handling", "construction_wood", "construction_stone",
 	"lighter_flick", "tinder_catch", "hearth_ignite", "hearth_add_wood", "cook_meat", "water_boiling", "herbs_steep", "water_fill", "liquid_pour", "drink", "eat_tinned", "eat_dry", "eat_meat", "medicine_pills", "bandage_apply", "cloth_wrap", "coat_on_off",
 	"radio_switch_on", "radio_tuning", "radio_static_loop", "radio_signal_found", "radio_switch_off", "radio_dead_switch", "snare_set", "snare_empty", "snare_catch", "encounter_rat", "encounter_zombie",
-	"combat_swing", "combat_hit", "combat_rat_attack", "combat_zombie_attack", "combat_player_hurt", "combat_enemy_down", "combat_flee", "sleep_settle", "collapse", "death"
+	"combat_swing", "combat_hit", "combat_rat_attack", "combat_zombie_attack", "combat_player_hurt", "combat_enemy_down", "combat_flee", "sleep_settle", "alarm_clock_wind", "alarm_clock_ring", "collapse", "death"
 ])
 
 const CUES := {
@@ -77,6 +77,9 @@ const CUES := {
 	"combat_enemy_down": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_enemy_down_01_DEMO_ONLY.ogg"), preload("res://assets/audio/combat/combat_enemy_down_02_DEMO_ONLY.ogg")], "volume_db": -7.0},
 	"combat_flee": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/combat_flee_DEMO_ONLY.ogg")], "volume_db": -8.0},
 	"sleep_settle": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/sleep_settle_DEMO_ONLY.ogg")], "volume_db": -12.0},
+	"alarm_clock_wind": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/alarm_clock_wind_01_CC0_DEMO_ONLY.wav"), preload("res://assets/audio/survival/alarm_clock_wind_02_CC0_DEMO_ONLY.wav")], "volume_db": -12.0, "pitch_min": 0.98, "pitch_max": 1.02, "max_seconds": 2.0},
+	# A real old mechanical alarm recording, cut short at playback so it wakes without dominating.
+	"alarm_clock_ring": {"bus": "SFX", "streams": [preload("res://assets/audio/survival/alarm_clock_ring_PIXABAY_LICENSE_DEMO_ONLY.mp3")], "volume_db": -9.0, "max_seconds": 2.5, "fade_out_seconds": 0.7},
 	"collapse": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/collapse_DEMO_ONLY.ogg")], "volume_db": -6.0},
 	"death": {"bus": "SFX", "streams": [preload("res://assets/audio/combat/death_DEMO_ONLY.ogg")], "volume_db": -5.0},
 }
@@ -92,6 +95,7 @@ const BGM_STREAM = preload("res://assets/audio/music/bgm.wav")
 
 var audio_rng := RandomNumberGenerator.new()
 var _one_shots: Array[AudioStreamPlayer] = []
+var _one_shot_fades: Array[Tween] = []
 var _player_ages: Array[int] = []
 var _last_stream_indices := {}
 var _age: int = 0
@@ -115,6 +119,7 @@ func _ready() -> void:
 		var player := AudioStreamPlayer.new()
 		add_child(player)
 		_one_shots.append(player)
+		_one_shot_fades.append(null)
 		_player_ages.append(0)
 	for i in 2:
 		var ambience := AudioStreamPlayer.new()
@@ -158,6 +163,8 @@ func play_cue(cue_name: String, volume_offset_db: float = 0.0) -> void:
 			stream_index = (stream_index + 1 + audio_rng.randi_range(0, streams.size() - 2)) % streams.size()
 	_last_stream_indices[cue_name] = stream_index
 	var player := _next_one_shot()
+	var player_index := _one_shots.find(player)
+	_kill_one_shot_fade(player_index)
 	var play_token := _age
 	player.stop()
 	player.stream = streams[stream_index]
@@ -168,10 +175,30 @@ func play_cue(cue_name: String, volume_offset_db: float = 0.0) -> void:
 	player.play()
 	var max_seconds := float(cue.get("max_seconds", DEFAULT_MAX_ONE_SHOT_SECONDS))
 	if player.stream.get_length() > max_seconds:
-		get_tree().create_timer(max_seconds).timeout.connect(func() -> void:
+		var fade_seconds := clampf(float(cue.get("fade_out_seconds", 0.0)), 0.0, max_seconds)
+		var stop_delay := max_seconds - fade_seconds
+		get_tree().create_timer(stop_delay).timeout.connect(func() -> void:
 			if is_instance_valid(player) and int(player.get_meta("audio_play_token", -1)) == play_token:
-				player.stop()
+				if fade_seconds <= 0.0:
+					player.stop()
+					return
+				_kill_one_shot_fade(player_index)
+				var fade := create_tween()
+				_one_shot_fades[player_index] = fade
+				fade.tween_property(player, "volume_db", -40.0, fade_seconds)
+				fade.tween_callback(func() -> void:
+					if is_instance_valid(player) and int(player.get_meta("audio_play_token", -1)) == play_token:
+						player.stop()
+				)
 		)
+
+func _kill_one_shot_fade(index: int) -> void:
+	if index < 0 or index >= _one_shot_fades.size():
+		return
+	var fade := _one_shot_fades[index]
+	if fade and fade.is_valid():
+		fade.kill()
+	_one_shot_fades[index] = null
 
 func _next_one_shot() -> AudioStreamPlayer:
 	_age += 1
@@ -249,6 +276,9 @@ func play_radio_listen(_is_powered: bool, _found_signal: bool) -> void:
 	_radio_player.stop()
 	_play_radio_cue(RADIO_LISTEN_CUE)
 
+func play_alarm_ring() -> void:
+	play_cue("alarm_clock_ring")
+
 func _play_radio_cue(cue_name: String) -> void:
 	var cue: Dictionary = CUES[cue_name]
 	var streams: Array = cue["streams"]
@@ -270,7 +300,10 @@ func start_bgm() -> void:
 
 func stop_all(fade_seconds: float = 0.0) -> void:
 	_radio_sequence += 1
-	for player in _one_shots:
+	for i in _one_shots.size():
+		_kill_one_shot_fade(i)
+		var player := _one_shots[i]
+		player.set_meta("audio_play_token", -1)
 		player.stop()
 	if fade_seconds <= 0.0:
 		for ambience in _ambience_players:

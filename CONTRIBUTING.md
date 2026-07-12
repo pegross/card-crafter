@@ -70,9 +70,10 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   new mechanical effect, add an arm to `_fire_event`. Weather/threat/power `category` drives
   the radio.
 - **A construction project**: add to `CONSTRUCTION` in `game.gd` (shelter, phases with
-  materials + `work_mins`, optional `requires_research`). The buildsite UI in `main.gd`
-  reads it generically. If the finished build should DO something, wire it into
-  `shelter_damp()` / `shelter_defense()` (see gotchas).
+  materials + `work_mins`, optional `requires_research` / `requires_build`). Finished shelter
+  improvements carry data-driven `effects` (`structure_defense`, `insulation`, or
+  `barricade_capacity`); repairable defensive builds also carry `repair` data. The buildsite
+  and maintenance UI in `main.gd` read these definitions generically.
 - **A research project**: add to `RESEARCH` in `game.gd` (skill, level, hours, `unlocks` a
   construction id). Research never applies an effect directly — it only gates a build.
 - **An enemy**: add to `ENEMIES` in `main.gd` (hp, damage, flee_hit, verb, optional
@@ -86,15 +87,18 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   `CardIcon.sync_state()`) and repaints. Cards read their own persisted state on build.
 - **Sim -> UI one-shot flags**: `Game` sets a flag, `_refresh` consumes it. `force_sleep`
   (Exertion/`Energy` hit 0 -> a short forced rest, or `Sleep` hit 0 -> a real collapse-sleep;
-  `force_sleep_kind` says which) triggers `_collapse_sleep`; `pending_siege` (a horde event
-  fired) triggers `_start_siege`. Both are cleared the moment `_refresh` acts on them.
+  `force_sleep_kind` says which) triggers `_collapse_sleep`; `pending_siege` is a targeted
+  `{target, intensity}` ordeal atomically claimed by `begin_pending_siege()`. `active_siege`
+  then owns deterministic push state while `main.gd` presents choices and hands breaches to combat.
 - **Event director**: deterministic and telegraphed. `_director_tick` runs once per new day
   inside `advance_time`, telegraphs/fires scheduled events, and the radio only ever broadcasts
   the Director's own upcoming events (`_radio_broadcast_for_today`). No hidden RNG spikes —
   combat is the only non-deterministic part (`_strike_roll`).
-- **Builds carry effects**: sealing and defence live on completed builds, not on research.
-  `shelter_damp()` and `shelter_defense()` sum bonuses over `Game.builds`. Add a new build to
-  those functions if it should change insulation or siege resistance.
+- **Builds carry tagged effects**: sealing, structure and barricade capacity live on completed
+  builds, not on research. `build_effect(loc, tag)` composes them per shelter; damaged builds
+  lose defense and keep half insulation until repaired. Barricade crossbars are discrete,
+  repairable segments. Repeatable repairs use `maintenance_for()` / `complete_maintenance()`,
+  not reset construction phases.
 - **Card state** lives in `Game.card_state` (id -> value), surviving travel/rebuilds. Normal
   cards store a single `float` (fuel %, felled %, explore %). Containers store a
   `{content, fill}` dict (see `CardIcon.fill_with`/`drain_content`/`boil`); `sealable`
@@ -143,8 +147,11 @@ still fine (run it with the same `-s` form).
   condition (low Warmth -> `hypo`, low Hydration -> `dehydration`, low Calories burns
   `weight` -> starvation, low Exertion -> `exhaustion`). Neither rest axis is lethal: Exertion
   (`Energy`) at 0 drops you into a short forced rest, `Sleep` at 0 into a collapse-sleep.
-- `shelter_damp()` / `shelter_defense()` are **global**, hardcoded to the manor's build ids.
-  When a second shelter lands they must become per-location (noted in the source comments).
+- `Game.SHELTERS` owns innate shell properties while `main.gd.LOCATIONS` still owns map and
+  presentation data. A new shelter must be registered in both places; boot validation catches a
+  mismatch. M1 siege targeting is fixed to the manor behind a single target seam for attention later.
+- Siege pressure and choices are deterministic and live in `Game`; zombie combat remains in
+  `main.gd` and is still the only uncertain part. Inventory cards remain a UI-layer concern.
 - Two-place edits are easy to half-do: a `RECIPES` entry with no `perform_recipe` branch
   silently does nothing but pass time; a new lethal condition needs both a `CONDITIONS`
   stage with `lethal` and a driver that pushes its gauge up.

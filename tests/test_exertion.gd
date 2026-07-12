@@ -1,7 +1,7 @@
 extends RefCounted
 ## STAMINA + SLEEP: the two rest axes that replaced the old Energy/sleep-debt coupling.
 ## The "Energy" meter is Stamina — physical work (advance_time physical=true) burns it fast, light
-## activity or rest recovers it. "Sleep" is the deep need that only a nap or full sleep restores and
+## activity or rest recovers it. "Sleep" is the deep need that only sleeping restores and
 ## it drains faster the more spent you are. Physical work also warms you and makes you sweat (wet).
 ## Also guards the warmth-in-a-cold-room regression (an unheated room must bleed Warmth, not pin it).
 

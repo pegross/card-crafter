@@ -28,7 +28,9 @@ func run(tree, h) -> void:
 	var g3 = tree.make_sim(42)
 	h.advance_days(g3, 10, false)  # to day 11
 	h.expect(g3.radio_powered == false, "grid_failure has killed radio power")
-	h.expect(g3.pending_siege >= 1, "horde_surge has queued a siege")
+	h.expect(not g3.pending_siege.is_empty(), "horde_surge has queued a targeted siege")
+	h.expect_eq(str(g3.pending_siege.get("target", "")), "lordly_manor", "M1 siege target is explicitly the manor")
+	h.expect_eq(int(g3.pending_siege.get("intensity", 0)), 1, "first horde queues intensity one")
 	var cold_active := false
 	for a in g3.active_events:
 		if float(a.get("temp_drop", 0.0)) < 0.0:

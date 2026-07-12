@@ -38,7 +38,7 @@ var LOCATIONS := {
 
 ## What's lying around on the ground at each location to begin with (mutated as you play).
 var GROUND_START := {
-	"lordly_manor": ["firewood", "tinder"],
+	"lordly_manor": ["firewood", "tinder", "alarm_clock"],
 	"the_woods": [],
 }
 
@@ -104,6 +104,9 @@ var ACTIONS := {
 	"radio": [
 		{"label": "Listen (15m)", "mins": 15, "fx": {"Mental": 6.0}, "radio_listen": true},
 	],
+	"alarm_clock": [
+		{"label": "Set alarm...", "configure_alarm": true},
+	],
 	"rat": [
 		{"label": "Deal with it", "fight": true},
 	],
@@ -140,6 +143,9 @@ var log_label: Label
 var inv_head: Label
 var cond_tray: VBoxContainer
 var weather_label: Label
+var shelter_status_box: VBoxContainer
+var shelter_status_label: Label
+var shelter_barricade_label: Label
 var _collapsing: bool = false
 var _locations_initial: Dictionary
 var _last_present := {}  ## renewable ground id -> present count at the CURRENT location (harvest detection)
@@ -156,12 +162,17 @@ var menu_panel: PanelContainer
 var menu_vbox: VBoxContainer
 var _menu_card: CardIcon
 var _menu_actions: Array = []
+var _alarm_hour_draft: int = 6
+var _alarm_minute_draft: int = 0
+var _sleep_in_progress: bool = false
+var _alarm_woke_during_sleep: bool = false
 var _dragging: CardIcon = null
 var detail_layer: Control
 var detail_panel: PanelContainer
 var detail_body: VBoxContainer
-var _detail_mode: String = "card"  ## card | wounds | craft | buildsite | skills | research
+var _detail_mode: String = "card"  ## card | wounds | craft | buildsite | maintenance | skills | research | alarm
 var _build_project: String = ""
+var _maintenance_id: String = ""
 var _craft_tab: String = "shelter"
 const CRAFT_TABS := [["shelter", "Shelter"], ["tools", "Tools"], ["tailoring", "Tailoring"]]
 var combat_layer: Control
@@ -185,8 +196,15 @@ var _combat_before: Dictionary = {}
 var _combat_resolving: bool = false
 var _combat_context: String = "table"  ## table (normal) | siege (unfleeable horde wave)
 var _combat_weapon_id: String = "__unset__"
-var _siege_waves_left: int = 0
+var _combat_opening_safe: bool = false
 var combat_flee_btn: Button
+var siege_layer: Control
+var siege_progress_label: Label
+var siege_pressure_label: Label
+var siege_status_label: Label
+var siege_action_box: VBoxContainer
+var _siege_start_queued: bool = false
+var _siege_resolving: bool = false
 var hurt_flash: ColorRect
 var passout_dim: ColorRect
 var env_bg: ColorRect        ## the app background
@@ -227,6 +245,7 @@ func _ready() -> void:
 	_build_time_popup()
 	_build_menu()
 	_build_detail()
+	_build_siege()
 	_build_death()
 	_build_combat()
 	_build_hurt_flash()
@@ -234,6 +253,7 @@ func _ready() -> void:
 	_populate()
 	Audio.start_bgm()
 	Game.changed.connect(_refresh)
+	Game.alarm_triggered.connect(_on_alarm_triggered)
 	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
 	_update_environment(true)  # paint the mood with no fade
@@ -272,13 +292,42 @@ func _validate_content() -> void:
 	# (c) CONSTRUCTION phase materials, requires_research; RESEARCH unlocks + skill.
 	for pid in Game.CONSTRUCTION:
 		var proj: Dictionary = Game.CONSTRUCTION[pid]
+		var shelter_id := str(proj.get("shelter", ""))
+		if not Game.SHELTERS.has(shelter_id):
+			push_error("CONTENT: CONSTRUCTION['%s'] shelter '%s' is not a registered shelter" % [pid, shelter_id])
 		for phase in proj.get("phases", []):
 			for mid in phase.get("materials", {}):
 				if not CARD_FILES.has(str(mid)):
 					push_error("CONTENT: CONSTRUCTION['%s'] phase material id '%s' is not a known card" % [pid, str(mid)])
+		for mid in (proj.get("repair", {}) as Dictionary).get("materials", {}):
+			if not CARD_FILES.has(str(mid)):
+				push_error("CONTENT: CONSTRUCTION['%s'] repair material id '%s' is not a known card" % [pid, str(mid)])
+		var effects: Dictionary = proj.get("effects", {})
+		for tag in effects:
+			if str(tag) not in Game.BUILD_EFFECT_TAGS:
+				push_error("CONTENT: CONSTRUCTION['%s'] effect '%s' is not allowed" % [pid, str(tag)])
+				continue
+			var raw = effects[tag]
+			if typeof(raw) not in [TYPE_INT, TYPE_FLOAT] or not is_finite(float(raw)) or float(raw) < 0.0:
+				push_error("CONTENT: CONSTRUCTION['%s'] effect '%s' must be a finite non-negative number" % [pid, str(tag)])
+			elif str(tag) in ["structure_defense", "barricade_capacity"] and not is_equal_approx(float(raw), round(float(raw))):
+				push_error("CONTENT: CONSTRUCTION['%s'] effect '%s' must use whole points" % [pid, str(tag)])
+			elif str(tag) == "structure_defense" and float(raw) > 3.0:
+				push_error("CONTENT: CONSTRUCTION['%s'] structure_defense exceeds the per-build cap of 3" % pid)
+			elif str(tag) == "barricade_capacity" and float(raw) > 4.0:
+				push_error("CONTENT: CONSTRUCTION['%s'] barricade_capacity exceeds the per-build cap of 4" % pid)
+			elif str(tag) == "insulation" and float(raw) > 0.40:
+				push_error("CONTENT: CONSTRUCTION['%s'] insulation exceeds the supported 0.40 range" % pid)
 		var req := str(proj.get("requires_research", ""))
 		if req != "" and not Game.RESEARCH.has(req):
 			push_error("CONTENT: CONSTRUCTION['%s'] requires_research '%s' is not a known research project" % [pid, req])
+		var required_build := str(proj.get("requires_build", ""))
+		if required_build != "" and not Game.CONSTRUCTION.has(required_build):
+			push_error("CONTENT: CONSTRUCTION['%s'] requires_build '%s' is not a known project" % [pid, required_build])
+		elif required_build == pid:
+			push_error("CONTENT: CONSTRUCTION['%s'] cannot require itself" % pid)
+		elif required_build != "" and str(Game.CONSTRUCTION[required_build].get("shelter", "")) != shelter_id:
+			push_error("CONTENT: CONSTRUCTION['%s'] requires a project at another shelter" % pid)
 	for rid in Game.RESEARCH:
 		var r: Dictionary = Game.RESEARCH[rid]
 		var unlocks := str(r.get("unlocks", ""))
@@ -320,6 +369,9 @@ func _validate_content() -> void:
 		for gid in GROUND_START[gloc]:
 			if not CARD_FILES.has(str(gid)):
 				push_error("CONTENT: GROUND_START['%s'] id '%s' is not a known card" % [gloc, str(gid)])
+	for shelter_id in Game.SHELTERS:
+		if not LOCATIONS.has(shelter_id):
+			push_error("CONTENT: SHELTERS id '%s' is not a known location" % str(shelter_id))
 	# (e) EVENT_SPINE ids exist; every EVENT has _telegraph and _onset flavor.
 	for ev in Game.EVENT_SPINE:
 		var evid := str(ev["id"])
@@ -748,6 +800,17 @@ func _build_right() -> Control:
 	weather_label = _label("Overcast, still.", MUTED, 12)
 	weather_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(weather_label)
+	shelter_status_box = VBoxContainer.new()
+	shelter_status_box.add_theme_constant_override("separation", 3)
+	shelter_status_box.add_child(HSeparator.new())
+	shelter_status_box.add_child(_label("SHELTER", COLD, 11))
+	shelter_status_label = _label("", INK, 12)
+	shelter_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	shelter_status_box.add_child(shelter_status_label)
+	shelter_barricade_label = _label("", MUTED, 12)
+	shelter_barricade_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	shelter_status_box.add_child(shelter_barricade_label)
+	vb.add_child(shelter_status_box)
 	vb.add_child(HSeparator.new())
 	vb.add_child(_label("THE DAY", COLD, 11))
 	log_label = _label("", INK, 12)
@@ -948,8 +1011,10 @@ func _open_detail() -> void:
 		"wounds": _render_wounds_screen()
 		"craft": _render_craft_hub()
 		"buildsite": _render_buildsite()
+		"maintenance": _render_maintenance()
 		"skills": _render_skills_screen()
 		"research": _render_research_screen()
+		"alarm": _render_alarm_screen()
 		_: _render_card_detail()
 	detail_panel.reset_size()
 	detail_layer.visible = true
@@ -1128,6 +1193,9 @@ func _render_card_detail() -> void:
 		var st := card.state_summary()
 		if st != "":
 			detail_body.add_child(_label(st, WARM_SOFT, 12))
+		if card.data.id == "alarm_clock":
+			var alarm_status := "Daily alarm set for %s" % Game.alarm_hhmm() if Game.alarm_is_pending() else "Alarm not set"
+			detail_body.add_child(_label(alarm_status, WARM_SOFT if Game.alarm_is_pending() else MUTED, 12))
 	if build_project_id != "":
 		detail_body.add_child(HSeparator.new())
 		_render_build_project(build_project_id, false)
@@ -1237,6 +1305,14 @@ func _render_shelter_construction() -> void:
 		var b := _detail_action_btn(str(proj["label"]) + status)
 		b.pressed.connect(_open_buildsite.bind(id))
 		detail_body.add_child(b)
+	var jobs := Game.maintenance_for(loc)
+	if not jobs.is_empty():
+		detail_body.add_child(HSeparator.new())
+		detail_body.add_child(_label("REPAIRS", WARM, 11))
+		for job in jobs:
+			var repair_button := _detail_action_btn(str(job["label"]))
+			repair_button.pressed.connect(_open_maintenance.bind(str(job["id"])))
+			detail_body.add_child(repair_button)
 
 func _render_buildsite() -> void:
 	var id := _build_project
@@ -1435,6 +1511,48 @@ func _btn(txt: String) -> Button:
 	b.add_theme_stylebox_override("hover", _btn_sb(Color(0.16, 0.20, 0.25)))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	return b
+
+func _build_siege() -> void:
+	siege_layer = Control.new()
+	siege_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	siege_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	siege_layer.visible = false
+	add_child(siege_layer)
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0.01, 0.015, 0.02, 0.78)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	siege_layer.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	siege_layer.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(650, 0)
+	panel.add_theme_stylebox_override("panel", _flat(PANEL, WARM, 12))
+	center.add_child(panel)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 11)
+	_pad(panel, 24).add_child(vb)
+	vb.add_child(_label("THE HOUSE MUST HOLD", WARM, 11))
+	vb.add_child(_label("Something at the door", INK_STRONG, 24))
+	siege_progress_label = _label("", COLD, 12)
+	vb.add_child(siege_progress_label)
+	siege_pressure_label = _wrapped("", INK, 14, 600)
+	vb.add_child(siege_pressure_label)
+	siege_status_label = _wrapped("", MUTED, 12, 600)
+	vb.add_child(siege_status_label)
+	vb.add_child(HSeparator.new())
+	var action_scroll := ScrollContainer.new()
+	action_scroll.custom_minimum_size = Vector2(0, 260)
+	action_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	action_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	action_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(action_scroll)
+	siege_action_box = VBoxContainer.new()
+	siege_action_box.add_theme_constant_override("separation", 8)
+	siege_action_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	action_scroll.add_child(siege_action_box)
+	siege_layer.visible = false
 
 func _build_death() -> void:
 	death_layer = Control.new()
@@ -1665,7 +1783,7 @@ func _refresh_combat() -> void:
 	if _combat_card:
 		combat_blurb.text = str(_combat_card.data.blurb)
 	elif _combat_context == "siege":
-		combat_blurb.text = "It came over the threshold, out of the crush of them. Put it down."
+		combat_blurb.text = "It came over the threshold, out of the crush of them. It is tangled in the gap — strike now." if _combat_opening_safe else "It came over the threshold, out of the crush of them. Put it down."
 	combat_hp_bar.max_value = _combat_hp_max
 	combat_hp_bar.value = maxf(0.0, _combat_hp)
 	if Game.wound_bleed_rate() > 0.0:
@@ -1677,12 +1795,13 @@ func _refresh_combat() -> void:
 	combat_log_label.text = "\n".join(_combat_tail())
 	_refresh_combat_weapons()
 
-func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "table") -> void:
+func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "table", opening_safe: bool = false) -> void:
 	if Game.dead or not is_enemy(enemy_id):
 		return
 	_combat_id = enemy_id
 	_combat_card = card
 	_combat_context = context
+	_combat_opening_safe = opening_safe
 	_combat_hp_max = enemy_data(_combat_id).hp
 	_combat_hp = _combat_hp_max
 	_combat_before = Game.meters.duplicate()
@@ -1854,6 +1973,8 @@ func _combat_strike() -> void:
 		return
 	var e: CardData = enemy_data(_combat_id)
 	var enemy_name: String = e.title.to_lower()
+	var opening_safe := _combat_opening_safe
+	_combat_opening_safe = false  # the first attempt spends the opening, even if it misses
 	var weapon := _combat_weapon_profile()
 	var roll := Game.strike_roll(float(weapon["damage"]), float(weapon["accuracy"]))
 	var dmg: float = float(roll["dmg"])
@@ -1877,6 +1998,8 @@ func _combat_strike() -> void:
 	if killed:
 		Audio.play_cue("combat_enemy_down")
 		_combat_say("The %s drops, and does not get up." % enemy_name)
+	elif opening_safe:
+		_combat_say("It claws for purchase in the broken timber, unable to answer your first blow.")
 	else:
 		var edmg: float = Game.enemy_damage_roll(e.damage)
 		new_wound = Game.create_wound(edmg, "a %s attack" % enemy_name, "bite" if _combat_id in ["rat", "zombie"] else "laceration")
@@ -1950,54 +2073,240 @@ func _combat_end(outcome: String) -> void:
 	_combat_id = ""
 	var ctx := _combat_context
 	_combat_context = "table"
+	_combat_opening_safe = false
 	# time already passed per round; settle the bars to their post-fight values. combat is
 	# hidden now, so the add_log above already let _refresh surface any death / forced sleep.
 	_animate_meters(_combat_before, {})
 	on_layout_changed()
 	_combat_resolving = false
-	# a siege chains breach by breach until the surge is spent or you go down
-	if ctx == "siege" and outcome == "win" and not Game.dead:
-		_siege_waves_left -= 1
-		if _siege_waves_left > 0:
-			_spawn_siege_wave.call_deferred()
+	if ctx == "siege":
+		if outcome == "win" and not Game.dead and Game.finish_siege_combat(true):
+			_resume_siege_after_combat.call_deferred()
 		else:
-			_end_siege()
-
-# ---------- siege (a horde surge, driven by Game.pending_siege) ----------
-func _start_siege(waves: int) -> void:
-	if waves <= 0 or Game.dead:
-		return
-	var loc := Game.current_location
-	var sheltered := Game.is_shelter(loc)
-	var defense := Game.shelter_defense(loc)
-	# deterministic: more waves and less defense means more of them break in
-	var breaches := Game.siege_breaches(waves, loc)
-	Game.add_log(Game._pick(Game.SIEGE["horde_arrives"]))
-	if sheltered:
-		Game.add_log(Game._pick(Game.SIEGE["testing_the_door"]))
-		if breaches <= 0:
-			Game.add_log(Game._pick(Game.SIEGE["holding"]))
-			Game.add_log(Game._pick(Game.SIEGE["repelled"]))
-			return
-		if defense > 0.2:
-			Game.add_log(Game._pick(Game.SIEGE["straining"]))
-		Game.add_log(Game._pick(Game.SIEGE["breach"]))
+			Game.finish_siege_combat(false)
+			Game.finish_siege()
+			if siege_layer:
+				siege_layer.visible = false
 	else:
-		Game.add_log(Game._pick(Game.SIEGE["open_ground"]))
-		breaches = maxi(1, waves)
-	_siege_waves_left = breaches
-	_spawn_siege_wave()
+		if not Game.pending_siege.is_empty():
+			_dispatch_pending_siege()
+		elif Game.force_sleep and not Game.dead and not _collapsing:
+			Game.force_sleep = false
+			_collapse_sleep.call_deferred()
 
-func _spawn_siege_wave() -> void:
-	if _siege_waves_left <= 0 or Game.dead:
-		_end_siege()
+# ---------- siege (a deterministic ordeal; combat remains uncertain) ----------
+func _siege_flavor(key: String, index: int = 0) -> String:
+	var lines: Array = Game.SIEGE.get(key, [])
+	return str(lines[index % lines.size()]) if not lines.is_empty() else ""
+
+func _player_at_siege_target(target: String) -> bool:
+	return Game.current_location == target
+
+func _dispatch_pending_siege() -> void:
+	if _siege_start_queued or Game.pending_siege.is_empty() or not Game.active_siege.is_empty() or Game.dead:
 		return
-	_start_combat("zombie", null, "siege")
+	if _sleep_in_progress or _collapsing or _combat_resolving or (combat_layer and combat_layer.visible):
+		return
+	_siege_start_queued = true
+	_start_pending_siege.call_deferred()
 
-func _end_siege() -> void:
-	_siege_waves_left = 0
-	if not Game.dead:
-		Game.add_log(Game._pick(Game.SIEGE["repelled"]))
+func _start_pending_siege() -> void:
+	_siege_start_queued = false
+	if Game.pending_siege.is_empty() or Game.dead:
+		return
+	var target := str(Game.pending_siege.get("target", Game.SIEGE_TARGET))
+	var state := Game.begin_pending_siege(_player_at_siege_target(target))
+	if state.is_empty():
+		return
+	_hide_menu()
+	_hide_detail()
+	if time_layer:
+		time_layer.visible = false
+	Game.add_log(_siege_flavor("horde_arrives"))
+	Game.add_log(_siege_flavor("testing_the_door"))
+	if not bool(state.get("player_present", false)):
+		var results := Game.resolve_unattended_siege()
+		Game.add_log(_siege_flavor("horde_surge_away") if Game.SIEGE.has("horde_surge_away") else "The manor takes their weight while you are away.")
+		for result in results:
+			_log_siege_damage(str(result.get("structural_damage", "")))
+		if not results.is_empty():
+			Game.advance_time(results.size() * Game.SIEGE_PUSH_MINS)
+		_end_siege(false)
+		return
+	_render_siege_push()
+
+func _siege_outlook(action: String) -> String:
+	var preview := Game.siege_preview(action)
+	if preview.is_empty():
+		return "Unavailable."
+	match str(preview["outcome"]):
+		"firm": return "This should hold cleanly."
+		"strain": return "It should hold, but the barricade will strain."
+		_: return "The entrance is still likely to give."
+
+func _siege_choice_button(title: String, detail: String, action: String, disabled: bool = false) -> Button:
+	var outlook := _siege_outlook(action) if not disabled else ""
+	var b := _btn("%s\n%s%s" % [title, detail, "  " + outlook if outlook != "" else ""])
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(0, 54)
+	b.disabled = disabled
+	b.tooltip_text = outlook if not disabled else detail
+	if not disabled:
+		b.pressed.connect(_resolve_siege_choice.bind(action))
+	return b
+
+func _siege_status_text(loc: String) -> String:
+	var current := Game.barricade_segments(loc)
+	var maximum := Game.barricade_capacity(loc)
+	var pips := ""
+	for i in mini(maximum, 8):
+		pips += "■" if i < current else "□"
+	if maximum > 8:
+		pips += "+"
+	var barrier := "no barricade" if maximum <= 0 else "barricade %s" % pips
+	var structure := Game.shelter_structure_defense(loc)
+	var frame := "the house is open" if structure <= 0 else ("strongly braced" if structure >= 3 else ("braced" if structure >= 2 else "bare walls and a roof"))
+	return "%s · %s · Stamina %d" % [frame.capitalize(), barrier, int(round(float(Game.meters["Energy"])))]
+
+func _render_siege_push() -> void:
+	if Game.active_siege.is_empty() or Game.dead:
+		return
+	if str(Game.active_siege.get("phase", "")) == "complete":
+		_end_siege(true)
+		return
+	if str(Game.active_siege.get("phase", "")) != "decision":
+		return
+	_hide_menu()
+	_hide_detail()
+	for child in siege_action_box.get_children():
+		siege_action_box.remove_child(child)
+		child.queue_free()
+	var state: Dictionary = Game.active_siege
+	var idx := int(state.get("push_index", 0))
+	var pressures: Array = state.get("pressures", [])
+	var loc := str(state.get("target", Game.SIEGE_TARGET))
+	var pressure := Game.siege_current_pressure()
+	siege_progress_label.text = "PUSH %d OF %d" % [idx + 1, pressures.size()]
+	siege_pressure_label.text = Game.siege_pressure_word(pressure)
+	siege_status_label.text = _siege_status_text(loc)
+	var brace_disabled := float(Game.meters.get("Energy", 0.0)) < Game.SIEGE_BRACE_COST
+	siege_action_box.add_child(_siege_choice_button("Brace the entrance", "Spend 15 Stamina to add your weight to this push.", "brace", brace_disabled))
+	var cap := Game.barricade_capacity(loc)
+	if cap > 0:
+		var shore_disabled := Game.barricade_segments(loc) >= cap or _count_available("firewood") <= 0 or float(Game.meters.get("Energy", 0.0)) < Game.SIEGE_SHORE_COST
+		siege_action_box.add_child(_siege_choice_button("Set a spare crossbar", "Spend 1 Firewood and 4 Stamina to drop a sound timber into the empty sockets. The bar remains.", "shore", shore_disabled))
+	siege_action_box.add_child(_siege_choice_button("Stand at the gap", "Conserve your strength. If it breaks through, your first strike is unanswered.", "ready"))
+	var can_tend := false
+	for wound in Game.wounds:
+		var uid := int(wound.get("uid", -1))
+		if not bool(wound.get("bandaged", false)) and _count_available("bandage") > 0:
+			if not can_tend:
+				siege_action_box.add_child(HSeparator.new())
+				siege_action_box.add_child(_label("USE THE LULL", BLOOD, 11))
+			can_tend = true
+			var bandage_button := _btn("Bandage %s\nTreat yourself instead of helping the entrance this push." % str(wound.get("label", "wound")).to_lower())
+			bandage_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			bandage_button.pressed.connect(_siege_tend_wound.bind(uid, "bandage"))
+			siege_action_box.add_child(bandage_button)
+		if not bool(wound.get("cleaned", false)) and _find_clean_water() != null:
+			if not can_tend:
+				siege_action_box.add_child(HSeparator.new())
+				siege_action_box.add_child(_label("USE THE LULL", BLOOD, 11))
+			can_tend = true
+			var clean_button := _btn("Wash %s\nTreat yourself instead of helping the entrance this push." % str(wound.get("label", "wound")).to_lower())
+			clean_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			clean_button.pressed.connect(_siege_tend_wound.bind(uid, "clean"))
+			siege_action_box.add_child(clean_button)
+	siege_layer.visible = true
+
+func _siege_tend_wound(uid: int, kind: String) -> void:
+	if _siege_resolving or str(Game.active_siege.get("phase", "")) != "decision":
+		return
+	if kind == "bandage":
+		var bandage := _find_card("bandage")
+		if bandage == null or not Game.bandage_wound(uid):
+			return
+		Audio.play_cue("bandage_apply")
+		_consume_card(bandage)
+		Game.log_quiet("You bind the wound while the door shakes in its frame.")
+	else:
+		var water := _find_clean_water()
+		if water == null or not Game.clean_wound(uid):
+			return
+		water.drain_content(minf(10.0, water.state_value))
+		Audio.play_cue("water_fill")
+		Game.log_quiet("You wash the wound in the brief lull, listening to the weight gather again.")
+	_resolve_siege_choice("tend")
+
+func _resolve_siege_choice(action: String) -> void:
+	if _siege_resolving or Game.dead or str(Game.active_siege.get("phase", "")) != "decision":
+		return
+	_siege_resolving = true
+	var before := Game.meters.duplicate()
+	var result := Game.resolve_siege_push(action)
+	if result.is_empty():
+		_siege_resolving = false
+		_render_siege_push()
+		return
+	if action == "shore":
+		_consume_materials("firewood", 1)
+		Game.log_quiet("You drag a sound length across the hall and drop it into the empty sockets.")
+	elif action == "brace":
+		Game.log_quiet("You set your shoulder to the timber and give the house your weight.")
+	elif action == "ready":
+		Game.log_quiet("You step back from the door and ready your hands for what comes through.")
+	match str(result.get("outcome", "")):
+		"firm":
+			Game.log_quiet(_siege_flavor("holding", int(result.get("push_index", 0))))
+		"strain":
+			Game.log_quiet(_siege_flavor("straining", int(result.get("push_index", 0))))
+		"breach":
+			Game.log_quiet(_siege_flavor("breach", int(result.get("push_index", 0))))
+	_log_siege_damage(str(result.get("structural_damage", "")))
+	Game.advance_time(Game.SIEGE_PUSH_MINS, false, false, 1.0, true)
+	_animate_meters(before, {})
+	_screen_shake(3.0 if str(result.get("outcome", "")) == "firm" else (6.0 if str(result.get("outcome", "")) == "strain" else 10.0))
+	_siege_resolving = false
+	if Game.dead:
+		Game.fail_siege()
+		Game.finish_siege()
+		siege_layer.visible = false
+		return
+	if str(result.get("outcome", "")) == "breach":
+		siege_layer.visible = false
+		_start_combat("zombie", null, "siege", bool(result.get("opening_strike", false)))
+	elif bool(result.get("complete", false)) or str(Game.active_siege.get("phase", "")) == "complete":
+		_end_siege(true)
+	else:
+		_render_siege_push()
+
+func _log_siege_damage(damage: String) -> void:
+	match damage:
+		"manor_door": Game.log_quiet("The crossbrace splits down its length. The front door hangs wrong again.")
+		"manor_windows": Game.log_quiet("A shutter tears loose and the cold comes in around it.")
+		"shell": Game.log_quiet("Timber tears away from the opening. The manor is open to the weather now.")
+
+func _resume_siege_after_combat() -> void:
+	if Game.dead or Game.active_siege.is_empty():
+		return
+	if str(Game.active_siege.get("phase", "")) == "complete":
+		_end_siege(true)
+	else:
+		_render_siege_push()
+
+func _end_siege(attended: bool = true) -> void:
+	if siege_layer:
+		siege_layer.visible = false
+	var summary := Game.finish_siege()
+	if summary.is_empty() or Game.dead:
+		return
+	if attended:
+		Game.add_log(_siege_flavor("repelled", int(summary.get("breaches", 0))))
+	else:
+		Game.add_log("The pressure at the manor finally thins and passes on. What held there will have to wait for your return.")
+	if Game.force_sleep and not _collapsing:
+		Game.force_sleep = false
+		_collapse_sleep.call_deferred()
 
 func _show_death() -> void:
 	Audio.stop_all(1.0)
@@ -2020,6 +2329,11 @@ func _restart() -> void:
 	Audio.stop_all(0.2)
 	Audio.start_bgm()
 	Game.reset()
+	_siege_start_queued = false
+	_siege_resolving = false
+	_combat_opening_safe = false
+	if siege_layer:
+		siege_layer.visible = false
 	LOCATIONS = _locations_initial.duplicate(true)
 	for key in rows:
 		for c in rows[key].get_children():
@@ -2753,9 +3067,9 @@ func _open_char_menu() -> void:
 	_detail_mode = "card"
 	_menu_actions = [
 		{"label": "Rest (15m)", "mins": 15, "fx": {"Energy": 25.0, "Mental": 2.0}, "log": "You sit a while, easing the ache from your limbs. Not sleep, but you get your wind back."},
-		{"label": "Nap (a few hours)", "nap": true},
-		{"label": "Sleep until morning", "sleep": true},
 	]
+	if Game.meters["Sleep"] < 99.0:
+		_menu_actions.append({"label": _sleep_action_label(), "sleep": true})
 	if Game.worn != "":
 		_menu_actions.append({"label": "Take off the %s" % _card_title(Game.worn).to_lower(), "take_off": true})
 	_open_detail()
@@ -2779,42 +3093,187 @@ func _sleep_interrupted(floor_v: float) -> bool:
 		Game.add_log("You jolt awake with your stomach clawing at itself, too hungry to rest. A ruined night.")
 	return true
 
-# Sleep restores the deep Sleep need (and refreshes Stamina). Wakes when fully rested or after ~12h.
+# Sleep restores the deep Sleep need (and refreshes Stamina). It ends when fully rested, interrupted,
+# or when a nearby wound-up alarm reaches its exact minute. The alarm remains armed for tomorrow.
 func _sleep() -> void:
 	Audio.play_cue("sleep_settle")
 	var before := Game.meters.duplicate()
 	var guard := 0
 	var _t0 := Game.day * 1440 + Game.minute
+	var alarm_nearby := _alarm_clock_nearby()
+	_sleep_in_progress = true
+	_alarm_woke_during_sleep = false
 	while guard < 24 and not Game.dead and Game.meters["Sleep"] < 100.0:
 		guard += 1
-		Game.advance_time(30, true)
+		var step := 30
+		if alarm_nearby and Game.alarm_is_pending():
+			step = mini(step, Game.minutes_until_alarm())
+		Game.advance_time(step, true)
+		if not Game.pending_siege.is_empty():
+			break
+		if _alarm_woke_during_sleep:
+			break
 		if _sleep_interrupted(10.0):
 			break
+	_sleep_in_progress = false
+	if not Game.pending_siege.is_empty():
+		_dispatch_pending_siege()
 	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
-	if not Game.dead and Game.meters["Sleep"] >= 99.0:
+	if not _alarm_woke_during_sleep and not Game.dead and Game.meters["Sleep"] >= 99.0:
 		Game.add_log("You sleep hard and wake clear-headed and rested.")
 	_animate_meters(before, {})
 	on_layout_changed()
 
-# A nap tops up Sleep partway: a capped span (up to 4h), never a substitute for a full night.
-func _nap() -> void:
-	Audio.play_cue("sleep_settle")
+func _alarm_clock_nearby() -> bool:
+	return _find_card("alarm_clock") != null
+
+func _on_alarm_triggered() -> void:
+	if not _alarm_clock_nearby():
+		return
+	Audio.play_alarm_ring()
+	if _sleep_in_progress:
+		_alarm_woke_during_sleep = true
+		Game.add_log("The alarm clock erupts. You wake at once.")
+	else:
+		Game.add_log("The alarm clock erupts.")
+
+func _sleep_action_label() -> String:
+	var restore_per_hour := maxf(0.1, Game.SLEEP_RESTORE * Game.sleep_quality())
+	var hours := minf(12.0, (100.0 - float(Game.meters["Sleep"])) / restore_per_hour)
+	var half_hours := maxi(1, int(ceil(hours * 2.0)))
+	var estimate := "%.1fh" % (float(half_hours) / 2.0)
+	if _alarm_clock_nearby() and Game.alarm_is_pending():
+		return "Sleep until rested or alarm (%s)" % Game.alarm_hhmm()
+	return "Sleep until rested (~%s)" % estimate
+
+func _open_alarm_config() -> void:
+	var source_minute := (Game.alarm_at % 1440) if Game.alarm_at >= 0 else ((Game.minute + 8 * 60) % 1440)
+	_alarm_hour_draft = source_minute / 60
+	_alarm_minute_draft = int(round(float(source_minute % 60) / 5.0)) * 5
+	if _alarm_minute_draft >= 60:
+		_alarm_minute_draft = 0
+		_alarm_hour_draft = (_alarm_hour_draft + 1) % 24
+	_detail_mode = "alarm"
+	_open_detail()
+
+func _open_maintenance(id: String) -> void:
+	_maintenance_id = id
+	_detail_mode = "maintenance"
+	_open_detail()
+
+func _render_maintenance() -> void:
+	var loc := Game.current_location
+	var job := Game.maintenance_job(loc, _maintenance_id)
+	if job.is_empty():
+		_open_craft_hub()
+		return
+	detail_body.add_child(_label("MAINTENANCE", WARM, 11))
+	detail_body.add_child(_label(str(job["label"]), INK_STRONG, 20))
+	detail_body.add_child(_wrapped("Damage can be mended a piece at a time. The work costs daylight, strength, and timber that might otherwise feed the hearth.", MUTED, 12))
+	detail_body.add_child(HSeparator.new())
+	var have_all := true
+	var mats: Dictionary = job.get("materials", {})
+	for mid in mats:
+		var need := int(mats[mid])
+		var have := _count_available(str(mid))
+		if have < need:
+			have_all = false
+		detail_body.add_child(_label("%s   %d / %d" % [_card_title(str(mid)), have, need], WARM_SOFT if have >= need else BLOOD, 12))
+	var wmin := int(job.get("work_mins", 30))
+	var too_spent := float(Game.meters["Energy"]) < Game.STAMINA_DRAIN_PHYSICAL * (float(wmin) / 60.0) * CONSTRUCTION_EFFORT
+	var work_button := _detail_action_btn("Do the work  (%s)" % _dur_text(wmin))
+	work_button.disabled = not have_all or too_spent
+	if have_all and not too_spent:
+		work_button.pressed.connect(_do_maintenance.bind(_maintenance_id))
+	elif not have_all:
+		work_button.tooltip_text = "You do not have the materials here."
+	else:
+		work_button.tooltip_text = "Too exhausted — rest first."
+	detail_body.add_child(work_button)
+	var back := _detail_action_btn("Back")
+	back.pressed.connect(_open_craft_hub)
+	detail_body.add_child(back)
+
+func _do_maintenance(id: String) -> void:
+	if Game.dead:
+		return
+	var loc := Game.current_location
+	var job := Game.maintenance_job(loc, id)
+	if job.is_empty():
+		return
+	var mats: Dictionary = job.get("materials", {})
+	for mid in mats:
+		if _count_available(str(mid)) < int(mats[mid]):
+			_blocked("You do not have the materials for that yet.")
+			return
+	for mid in mats:
+		_consume_materials(str(mid), int(mats[mid]))
+	Audio.play_cue("construction_wood")
+	var wmin := int(job.get("work_mins", 30))
 	var before := Game.meters.duplicate()
-	var guard := 0
-	var _t0 := Game.day * 1440 + Game.minute
-	while guard < 8 and not Game.dead and Game.meters["Sleep"] < 100.0:
-		guard += 1
-		Game.advance_time(30, true)
-		if _sleep_interrupted(10.0):
-			break
-	_show_time_passing(Game.day * 1440 + Game.minute - _t0)
-	if not Game.dead:
-		if Game.meters["Sleep"] >= 99.0:
-			Game.add_log("You wake from the nap fully rested.")
-		else:
-			Game.add_log("You wake from the nap, some of the edge off but not truly rested.")
+	Game.advance_time(wmin, false, true, CONSTRUCTION_EFFORT)
+	_show_time_passing(wmin)
+	Game.gain_skill("crafting", 2.0)
+	Game.complete_maintenance(loc, id)
 	_animate_meters(before, {})
 	on_layout_changed()
+	if Game.maintenance_job(loc, id).is_empty():
+		_open_craft_hub()
+	else:
+		_open_detail()
+
+func _render_alarm_screen() -> void:
+	detail_body.add_child(_label("ALARM CLOCK", COLD, 11))
+	detail_body.add_child(_label("Set the alarm", INK_STRONG, 22))
+	detail_body.add_child(_wrapped("Wind it for a time of day. It rings every day, whether you are awake or asleep. If the clock is nearby while you sleep, it will wake you before you are fully rested.", MUTED, 13))
+	var status := "Daily alarm: %s" % Game.alarm_hhmm() if Game.alarm_is_pending() else "The alarm is not set."
+	detail_body.add_child(_label(status, WARM_SOFT if Game.alarm_is_pending() else MUTED, 12))
+	detail_body.add_child(HSeparator.new())
+	var time_row := HBoxContainer.new()
+	time_row.add_theme_constant_override("separation", 8)
+	var hour_box := OptionButton.new()
+	hour_box.custom_minimum_size = Vector2(104, 38)
+	for hour in 24:
+		hour_box.add_item("%02d" % hour, hour)
+	hour_box.select(_alarm_hour_draft)
+	hour_box.item_selected.connect(func(index: int) -> void: _alarm_hour_draft = hour_box.get_item_id(index))
+	time_row.add_child(hour_box)
+	time_row.add_child(_label(":", INK_STRONG, 22))
+	var minute_box := OptionButton.new()
+	minute_box.custom_minimum_size = Vector2(104, 38)
+	for alarm_minute in range(0, 60, 5):
+		minute_box.add_item("%02d" % alarm_minute, alarm_minute)
+	minute_box.select(_alarm_minute_draft / 5)
+	minute_box.item_selected.connect(func(index: int) -> void: _alarm_minute_draft = minute_box.get_item_id(index))
+	time_row.add_child(minute_box)
+	detail_body.add_child(time_row)
+	var set_button := _detail_action_btn("Wind and set alarm")
+	set_button.pressed.connect(_set_alarm_from_picker)
+	detail_body.add_child(set_button)
+	if Game.alarm_at >= 0:
+		var disable_button := _detail_action_btn("Disable alarm")
+		disable_button.pressed.connect(_disable_alarm)
+		detail_body.add_child(disable_button)
+	var back_button := _detail_action_btn("Back")
+	back_button.pressed.connect(_back_to_alarm_card)
+	detail_body.add_child(back_button)
+
+func _set_alarm_from_picker() -> void:
+	Game.set_alarm(_alarm_hour_draft, _alarm_minute_draft)
+	Audio.play_cue("alarm_clock_wind")
+	Game.add_log("You wind the alarm to ring every day at %s." % Game.alarm_hhmm())
+	_back_to_alarm_card()
+
+func _disable_alarm() -> void:
+	Game.clear_alarm()
+	Audio.play_cue("ui_action_commit")
+	Game.add_log("You let down the alarm spring. The clock falls quiet.")
+	_back_to_alarm_card()
+
+func _back_to_alarm_card() -> void:
+	_detail_mode = "card"
+	_menu_actions = ACTIONS.get("alarm_clock", []).duplicate(true)
+	_open_detail()
 
 # Fade the whole screen to/from black (used when you pass out). Awaitable.
 func _fade_black(from_a: float, to_a: float, dur: float) -> void:
@@ -2852,6 +3311,8 @@ func _collapse_sleep() -> void:
 		while guard < 24 and not Game.dead and Game.meters["Sleep"] < 60.0:
 			guard += 1
 			Game.advance_time(30, true)
+			if not Game.pending_siege.is_empty():
+				break
 			if _sleep_interrupted(5.0):
 				break
 	else:
@@ -2865,6 +3326,8 @@ func _collapse_sleep() -> void:
 	await get_tree().create_timer(0.8).timeout
 	await _fade_black(1.0, 0.0, 1.1)
 	_collapsing = false
+	if not Game.pending_siege.is_empty():
+		_dispatch_pending_siege()
 
 func _clamp_menu() -> void:
 	var vp := get_viewport_rect().size
@@ -2892,8 +3355,8 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 	if act.has("sleep"):
 		_sleep()
 		return
-	if act.has("nap"):
-		_nap()
+	if act.has("configure_alarm"):
+		_open_alarm_config()
 		return
 	if act.has("travel_to"):
 		_travel_to(act["travel_to"], int(act.get("mins", 30)))
@@ -3092,6 +3555,41 @@ func _cool_hot_containers() -> void:
 					cooled_ids[card.data.id] = true
 					Game.log_quiet("The boiling water in the %s has cooled enough to drink." % card.data.title.to_lower())
 
+func _refresh_shelter_status() -> void:
+	if shelter_status_box == null:
+		return
+	var loc := Game.current_location
+	var visible_here := Game.is_shelter(loc)
+	shelter_status_box.visible = visible_here
+	if not visible_here:
+		return
+	var insulation := Game.shelter_insulation(loc)
+	var structure := Game.shelter_structure_defense(loc)
+	var seal_word := "open to the weather" if Game.shelter_breaches.get(loc, false) else ("well sealed" if insulation >= 0.18 else ("less draughty" if insulation >= 0.08 else "draughty"))
+	var brace_word := "breached" if structure <= 0 else ("strongly braced" if structure >= 3 else ("braced" if structure >= 2 else "bare walls"))
+	var damage_here := false
+	for id in Game.damaged_builds:
+		if Game.CONSTRUCTION.has(id) and str(Game.CONSTRUCTION[id].get("shelter", "")) == loc:
+			damage_here = true
+			break
+	if damage_here and brace_word != "breached":
+		brace_word += ", damaged"
+	shelter_status_label.text = "%s · %s" % [seal_word.capitalize(), brace_word]
+	var current := Game.barricade_segments(loc)
+	var maximum := Game.barricade_capacity(loc)
+	if maximum <= 0:
+		shelter_barricade_label.text = "Barricade · none"
+		shelter_barricade_label.tooltip_text = "Build a barricade from the Shelter construction screen."
+	else:
+		var pips := ""
+		for i in mini(maximum, 8):
+			pips += "■" if i < current else "□"
+		if maximum > 8:
+			pips += "+"
+		var condition := "sound" if current == maximum else ("broken" if current == 0 else "damaged")
+		shelter_barricade_label.text = "Barricade %s · %s" % [pips, condition]
+		shelter_barricade_label.tooltip_text = "%d of %d sound crossbars." % [current, maximum]
+
 func _refresh() -> void:
 	_sync_world_audio()
 	_expire_temporary_cards()
@@ -3159,15 +3657,15 @@ func _refresh() -> void:
 			cond_tray.add_child(_make_cond_bar(id, str(stg["name"]), float(Game.conditions[id]), cst, Game.cond_trajectory(id)))
 	if weather_label:
 		weather_label.text = Game.weather_line()
+	_refresh_shelter_status()
 	_update_environment()  # ease the mood toward the current place / fire / time / season
-	if Game.force_sleep and not Game.dead and (not combat_layer or not combat_layer.visible):
+	if Game.force_sleep and not Game.dead and not _combat_resolving and Game.pending_siege.is_empty() and Game.active_siege.is_empty() and (not combat_layer or not combat_layer.visible):
 		Game.force_sleep = false
 		if not _collapsing:
 			_collapse_sleep.call_deferred()
-	if Game.pending_siege > 0 and not Game.dead and (not combat_layer or not combat_layer.visible) and not _collapsing:
-		var _waves: int = Game.pending_siege
-		Game.pending_siege = 0
-		_start_siege.call_deferred(_waves)
+			return
+	if not Game.pending_siege.is_empty() and not Game.dead:
+		_dispatch_pending_siege()
 	if Game.dead and not _death_shown and (not combat_layer or not combat_layer.visible):
 		_death_shown = true
 		_show_death()

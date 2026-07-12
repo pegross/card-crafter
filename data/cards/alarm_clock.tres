@@ -1,0 +1,12 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/alarm_clock.png" id="2_cover"]
+
+[resource]
+script = ExtResource("1")
+cover_image = ExtResource("2_cover")
+id = "alarm_clock"
+title = "Alarm Clock"
+kind = "tool"
+blurb = "A wind-up twin-bell clock. Loud enough to drag you out of sleep, if you keep it close."

@@ -29,3 +29,13 @@ func run(tree, h) -> void:
 	h.expect(not gc.fire_here(), "fire_here() is false in the cellar though the manor hearth burns")
 	h.expect(gc.meters["Warmth"] < 40.0, "the manor hearth does not warm the cellar (Warmth falls there)")
 	h.expect(gc.meters["Warmth"] < gm.meters["Warmth"], "cellar stays colder than the fire-warmed manor")
+
+	# Tagged insulation is per shelter, and a true structural breach creates a temporary draught.
+	var gi = tree.make_sim(22)
+	gi.builds["manor_door"] = true
+	h.expect_near(gi.shelter_damp("lordly_manor"), 0.32, "door insulation feeds the manor damp calculation")
+	gi.damaged_builds["manor_door"] = true
+	h.expect_near(gi.shelter_damp("lordly_manor"), 0.36, "a damaged door keeps only half of its insulation")
+	gi.shelter_breaches["lordly_manor"] = true
+	h.expect_near(gi.shelter_damp("lordly_manor"), 0.46, "an open structural breach adds a temporary draught penalty")
+	h.expect_near(gi.shelter_damp("cellar"), 0.40, "manor improvements do not leak into another indoor location")

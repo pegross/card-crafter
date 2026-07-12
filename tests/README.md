@@ -36,15 +36,16 @@ when all pass, `1` otherwise.
   hypothermia Deep Cold as a lethal condition, and the composed drain multiplier cap.
 - `test_combat.gd` — weapon profiles, exhausted attacks, unique wounds, bleeding, Blood
   lethality, pain, cleaning, bandaging, delayed infection, and wound reset behavior.
-- `test_director.gd` — the 4-event spine, telegraph timing, `_fire_event` effects
+- `test_director.gd` — the 5-event spine, telegraph timing, `_fire_event` effects
   (radio power, siege, cold-snap temp drop), the deterministic radio (threat outranks
   weather; a same-day repeat is static), and `_extend_schedule` being idempotent.
 - `test_research.gd` — availability by skill level, the single research slot, progress
   accruing only while awake, completion unlocking a build in `construction_for`.
-- `test_construction.gd` — `construction_for` gating, `complete_build_phase` progression,
-  `shelter_damp` tightening as builds land.
-- `test_siege.gd` — the `shelter_defense` gradient (0.20 / 0.44 / 0.66) and 0.90 ceiling,
-  `siege_breaches` across preparation levels.
+- `test_construction.gd` — build/research dependency gating, tagged structure and insulation
+  effects, barricade capacity installation, discrete damage, and proportional maintenance jobs.
+- `test_siege.gd` — deterministic pressure/choice resolution, first-siege preparation matrix,
+  positional breach advantage, unattended structural damage, later-winter escalation, atomic
+  pending/reset state, action authority/costs, and proof that pushes do not consume combat RNG.
 - `test_determinism.gd` — identical `rng.seed` gives identical weather; different seeds
   diverge.
 

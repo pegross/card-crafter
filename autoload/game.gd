@@ -4,6 +4,7 @@ extends Node
 ## by an action. There is no real-time _process tick. Waiting is an action.
 
 signal changed
+signal alarm_triggered
 
 var rng := RandomNumberGenerator.new()  ## seedable sim RNG; tests set Game.rng.seed for reproducibility
 
@@ -14,7 +15,7 @@ const SNARE_CATCH_PER_HOUR := 7.0  ## a set snare fills this much per in-world h
 ## TWO REST AXES. The "Energy" meter is your STAMINA right now (100 = fresh, 0 = collapse): physical
 ## work burns it fast, and it climbs back on its own during light activity or rest — so play runs in
 ## bursts (explore, explore, catch your breath, explore). The "Sleep" meter is the deeper rest need:
-## it drains across the waking day (faster the more spent you are) and only a nap or a full night
+## it drains across the waking day (faster the more spent you are) and only sleep
 ## restores it — resting your stamina back up can never touch it.
 const STAMINA_DRAIN_PHYSICAL := 40.0  ## Stamina burned per hour of PHYSICAL action (heavy work / exploring)
 const STAMINA_RECOVER := 24.0      ## Stamina regained per waking hour of light activity / rest
@@ -81,8 +82,23 @@ var _schedule_seeded_year: int = 0  ## highest year already seeded (endless gene
 ## RADIO — the telegraph channel and the title.
 var radio_powered: bool = true          ## mains power; fails permanently at grid_failure
 var radio_last_broadcast_day: int = 0   ## last day a broadcast was drawn (repeat-listen = static)
-## SIEGE bridge — set by the Director, consumed by main.gd like force_sleep.
-var pending_siege: int = 0  ## zombie waves queued for the shelter (0 = none)
+## ALARM CLOCK -- the next occurrence of a recurring daily alarm. Whether it can be heard is decided by main.gd,
+## because only the scene knows whether the physical clock is in inventory or on the nearby floor.
+var alarm_at: int = -1
+var alarm_ring_count: int = 0
+## SIEGE bridge — the Director queues an ordeal, main.gd snapshots player presence and starts it.
+## Mechanical push resolution is deterministic; only the combat reached through a breach uses rng.
+const SIEGE_TARGET := "lordly_manor"
+const SIEGE_BRACE_COST := 15.0
+const SIEGE_SHORE_COST := 4.0
+const SIEGE_PUSH_MINS := 5
+const BUILD_EFFECT_TAGS := ["structure_defense", "insulation", "barricade_capacity"]
+var pending_siege: Dictionary = {}  ## {target, intensity}; empty = none
+var active_siege: Dictionary = {}   ## live deterministic push state; main.gd owns presentation/combat
+var barricades: Dictionary = {}     ## shelter id -> current intact segments; maximum comes from builds
+var damaged_builds: Dictionary = {} ## completed construction id -> true while structurally damaged
+var shelter_breaches: Dictionary = {} ## shelter id -> true while the bare shell has an open breach
+var siege_cooldown_until: Dictionary = {} ## M2 seam: location -> day before attention can draw another horde
 
 ## SKILLS (0..100, learn-by-doing) and background RESEARCH (progresses in waking time).
 var skills := {"woodworking": 0.0, "cooking": 0.0, "crafting": 0.0, "tailoring": 0.0}
@@ -106,6 +122,12 @@ const RESEARCH := {
 		"unlocks": "manor_workbench",
 		"done_log": "You have a workbench worked out. You can build one now."
 	},
+	"r_barricade": {
+		"label": "Reinforced barricade", "skill": "woodworking", "level": 30, "hours": 24.0,
+		"desc": "Work out a deeper frame and removable crossbars that can take a sustained press.",
+		"unlocks": "manor_barricade_reinforced",
+		"done_log": "You have worked out how to deepen the barricade and brace it properly."
+	},
 	"r_trapping": {
 		"label": "Snare trapping", "skill": "woodworking", "level": 20, "hours": 18.0,
 		"desc": "Work out how to bend and set a snare that will take small game while you are away.",
@@ -123,9 +145,16 @@ const RESEARCH := {
 ## buildsite UI and material consumption. builds = completed ids; build_progress = phase idx.
 var builds: Dictionary = {}          ## project id -> true once fully built
 var build_progress: Dictionary = {}  ## project id -> next phase index to do
+const SHELTERS := {
+	"lordly_manor": {"structure_defense": 1, "base_damp": 0.40}
+}
 const CONSTRUCTION := {
 	"manor_door": {
 		"shelter": "lordly_manor",
+		"damage_priority": 10,
+		"effects": {"structure_defense": 1, "insulation": 0.08},
+		"repair": {"label": "Mend the door brace", "materials": {"firewood": 1}, "work_mins": 60,
+			"log": "You draw the split brace together and peg it sound. The door holds square again."},
 		"label": "Repair the front door",
 		"broken_desc": "The front door hangs off one hinge, the latch smashed. It keeps out neither the cold nor anything that might come looking.",
 		"done_label": "Braced door",
@@ -140,7 +169,11 @@ const CONSTRUCTION := {
 	},
 	"manor_windows": {
 		"shelter": "lordly_manor",
+		"damage_priority": 20,
 		"requires_research": "r_shutters",
+		"effects": {"structure_defense": 1, "insulation": 0.12},
+		"repair": {"label": "Mend the torn shutters", "materials": {"firewood": 1}, "work_mins": 60,
+			"log": "You rehang the torn shutter and drive the bar home. The windows are closed again."},
 		"label": "Board and shutter the windows",
 		"broken_desc": "Two of the front windows are just jagged holes stuffed with rag. The cold pours straight through them.",
 		"done_label": "Shuttered windows",
@@ -155,6 +188,7 @@ const CONSTRUCTION := {
 	},
 	"manor_hearth": {
 		"shelter": "lordly_manor",
+		"effects": {},
 		"label": "Rebuild the hearth",
 		"broken_desc": "The hearth has fallen in, soot-black stone and cold ash. Rebuilt, it would take a fire again.",
 		"done_label": "Hearth",
@@ -171,6 +205,7 @@ const CONSTRUCTION := {
 	"manor_workbench": {
 		"shelter": "lordly_manor",
 		"requires_research": "r_workbench",
+		"effects": {},
 		"label": "Build a workbench",
 		"broken_desc": "There is a clear stretch of the back wall that would take a proper workbench.",
 		"done_label": "Workbench",
@@ -181,6 +216,38 @@ const CONSTRUCTION := {
 			 "log": "You joint and peg the heavy frame together."},
 			{"label": "Fit the top", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
 			 "log": "You lay and fix the thick top. It does not so much as wobble."}
+		]
+	},
+	"manor_barricade": {
+		"shelter": "lordly_manor",
+		"effects": {"barricade_capacity": 2},
+		"label": "Brace the entrance",
+		"broken_desc": "The hall gives you timber and weight enough to make a rough inner barricade before the front door.",
+		"done_label": "Rough barricade",
+		"done_desc": "Two removable crossbars sit ready in a frame behind the entrance. Crude, but they can take a hard press.",
+		"done_log": "The rough barricade is in place behind the door. There is something solid to put your back against.",
+		"phases": [
+			{"label": "Anchor the frame", "materials": {"firewood": 1}, "work_mins": 45, "audio": "construction_wood",
+				 "log": "You sink a pair of timber sockets into the stone beside the entrance."},
+			{"label": "Cut the crossbars", "materials": {"firewood": 1}, "work_mins": 45, "audio": "construction_wood",
+				 "log": "You cut two heavy bars to drop into the frame. They fit close and tight."}
+		]
+	},
+	"manor_barricade_reinforced": {
+		"shelter": "lordly_manor",
+		"requires_research": "r_barricade",
+		"requires_build": "manor_barricade",
+		"effects": {"barricade_capacity": 2},
+		"label": "Reinforce the barricade",
+		"broken_desc": "The first frame could be deepened, with another pair of bars staggered behind it.",
+		"done_label": "Reinforced barricade",
+		"done_desc": "A deep timber frame with four removable crossbars. Weight must break each layer in turn.",
+		"done_log": "The entrance is reinforced in depth now. Four bars stand between the hall and the dark.",
+		"phases": [
+			{"label": "Deepen the frame", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
+				 "log": "You extend the sockets back into the hall and brace them against the floor."},
+			{"label": "Fit the second bars", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
+				 "log": "You fit a second pair of bars behind the first. The entrance has depth now."}
 		]
 	}
 }
@@ -338,6 +405,8 @@ const SIEGE := {
 		"The pressure eases. The sounds thin out and drift off into the dark, and you are still here."],
 	"open_ground": [
 		"They are on you in the open. There is nowhere to put your back."],
+	"horde_surge_away": [
+		"You are away from the manor when they find it. No hands are there to brace the entrance; the house must take their weight alone."],
 }
 
 ## Continuous needs, 0..100 (the CSTI-style sliders). Provisional values.
@@ -490,6 +559,39 @@ func hhmm() -> String:
 func abs_minute() -> int:
 	return day * 1440 + minute
 
+## Wind the alarm for the next occurrence of this time of day (never the occurrence already past).
+func set_alarm(hour: int, alarm_minute: int) -> int:
+	var minute_of_day := clampi(hour, 0, 23) * 60 + clampi(alarm_minute, 0, 59)
+	var target_day := day
+	if minute_of_day <= minute:
+		target_day += 1
+	alarm_at = target_day * 1440 + minute_of_day
+	return alarm_at
+
+func clear_alarm() -> void:
+	alarm_at = -1
+
+func alarm_is_pending() -> bool:
+	return alarm_at > abs_minute()
+
+func minutes_until_alarm() -> int:
+	return maxi(-1, alarm_at - abs_minute()) if alarm_at >= 0 else -1
+
+func alarm_hhmm() -> String:
+	if alarm_at < 0:
+		return ""
+	var minute_of_day := alarm_at % 1440
+	@warning_ignore("integer_division")
+	return "%02d:%02d" % [minute_of_day / 60, minute_of_day % 60]
+
+## Ring every occurrence crossed by this time step, then leave the next day's occurrence armed.
+## The scene decides whether the physical clock is close enough for the player to hear it.
+func _advance_alarm(target_abs: int) -> void:
+	while alarm_at >= 0 and alarm_at <= target_abs:
+		alarm_at += 1440
+		alarm_ring_count += 1
+		alarm_triggered.emit()
+
 ## Freshness of a perishable, from its absolute spoil-minute. 0 fresh, 1 turning (last 4h), 2 spoiled.
 func spoil_stage(spoil_at: int) -> int:
 	if spoil_at < 0:
@@ -606,8 +708,12 @@ func construction_for(loc: String) -> Array:
 		if str(CONSTRUCTION[id]["shelter"]) != loc:
 			continue
 		var req := str(CONSTRUCTION[id].get("requires_research", ""))
-		if req == "" or researched.has(req):
-			out.append(id)
+		if req != "" and not researched.has(req):
+			continue
+		var required_build := str(CONSTRUCTION[id].get("requires_build", ""))
+		if required_build != "" and not build_done(required_build):
+			continue
+		out.append(id)
 	return out
 
 func crafts_for(tab: String) -> Array:
@@ -709,41 +815,158 @@ func build_current_phase(id: String) -> Dictionary:
 
 func complete_build_phase(id: String) -> void:
 	# called after the caller has consumed materials + spent the work time
+	if not CONSTRUCTION.has(id) or build_done(id):
+		return
 	var idx := build_phase_idx(id) + 1
 	build_progress[id] = idx
 	if idx >= build_phase_count(id):
+		var loc := str(CONSTRUCTION[id]["shelter"])
+		var old_capacity := barricade_capacity(loc)
 		builds[id] = true
+		var added_capacity := maxi(0, barricade_capacity(loc) - old_capacity)
+		if added_capacity > 0:
+			restore_barricade(loc, added_capacity)
 		add_log(str(CONSTRUCTION[id].get("done_log", "The work is finished.")))
 
-func shelter_damp() -> float:
-	# how much of the seasonal swing an unlit shelter blocks (lower = tighter). Built sealing stacks;
-	# the benefit lives on the BUILDS, not on research. Global for now (only the manor exists);
-	# make per-location when multiple shelters land.
-	var d := 0.4
-	if builds.has("manor_door"):
-		d -= 0.08
-	if builds.has("manor_windows"):
-		d -= 0.12
-	return maxf(0.15, d)
-
 func is_shelter(loc: String) -> bool:
-	# a defensible base = any location construction targets (only the manor for now)
+	return SHELTERS.has(loc)
+
+func build_effect(loc: String, tag: String) -> float:
+	var total := 0.0
 	for id in CONSTRUCTION:
-		if str(CONSTRUCTION[id]["shelter"]) == loc:
-			return true
-	return false
+		var project: Dictionary = CONSTRUCTION[id]
+		if str(project.get("shelter", "")) != loc or not build_done(id):
+			continue
+		var effects: Dictionary = project.get("effects", {})
+		if not effects.has(tag):
+			continue
+		var value := float(effects[tag])
+		if damaged_builds.has(id):
+			if tag == "structure_defense":
+				value = 0.0
+			elif tag == "insulation":
+				value *= 0.5
+		total += value
+	return total
+
+func shelter_structure_defense(loc: String) -> int:
+	if not is_shelter(loc):
+		return 0
+	var shell := 0 if shelter_breaches.get(loc, false) else int(SHELTERS[loc].get("structure_defense", 1))
+	return shell + int(round(build_effect(loc, "structure_defense")))
+
+func shelter_insulation(loc: String) -> float:
+	return build_effect(loc, "insulation") if is_shelter(loc) else 0.0
+
+func shelter_damp(loc: String = "") -> float:
+	# Lower = tighter. An open structural breach pushes the room beyond its original draughtiness;
+	# damaged doors/windows keep half their sealing until they are mended.
+	var target_loc := current_location if loc == "" else loc
+	if not is_shelter(target_loc):
+		return 0.40
+	var base := float(SHELTERS[target_loc].get("base_damp", 0.40))
+	var breach_penalty := 0.10 if shelter_breaches.get(target_loc, false) else 0.0
+	return clampf(base - shelter_insulation(target_loc) + breach_penalty, 0.15, 0.50)
+
+func barricade_capacity(loc: String) -> int:
+	return maxi(0, int(round(build_effect(loc, "barricade_capacity"))))
+
+func barricade_segments(loc: String) -> int:
+	var cap := barricade_capacity(loc)
+	var current := clampi(int(barricades.get(loc, 0)), 0, cap)
+	if current != int(barricades.get(loc, 0)):
+		barricades[loc] = current
+	return current
+
+func barricade_resistance(loc: String) -> int:
+	var segments := barricade_segments(loc)
+	return int(ceil(float(segments) / 2.0)) if segments > 0 else 0
+
+func restore_barricade(loc: String, amount: int = 1) -> int:
+	var before := barricade_segments(loc)
+	var after := clampi(before + maxi(0, amount), 0, barricade_capacity(loc))
+	barricades[loc] = after
+	return after - before
+
+func damage_barricade(loc: String, amount: int = 1) -> int:
+	var before := barricade_segments(loc)
+	var after := maxi(0, before - maxi(0, amount))
+	barricades[loc] = after
+	return before - after
+
+func _damage_shelter(loc: String) -> String:
+	# Damage the lowest-priority repairable defensive element first; content data owns the order.
+	var target := ""
+	var best_priority := 999999
+	for id in CONSTRUCTION:
+		var project: Dictionary = CONSTRUCTION[id]
+		if not build_done(id) or damaged_builds.has(id) or str(project.get("shelter", "")) != loc:
+			continue
+		if (project.get("repair", {}) as Dictionary).is_empty() or float((project.get("effects", {}) as Dictionary).get("structure_defense", 0.0)) <= 0.0:
+			continue
+		var priority := int(project.get("damage_priority", 1000))
+		if priority < best_priority:
+			best_priority = priority
+			target = id
+	if target != "":
+		damaged_builds[target] = true
+		return target
+	if not shelter_breaches.get(loc, false):
+		shelter_breaches[loc] = true
+		return "shell"
+	return ""
+
+func maintenance_for(loc: String) -> Array:
+	var jobs: Array = []
+	if shelter_breaches.get(loc, false):
+		jobs.append({"id": "close_breach", "kind": "shell", "target": loc, "label": "Close the breach",
+			"materials": {"firewood": 2}, "work_mins": 75,
+			"log": "You close the torn opening with crossed timber and pack the worst of the draught."})
+	for id in CONSTRUCTION:
+		if not damaged_builds.has(id) or str(CONSTRUCTION[id].get("shelter", "")) != loc:
+			continue
+		var repair: Dictionary = CONSTRUCTION[id].get("repair", {})
+		if repair.is_empty():
+			continue
+		jobs.append({"id": "repair:%s" % id, "kind": "build", "target": id,
+			"label": str(repair.get("label", "Repair %s" % id)), "materials": repair.get("materials", {}),
+			"work_mins": int(repair.get("work_mins", 60)), "log": str(repair.get("log", "The damage is mended."))})
+	if barricade_segments(loc) < barricade_capacity(loc):
+		jobs.append({"id": "patch_barricade", "kind": "barricade", "target": loc,
+			"label": "Patch the barricade", "materials": {"firewood": 1}, "work_mins": 30,
+			"log": "You cut and fit another sound bar into the barricade."})
+	return jobs
+
+func maintenance_job(loc: String, id: String) -> Dictionary:
+	for job in maintenance_for(loc):
+		if str(job.get("id", "")) == id:
+			return (job as Dictionary).duplicate(true)
+	return {}
+
+func complete_maintenance(loc: String, id: String) -> bool:
+	var job := maintenance_job(loc, id)
+	if job.is_empty():
+		return false
+	match str(job["kind"]):
+		"shell":
+			shelter_breaches.erase(loc)
+		"build":
+			damaged_builds.erase(str(job["target"]))
+		"barricade":
+			if restore_barricade(loc, 1) <= 0:
+				return false
+		_:
+			return false
+	add_log(str(job["log"]))
+	return true
 
 func shelter_defense(loc: String) -> float:
-	# 0.0 = open ground. Higher = fewer of the horde break in. The benefit lives on the
-	# BUILDS, exactly like shelter_damp(): a braced door and shuttered windows are what save you.
+	# Compatibility/readout helper. Siege resolution itself uses integer resistance and pressure.
 	if not is_shelter(loc):
 		return 0.0
-	var d := 0.20                        # bare walls and a roof: some cover even unimproved
-	if builds.has("manor_door"):
-		d += 0.24                        # the braced door is the main thing between you and them
-	if builds.has("manor_windows"):
-		d += 0.22                        # shuttered windows close the other way in
-	return minf(d, 0.90)                 # never total: a big enough surge always gets someone through
+	var shell_bonus := 0.20 if not shelter_breaches.get(loc, false) else 0.0
+	var built_structure := maxi(0, shelter_structure_defense(loc) - (1 if shell_bonus > 0.0 else 0))
+	return minf(0.90, shell_bonus + float(built_structure) * 0.20 + float(barricade_resistance(loc)) * 0.10)
 
 # ---------- COMBAT / SIEGE MATH (pure, uses rng — headlessly testable) ----------
 const PLAYER_STRIKE := 5.0  ## bare-hands fallback; real weapons supply their own profile
@@ -771,9 +994,193 @@ func enemy_damage_roll(base: float) -> float:
 func infection_roll(base: float) -> float:
 	return base * rng.randf_range(0.7, 1.3)
 
+func siege_pressures(intensity: int) -> Array:
+	var pressures: Array
+	if intensity <= 1:
+		pressures = [1, 2, 3]
+	elif intensity == 2:
+		pressures = [2, 3, 3, 4]
+	else:
+		pressures = [3, 3, 4, 4, 5]
+		var extra := maxi(0, intensity - 3)
+		if extra > 0:
+			for i in pressures.size():
+				pressures[i] = int(pressures[i]) + extra
+	return pressures
+
+func begin_siege(target: String, intensity: int, player_present: bool) -> Dictionary:
+	if dead or not active_siege.is_empty() or not is_shelter(target):
+		return {}
+	active_siege = {
+		"target": target,
+		"player_present": player_present,
+		"intensity": maxi(1, intensity),
+		"pressures": siege_pressures(maxi(1, intensity)),
+		"push_index": 0,
+		"breaches": 0,
+		"structural_hits": 0,
+		"phase": "decision",
+		"last_result": {}
+	}
+	return active_siege.duplicate(true)
+
+func begin_pending_siege(player_present: bool) -> Dictionary:
+	if dead or pending_siege.is_empty() or not active_siege.is_empty():
+		return {}
+	var pending := pending_siege.duplicate(true)
+	var target := str(pending.get("target", SIEGE_TARGET))
+	if not is_shelter(target):
+		return {}  # preserve the queued event so bad future target data cannot silently erase it
+	pending_siege = {}
+	return begin_siege(target, int(pending.get("intensity", 1)), player_present)
+
+func siege_current_pressure() -> int:
+	if active_siege.is_empty() or str(active_siege.get("phase", "")) != "decision":
+		return 0
+	var idx := int(active_siege.get("push_index", 0))
+	var pressures: Array = active_siege.get("pressures", [])
+	return int(pressures[idx]) if idx >= 0 and idx < pressures.size() else 0
+
+func siege_resistance(loc: String, segments_override: int = -1) -> int:
+	var segments := barricade_segments(loc) if segments_override < 0 else segments_override
+	var barrier := int(ceil(float(maxi(0, segments)) / 2.0)) if segments > 0 else 0
+	return shelter_structure_defense(loc) + barrier
+
+func siege_preview(action: String) -> Dictionary:
+	if dead or active_siege.is_empty() or str(active_siege.get("phase", "")) != "decision":
+		return {}
+	if action not in ["brace", "shore", "ready", "tend", "away"]:
+		return {}
+	var present := bool(active_siege.get("player_present", false))
+	if (present and action == "away") or (not present and action != "away"):
+		return {}
+	var loc := str(active_siege["target"])
+	var segments := barricade_segments(loc)
+	if action == "shore":
+		if segments >= barricade_capacity(loc):
+			return {}
+		segments += 1
+	var resistance := siege_resistance(loc, segments) + (1 if action == "brace" else 0)
+	var pressure := siege_current_pressure()
+	var margin := resistance - pressure
+	return {"pressure": pressure, "resistance": resistance, "margin": margin,
+		"outcome": "firm" if margin > 0 else ("strain" if margin == 0 else "breach")}
+
+func resolve_siege_push(action: String) -> Dictionary:
+	if dead:
+		return {}
+	var before_action := barricade_segments(str(active_siege.get("target", ""))) if not active_siege.is_empty() else 0
+	var preview := siege_preview(action)
+	if preview.is_empty():
+		return {}
+	if action == "brace":
+		if float(meters.get("Energy", 0.0)) < SIEGE_BRACE_COST:
+			return {}
+		meters["Energy"] = maxf(0.0, float(meters["Energy"]) - SIEGE_BRACE_COST)
+	elif action == "shore":
+		if float(meters.get("Energy", 0.0)) < SIEGE_SHORE_COST:
+			return {}
+		if restore_barricade(str(active_siege["target"]), 1) <= 0:
+			return {}
+		meters["Energy"] = maxf(0.0, float(meters.get("Energy", 0.0)) - SIEGE_SHORE_COST)
+	var loc := str(active_siege["target"])
+	# Shore has already changed the live segment count; refresh its resistance/margin from that state.
+	var resistance := siege_resistance(loc) + (1 if action == "brace" else 0)
+	var pressure := siege_current_pressure()
+	var margin := resistance - pressure
+	var outcome := "firm" if margin > 0 else ("strain" if margin == 0 else "breach")
+	var lost := 0
+	var structural := ""
+	if outcome == "strain":
+		lost = damage_barricade(loc, 1)
+	elif outcome == "breach":
+		lost = damage_barricade(loc, maxi(1, -margin))
+		active_siege["breaches"] = int(active_siege.get("breaches", 0)) + 1
+		var unattended := not bool(active_siege.get("player_present", false))
+		var severe := margin <= -2
+		var structural_cap := mini(3, int(active_siege.get("intensity", 1)))
+		if int(active_siege.get("structural_hits", 0)) < structural_cap and (unattended or severe):
+			structural = _damage_shelter(loc)
+			if structural != "":
+				active_siege["structural_hits"] = int(active_siege.get("structural_hits", 0)) + 1
+	var idx := int(active_siege["push_index"])
+	var result := {
+		"push_index": idx, "pressure": pressure, "resistance": resistance, "margin": margin,
+		"outcome": outcome, "action": action, "barricade_before": before_action,
+		"barricade_restored": 1 if action == "shore" else 0,
+		"barricade_lost": lost, "barricade_after": barricade_segments(loc),
+		"structural_damage": structural, "opening_strike": outcome == "breach" and action == "ready",
+		"complete": false
+	}
+	if outcome == "breach" and bool(active_siege.get("player_present", false)):
+		active_siege["phase"] = "combat"
+	else:
+		active_siege["push_index"] = idx + 1
+		var pressures: Array = active_siege["pressures"]
+		if int(active_siege["push_index"]) >= pressures.size():
+			active_siege["phase"] = "complete"
+			result["complete"] = true
+	active_siege["last_result"] = result.duplicate(true)
+	return result
+
+func finish_siege_combat(won: bool) -> bool:
+	if active_siege.is_empty() or str(active_siege.get("phase", "")) != "combat":
+		return false
+	if not won:
+		active_siege["phase"] = "failed"
+		return false
+	active_siege["push_index"] = int(active_siege.get("push_index", 0)) + 1
+	var pressures: Array = active_siege.get("pressures", [])
+	active_siege["phase"] = "complete" if int(active_siege["push_index"]) >= pressures.size() else "decision"
+	if str(active_siege["phase"]) == "complete" and active_siege.has("last_result"):
+		(active_siege["last_result"] as Dictionary)["complete"] = true
+	return true
+
+func fail_siege() -> void:
+	if not active_siege.is_empty() and str(active_siege.get("phase", "")) in ["decision", "combat"]:
+		active_siege["phase"] = "failed"
+
+func resolve_unattended_siege() -> Array:
+	var results: Array = []
+	if active_siege.is_empty() or bool(active_siege.get("player_present", true)):
+		return results
+	while str(active_siege.get("phase", "")) == "decision":
+		var result := resolve_siege_push("away")
+		if result.is_empty():
+			break
+		results.append(result)
+	return results
+
+func finish_siege() -> Dictionary:
+	if active_siege.is_empty() or str(active_siege.get("phase", "")) not in ["complete", "failed"]:
+		return {}
+	var summary := active_siege.duplicate(true)
+	var target := str(active_siege.get("target", SIEGE_TARGET))
+	siege_cooldown_until[target] = day + 3
+	if str(active_siege.get("phase", "")) == "complete" and not dead and bool(active_siege.get("player_present", false)):
+		modify("Mental", 4.0)
+	active_siege = {}
+	return summary
+
+func siege_pressure_word(pressure: int) -> String:
+	if pressure <= 1:
+		return "They are testing the entrance."
+	if pressure == 2:
+		return "Their weight is gathering against the door."
+	if pressure == 3:
+		return "A hard press is coming. The frame is beginning to complain."
+	if pressure == 4:
+		return "The whole front of the house is under their weight."
+	return "The crush outside is enough to break stone from mortar."
+
 func siege_breaches(waves: int, loc: String) -> int:
-	# deterministic: more waves and less defense means more of them break in
-	return int(round(float(waves) * (1.0 - shelter_defense(loc))))
+	# Legacy estimate retained for callers outside the ordeal UI. It deliberately ignores choices/wear.
+	var breaches := 0
+	var resistance := siege_resistance(loc)
+	for pressure in siege_pressures(waves):
+		if int(pressure) > resistance:
+			breaches += 1
+	return breaches
 
 # ---------- EVENT DIRECTOR ----------
 const RADIO_THREAT_HORIZON := 4   ## days ahead the radio can warn of a coming horde
@@ -858,7 +1265,7 @@ func _fire_event(ev: Dictionary) -> void:
 		"drought":
 			active_events.append({"id": id, "ends_day": day + int(def["duration_days"]), "temp_drop": 0.0})
 		"horde_surge":
-			pending_siege = int(ev.get("waves", def["base_waves"]))  # main.gd consumes this
+			pending_siege = {"target": SIEGE_TARGET, "intensity": int(ev.get("waves", def["base_waves"]))}
 		"grid_failure":
 			radio_powered = false  # permanent dead air from here on
 		"gale":
@@ -1052,6 +1459,7 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 			_season_warned = true
 			add_log(_season_warning_line((s + 1) % 4))
 		_director_tick()  # schedule/telegraph/fire the "worse times", once per new day
+	_advance_alarm(target_abs)
 	_check_collapse()
 	for id in conditions:
 		cond_last[id] = conditions[id]
@@ -1296,7 +1704,7 @@ func need_desc(m: String) -> String:
 		"Energy":
 			return "Your stamina right now. Heavy work and\nexploring burn it fast; light tasks and rest\nbring it back. Run it to nothing and you drop\nwhere you stand for a while."
 		"Sleep":
-			return "How rested you are. It drains through the\nwaking day, faster the harder you push\nyourself. Only a nap or a full night brings\nit back, never rest alone."
+			return "How rested you are. It drains through the\nwaking day, faster the harder you push\nyourself. Only sleep brings it back; rest\nalone never can."
 		"Immune":
 			return "Your resistance to illness. When it's low,\ninfections take hold and worsen faster.\nNot deadly on its own."
 		"Mental":
@@ -1315,7 +1723,7 @@ func need_influences(m: String) -> String:
 	match m:
 		"Mental":
 			if meters["Sleep"] < 40.0:
-				notes.append("weariness is wearing on you")
+				notes.append("lack of sleep is fraying your nerves")
 			if cond_stage.get("gut_bug", 0) >= 3:
 				notes.append("the sickness drags at you")
 		"Energy":
@@ -1381,7 +1789,7 @@ func drain_breakdown(m: String) -> String:
 		var spent := 1.0 - float(meters["Energy"]) / 100.0
 		var ex_boost := 1.0 + float(cond_stage.get("exhaustion", 0)) * 0.5
 		parts.append("awake -%.1f/hr" % ((SLEEP_DRAIN_BASE + SLEEP_DRAIN_SPENT * spent) * ex_boost))
-		parts.append("nap or sleep to recover")
+		parts.append("sleep to recover")
 	if m == "Warmth":
 		var ambient := temperature if location_indoor else outdoor_temp
 		var rate := (ambient - WARMTH_NEUTRAL) * WARMTH_RATE
@@ -1518,7 +1926,14 @@ func reset() -> void:
 	active_events = []
 	radio_powered = true
 	radio_last_broadcast_day = 0
-	pending_siege = 0
+	alarm_at = -1
+	alarm_ring_count = 0
+	pending_siege = {}
+	active_siege = {}
+	barricades = {}
+	damaged_builds = {}
+	shelter_breaches = {}
+	siege_cooldown_until = {}
 	_seed_schedule()
 	current_location = "the_grounds"
 	location_indoor = false
