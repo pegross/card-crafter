@@ -33,6 +33,7 @@ func _init() -> void:
 		"combat": preload("res://tests/test_combat.gd").new(),
 		"celestial": preload("res://tests/test_celestial.gd").new(),
 		"alarm": preload("res://tests/test_alarm.gd").new(),
+		"attention": preload("res://tests/test_attention.gd").new(),
 		"hunger": preload("res://tests/test_hunger.gd").new(),
 		"director": preload("res://tests/test_director.gd").new(),
 		"research": preload("res://tests/test_research.gd").new(),

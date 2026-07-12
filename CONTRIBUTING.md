@@ -9,8 +9,9 @@ the map: read it once instead of re-deriving the layout.
 Three files carry almost everything:
 
 - **`autoload/game.gd`** — the `Game` autoload singleton. It IS the entire simulation and
-  all persistent game state. UI-free (extends `Node`, never touches Controls). It emits one
-  signal, `changed`, whenever state moves.
+  all persistent game state. UI-free (extends `Node`, never touches Controls). It emits
+  `changed` whenever state moves and a location-bearing `alarm_triggered` event when the
+  physical clock rings.
 - **`main.gd`** (extends `Control`) — the whole view + interaction layer, plus the
   combat/siege/death/time popups. It builds the UI in code, connects `Game.changed` to
   `_refresh()`, and drives the sim by calling `Game` methods.
@@ -37,7 +38,7 @@ In **`autoload/game.gd`** (edit here to add):
 
 In **`main.gd`** (edit here to add):
 - Enemies: `ENEMIES` (dict — HP/damage/verb, lives in the UI layer, NOT in `Game`).
-- Card registry: `CARD_FILES` (id -> `.tres` path). Every card id must be listed here.
+- Card registry: `CARD_FILES` (id -> `.tres` path), populated by scanning `data/cards` at boot.
 - Locations: `LOCATIONS` (fixtures, connections, exploration `pool`). Ground start:
   `GROUND_START`. Single-card click actions: `ACTIONS`. Two-card drag recipes: `RECIPES`.
 
@@ -49,8 +50,8 @@ mobility (only `item`/`resource`/`tool` can be dragged).
 
 ## How to add one of each
 
-- **A card**: write `data/cards/<id>.tres` (copy an existing one), then register it in
-  `CARD_FILES` in `main.gd`. Place it via `GROUND_START`, a location `fixtures` list, or an
+- **A card**: write `data/cards/<id>.tres` (copy an existing one). The boot scan registers it
+  automatically. Place it via `GROUND_START`, a location `fixtures` list, or an
   exploration `pool` entry.
 - **A location**: add an entry to `LOCATIONS` in `main.gd` (title, `indoor`, `fixtures`,
   `connections`, optional `pool`). Add a `.tres` of `kind = "location"` and register it.
@@ -60,7 +61,8 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   second edit unless you invent a new key.
 - **A recipe** (drag item onto target): add `RECIPES[item_id][target_id] = {label, mins}`
   in `main.gd` — AND add a matching branch in `perform_recipe` (`main.gd`) that does the
-  actual work. Two places. `RECIPES` only makes the drag legal and shows the hint.
+  actual work. Two places. Use the virtual `fire_source` target when an interaction should
+  work at the manor hearth and either location-scoped campfire.
 - **A condition**: add an entry to `CONDITIONS` in `game.gd` (staged `enter`/`exit`/`mult`/
   `decay`, optional `incubation_hours`, `lethal`/`death`). Seed it via an action's `cond`,
   `Game.add_condition`, or a hand-written driver in `_apply_influences` (like `hypo`/
@@ -69,7 +71,7 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   endless years) + `EVENT_FLAVOR` prose keyed `<id>_telegraph/onset/end/radio`. If it has a
   new mechanical effect, add an arm to `_fire_event`. Weather/threat/power `category` drives
   the radio.
-- **A construction project**: add to `CONSTRUCTION` in `game.gd` (shelter, phases with
+- **A construction project**: add to `CONSTRUCTION` in `game.gd` (`shelter` or outdoor `site`, phases with
   materials + `work_mins`, optional `requires_research` / `requires_build`). Finished shelter
   improvements carry data-driven `effects` (`structure_defense`, `insulation`, or
   `barricade_capacity`); repairable defensive builds also carry `repair` data. The buildsite
@@ -87,9 +89,10 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   `CardIcon.sync_state()`) and repaints. Cards read their own persisted state on build.
 - **Sim -> UI one-shot flags**: `Game` sets a flag, `_refresh` consumes it. `force_sleep`
   (Exertion/`Energy` hit 0 -> a short forced rest, or `Sleep` hit 0 -> a real collapse-sleep;
-  `force_sleep_kind` says which) triggers `_collapse_sleep`; `pending_siege` is a targeted
-  `{target, intensity}` ordeal atomically claimed by `begin_pending_siege()`. `active_siege`
-  then owns deterministic push state while `main.gd` presents choices and hands breaches to combat.
+  `force_sleep_kind` says which) triggers `_collapse_sleep`; `pending_siege` contains a locked
+  horde snapshot. `claim_pending_horde()` atomically classifies it as a shelter siege, nearby
+  defend-or-stay-clear approach, occupied open-ground assault, or empty-location search. `active_siege` owns deterministic house pushes;
+  `active_horde` owns the generic arrival around them.
 - **Event director**: deterministic and telegraphed. `_director_tick` runs once per new day
   inside `advance_time`, telegraphs/fires scheduled events, and the radio only ever broadcasts
   the Director's own upcoming events (`_radio_broadcast_for_today`). No hidden RNG spikes —
@@ -99,6 +102,14 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   lose defense and keep half insulation until repaired. Barricade crossbars are discrete,
   repairable segments. Repeatable repairs use `maintenance_for()` / `complete_maintenance()`,
   not reset construction phases.
+- **Attention is evidence, not aggro.** `attention_traces` keeps sound, scent, and slow
+  habitation evidence in two coarse zones: manor/grounds/cellar share the manor compound;
+  the woods is separate. Firelight is derived from active local fires. The authored Director
+  still decides *when* a horde comes; `horde_target_snapshot()` deterministically locks where
+  it goes and a bounded intensity modifier. Later actions cannot retarget an active ordeal.
+- **Fire state is location-scoped by stable card id.** `fire_source_at(loc)` maps the manor
+  hearth and the two independently persisted campfires. Cooking recipes check the actual
+  target source, never a global hearth flag.
 - **Card state** lives in `Game.card_state` (id -> value), surviving travel/rebuilds. Normal
   cards store a single `float` (fuel %, felled %, explore %). Containers store a
   `{content, fill}` dict (see `CardIcon.fill_with`/`drain_content`/`boil`); `sealable`
@@ -149,7 +160,8 @@ still fine (run it with the same `-s` form).
   (`Energy`) at 0 drops you into a short forced rest, `Sleep` at 0 into a collapse-sleep.
 - `Game.SHELTERS` owns innate shell properties while `main.gd.LOCATIONS` still owns map and
   presentation data. A new shelter must be registered in both places; boot validation catches a
-  mismatch. M1 siege targeting is fixed to the manor behind a single target seam for attention later.
+  mismatch. Attention deliberately groups the manor, grounds, and cellar so activity immediately
+  outside cannot serve as a costless decoy; only the woods is a separate horde target today.
 - Siege pressure and choices are deterministic and live in `Game`; zombie combat remains in
   `main.gd` and is still the only uncertain part. Inventory cards remain a UI-layer concern.
 - Two-place edits are easy to half-do: a `RECIPES` entry with no `perform_recipe` branch

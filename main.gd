@@ -21,6 +21,7 @@ const INV_CAP := 6
 const SIP := 25.0  ## a standard mouthful of liquid, in fill units — drinks pull this much (or the last of it)
 const COMBAT_ROUND_MINS := 3  ## in-game minutes each combat swing/round takes
 const CONSTRUCTION_EFFORT := 1.3  ## how strenuous building is (Stamina effort multiplier for a build phase)
+const CAMPFIRE_FOR_LOCATION := {"the_grounds": "campfire_grounds", "the_woods": "campfire_woods"}
 
 var CARD_FILES := {}
 
@@ -47,17 +48,23 @@ var ACTIONS := {
 	"hearth": [
 		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "audio": "sleep_settle", "fx": {"Warmth": 15.0, "Mental": 3.0}, "log": "You sit close and let the warmth reach your hands.", "once_log": "You reach back for how you came to be here. Only the edge of it, and cold beyond.", "once_key": "fireside_amnesia"},
 	],
+	"campfire_grounds": [
+		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "audio": "sleep_settle", "fx": {"Warmth": 10.0, "Mental": 3.0}, "log": "You crouch close to the small fire, warming one side and then the other."},
+	],
+	"campfire_woods": [
+		{"label": "Sit by the fire (30m)", "mins": 30, "needs_fire": true, "audio": "sleep_settle", "fx": {"Warmth": 10.0, "Mental": 3.0}, "log": "You crouch close to the small fire, warming one side and then the other."},
+	],
 	"oak_tree": [
-		{"label": "Fell the tree (30m)", "mins": 30, "physical": true, "effort": 1.5, "audio": "wood_axe_oak", "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
+		{"label": "Fell the tree (30m)", "mins": 30, "physical": true, "effort": 1.5, "audio": "wood_axe_oak", "attention": {"sound": 25.0, "habitation": 1.0}, "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
 	],
 	"the_woods": [
-		{"label": "Forage (45m)", "mins": 45, "physical": true, "effort": 0.5, "audio": "search_outdoors", "fx": {"Mental": 2.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
+		{"label": "Forage (45m)", "mins": 45, "physical": true, "effort": 0.5, "audio": "search_outdoors", "attention": {"habitation": 0.5}, "fx": {"Mental": 2.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
 	],
 	"lordly_manor": [
 		{"label": "Search the manor (30m)", "mins": 30, "physical": true, "effort": 0.5, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms, one after another."},
 	],
 	"the_grounds": [
-		{"label": "Search the grounds (15m)", "mins": 15, "physical": true, "effort": 0.5, "audio": "search_outdoors", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
+		{"label": "Search the grounds (15m)", "mins": 15, "physical": true, "effort": 0.5, "audio": "search_outdoors", "attention": {"habitation": 0.5}, "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
 	],
 	"spoiled_meat": [
 		{"label": "Choke it down (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will turn on you for it."},
@@ -93,7 +100,7 @@ var ACTIONS := {
 		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 16.0}, "consume": true, "log": "You gnaw a strip of the smoked meat. Lean and tough, but it holds you together."},
 	],
 	"log": [
-		{"label": "Split for firewood (15m)", "mins": 15, "physical": true, "effort": 1.4, "audio": "wood_split", "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
+		{"label": "Split for firewood (15m)", "mins": 15, "physical": true, "effort": 1.4, "audio": "wood_split", "attention": {"sound": 14.0}, "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
 	],
 	"herbal_remedy": [
 		{"label": "Drink the remedy (5m)", "mins": 5, "audio": "drink", "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
@@ -123,14 +130,14 @@ var ACTIONS := {
 
 ## Two-card (drag item onto target) recipes: item_id -> target_id -> {label, mins}.
 var RECIPES := {
-	"firewood": {"hearth": {"label": "Lay on wood", "mins": 10, "effect": "add_fuel", "amount": 40, "audio": "hearth_add_wood"}},
-	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "plastic_bottle": {"label": "Pour into bottle", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
-	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "gas_canister": {"label": "Pour into canister", "mins": 3}, "hearth": {"label": "Boil the water", "mins": 15}},
+	"firewood": {"fire_source": {"label": "Lay on wood", "mins": 10, "effect": "add_fuel", "amount": 40, "audio": "hearth_add_wood", "attention": {"sound": 3.0}}},
+	"gas_canister": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "plastic_bottle": {"label": "Pour into bottle", "mins": 3}, "fire_source": {"label": "Boil the water", "mins": 15, "attention": {"scent": 3.0}}},
+	"plastic_bottle": {"stream": {"label": "Fill with water", "mins": 10}, "rain_barrel": {"label": "Fill with water", "mins": 10}, "lighter": {"label": "Top up the lighter", "mins": 3}, "gas_canister": {"label": "Pour into canister", "mins": 3}, "fire_source": {"label": "Boil the water", "mins": 15, "attention": {"scent": 3.0}}},
 	"lighter": {"tinder": {"label": "Light the tinder", "mins": 3, "effect": "light_tinder", "audio": "lighter_flick"}},
-	"burning_tinder": {"hearth": {"label": "Set it alight", "mins": 3, "effect": "set_alight", "audio": "hearth_ignite"}},
-	"herbs": {"hearth": {"label": "Steep a remedy", "mins": 15, "effect": "steep_remedy", "audio": "herbs_steep"}},
-	"rat_meat": {"hearth": {"label": "Cook the meat", "mins": 15, "effect": "cook", "spawn": "cooked_rat_meat", "audio": "cook_meat"}},
-	"cooked_rat_meat": {"hearth": {"label": "Smoke it to keep", "mins": 60, "effect": "smoke", "spawn": "preserved_meat", "audio": "cook_meat"}},
+	"burning_tinder": {"fire_source": {"label": "Set it alight", "mins": 3, "effect": "set_alight", "audio": "hearth_ignite", "attention": {"habitation": 1.0}}},
+	"herbs": {"fire_source": {"label": "Steep a remedy", "mins": 15, "effect": "steep_remedy", "audio": "herbs_steep", "attention": {"scent": 6.0}}},
+	"rat_meat": {"fire_source": {"label": "Cook the meat", "mins": 15, "effect": "cook", "spawn": "cooked_rat_meat", "audio": "cook_meat", "attention": {"scent": 20.0, "habitation": 1.0}}},
+	"cooked_rat_meat": {"fire_source": {"label": "Smoke it to keep", "mins": 60, "effect": "smoke", "spawn": "preserved_meat", "audio": "cook_meat", "attention": {"scent": 35.0, "habitation": 2.0}}},
 }
 
 var rows := {}
@@ -146,6 +153,8 @@ var weather_label: Label
 var shelter_status_box: VBoxContainer
 var shelter_status_label: Label
 var shelter_barricade_label: Label
+var attention_status_box: VBoxContainer
+var attention_status_label: Label
 var _collapsing: bool = false
 var _locations_initial: Dictionary
 var _last_present := {}  ## renewable ground id -> present count at the CURRENT location (harvest detection)
@@ -199,12 +208,16 @@ var _combat_weapon_id: String = "__unset__"
 var _combat_opening_safe: bool = false
 var combat_flee_btn: Button
 var siege_layer: Control
+var siege_kicker_label: Label
+var siege_title_label: Label
 var siege_progress_label: Label
 var siege_pressure_label: Label
 var siege_status_label: Label
 var siege_action_box: VBoxContainer
 var _siege_start_queued: bool = false
 var _siege_resolving: bool = false
+var _outdoor_horde: Dictionary = {}
+var _outdoor_fights_left: int = 0
 var hurt_flash: ColorRect
 var passout_dim: ColorRect
 var env_bg: ColorRect        ## the app background
@@ -270,7 +283,7 @@ func _validate_content() -> void:
 			push_error("CONTENT: RECIPES source id '%s' is not a known card" % src)
 		var targets: Dictionary = RECIPES[src]
 		for tgt in targets:
-			if not CARD_FILES.has(tgt):
+			if tgt != "fire_source" and not CARD_FILES.has(tgt):
 				push_error("CONTENT: RECIPES['%s'] target id '%s' is not a known card" % [src, tgt])
 			var rec: Dictionary = targets[tgt]
 			if rec.has("spawn") and not CARD_FILES.has(str(rec["spawn"])):
@@ -293,8 +306,11 @@ func _validate_content() -> void:
 	for pid in Game.CONSTRUCTION:
 		var proj: Dictionary = Game.CONSTRUCTION[pid]
 		var shelter_id := str(proj.get("shelter", ""))
-		if not Game.SHELTERS.has(shelter_id):
+		var site_id := str(proj.get("site", shelter_id))
+		if shelter_id != "" and not Game.SHELTERS.has(shelter_id):
 			push_error("CONTENT: CONSTRUCTION['%s'] shelter '%s' is not a registered shelter" % [pid, shelter_id])
+		elif site_id == "" or not LOCATIONS.has(site_id):
+			push_error("CONTENT: CONSTRUCTION['%s'] site '%s' is not a known location" % [pid, site_id])
 		for phase in proj.get("phases", []):
 			for mid in phase.get("materials", {}):
 				if not CARD_FILES.has(str(mid)):
@@ -326,7 +342,7 @@ func _validate_content() -> void:
 			push_error("CONTENT: CONSTRUCTION['%s'] requires_build '%s' is not a known project" % [pid, required_build])
 		elif required_build == pid:
 			push_error("CONTENT: CONSTRUCTION['%s'] cannot require itself" % pid)
-		elif required_build != "" and str(Game.CONSTRUCTION[required_build].get("shelter", "")) != shelter_id:
+		elif required_build != "" and str(Game.CONSTRUCTION[required_build].get("site", Game.CONSTRUCTION[required_build].get("shelter", ""))) != site_id:
 			push_error("CONTENT: CONSTRUCTION['%s'] requires a project at another shelter" % pid)
 	for rid in Game.RESEARCH:
 		var r: Dictionary = Game.RESEARCH[rid]
@@ -800,6 +816,14 @@ func _build_right() -> Control:
 	weather_label = _label("Overcast, still.", MUTED, 12)
 	weather_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vb.add_child(weather_label)
+	attention_status_box = VBoxContainer.new()
+	attention_status_box.add_theme_constant_override("separation", 3)
+	attention_status_box.add_child(HSeparator.new())
+	attention_status_box.add_child(_label("SIGNS", COLD, 11))
+	attention_status_label = _label("", MUTED, 12)
+	attention_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	attention_status_box.add_child(attention_status_label)
+	vb.add_child(attention_status_box)
 	shelter_status_box = VBoxContainer.new()
 	shelter_status_box.add_theme_constant_override("separation", 3)
 	shelter_status_box.add_child(HSeparator.new())
@@ -1288,14 +1312,15 @@ func _render_item_crafts(tab: String) -> void:
 
 func _render_shelter_construction() -> void:
 	var loc := Game.current_location
-	if not Game.is_shelter(loc):
+	var projects := Game.construction_for(loc)
+	if not Game.is_shelter(loc) and projects.is_empty():
 		detail_body.add_child(_label("Shelter", INK_STRONG, 20))
-		detail_body.add_child(_wrapped("You are not at one of your shelters just now. Come back to the place to work on it.", MUTED, 12))
+		detail_body.add_child(_wrapped("There is no fixed work to do at this place just now.", MUTED, 12))
 		return
 	detail_body.add_child(_label(str(LOCATIONS[loc]["title"]), INK_STRONG, 20))
-	detail_body.add_child(_wrapped("Repairs and improvements, each done in stages, a session of work at a time.", MUTED, 12))
+	detail_body.add_child(_wrapped("Repairs and improvements, each done in stages, a session of work at a time." if Game.is_shelter(loc) else "Useful things you can establish here and return to.", MUTED, 12))
 	detail_body.add_child(HSeparator.new())
-	for id in Game.construction_for(loc):
+	for id in projects:
 		var proj: Dictionary = Game.CONSTRUCTION[id]
 		var status := ""
 		if Game.build_done(id):
@@ -1418,6 +1443,7 @@ func _do_build_phase(id: String) -> void:
 	var wmin: int = int(phase.get("work_mins", 60))
 	var before := Game.meters.duplicate()
 	var fx := {}  # all effort costs (Stamina, food, water, sleep) come from the physical flag below
+	Game.add_attention(Game.current_location, phase.get("attention", {"sound": 18.0, "habitation": 2.0}))
 	Game.advance_time(wmin, false, true, CONSTRUCTION_EFFORT)  # construction is heavy physical work
 	_show_time_passing(wmin)
 	Game.gain_skill("crafting", 3.0)
@@ -1431,6 +1457,8 @@ func _do_build_phase(id: String) -> void:
 		var sw: Array = Game.CONSTRUCTION[id]["on_done_swap"]
 		follow_replacement = detail_layer != null and detail_layer.visible and _detail_mode == "card" and is_instance_valid(_menu_card) and _menu_card.data.id == str(sw[0])
 		replacement_card = _swap_fixture(str(sw[0]), str(sw[1]))
+	if Game.build_done(id) and (Game.CONSTRUCTION[id].has("on_done_fixture") or id in CAMPFIRE_FOR_LOCATION.values()):
+		_rebuild_out_there()
 	_animate_meters(before, fx)
 	on_layout_changed()
 	if follow_replacement and is_instance_valid(replacement_card):
@@ -1459,6 +1487,7 @@ func _do_craft(id: String) -> void:
 	var fx := {"Hydration": -3.0}
 	for k in fx:
 		Game.modify(k, fx[k])
+	Game.add_attention(Game.current_location, craft.get("attention", {"sound": 8.0, "habitation": 1.0}))
 	Game.advance_time(wmin)
 	_show_time_passing(wmin)
 	var sk: Array = craft.get("skill", [])
@@ -1533,8 +1562,10 @@ func _build_siege() -> void:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 11)
 	_pad(panel, 24).add_child(vb)
-	vb.add_child(_label("THE HOUSE MUST HOLD", WARM, 11))
-	vb.add_child(_label("Something at the door", INK_STRONG, 24))
+	siege_kicker_label = _label("THE HOUSE MUST HOLD", WARM, 11)
+	vb.add_child(siege_kicker_label)
+	siege_title_label = _label("Something at the door", INK_STRONG, 24)
+	vb.add_child(siege_title_label)
 	siege_progress_label = _label("", COLD, 12)
 	vb.add_child(siege_progress_label)
 	siege_pressure_label = _wrapped("", INK, 14, 600)
@@ -1784,6 +1815,8 @@ func _refresh_combat() -> void:
 		combat_blurb.text = str(_combat_card.data.blurb)
 	elif _combat_context == "siege":
 		combat_blurb.text = "It came over the threshold, out of the crush of them. It is tangled in the gap — strike now." if _combat_opening_safe else "It came over the threshold, out of the crush of them. Put it down."
+	elif _combat_context == "outdoor_horde":
+		combat_blurb.text = "There is no threshold to narrow it and no timber to take its weight. Put it down before the next one reaches you."
 	combat_hp_bar.max_value = _combat_hp_max
 	combat_hp_bar.value = maxf(0.0, _combat_hp)
 	if Game.wound_bleed_rate() > 0.0:
@@ -1806,6 +1839,7 @@ func _start_combat(enemy_id: String, card: CardIcon = null, context: String = "t
 	_combat_hp = _combat_hp_max
 	_combat_before = Game.meters.duplicate()
 	_combat_log = []
+	Game.add_attention(Game.current_location, {"sound": 18.0, "scent": 4.0, "habitation": 1.0})
 	if combat_new_wound:
 		combat_new_wound.visible = false
 	Audio.play_cue("encounter_rat" if enemy_id == "rat" else "encounter_zombie")
@@ -1899,7 +1933,8 @@ func _environment_target() -> Dictionary:
 	var vig := 0.30
 	var extent := 0.80
 	if at_fire:  # a lit hearth adds a flat warm glow; a guttering one (low fuel) fades toward embers
-		var f: float = clampf(float(Game.card_state.get("hearth", 0.0)) / 35.0, 0.0, 1.0)
+		var local_fire := Game.fire_source_at(Game.current_location)
+		var f: float = clampf(float(Game.card_state.get(local_fire, 0.0)) / 35.0, 0.0, 1.0)
 		add = Color(1.0, 0.70, 0.38); add_str = lerpf(0.03, 0.17, f)
 		dark = Color(0.05, 0.04, 0.03); dark_str = lerpf(0.12, 0.0, f)
 		vig = lerpf(0.44, 0.24, f); extent = lerpf(0.60, 0.84, f)
@@ -2087,6 +2122,25 @@ func _combat_end(outcome: String) -> void:
 			Game.finish_siege()
 			if siege_layer:
 				siege_layer.visible = false
+	elif ctx == "outdoor_horde":
+		if outcome == "win" and not Game.dead:
+			_outdoor_fights_left -= 1
+			if not Game.active_horde.is_empty():
+				Game.active_horde["fights_left"] = _outdoor_fights_left
+			if _outdoor_fights_left <= 0:
+				Game.finish_horde("repelled")
+				Game.add_log("At last there is nothing left moving between the trunks. You are still standing, in the open and alone.")
+				_outdoor_horde = {}
+				if Game.force_sleep and not _collapsing:
+					Game.force_sleep = false
+					_collapse_sleep.call_deferred()
+			else:
+				Game.add_log("Another shape is already shouldering through the brush. There is still a moment to run.")
+				_render_outdoor_horde_choice.call_deferred()
+		else:
+			Game.finish_horde("fallen")
+			_outdoor_horde = {}
+			_outdoor_fights_left = 0
 	else:
 		if not Game.pending_siege.is_empty():
 			_dispatch_pending_siege()
@@ -2114,14 +2168,41 @@ func _start_pending_siege() -> void:
 	_siege_start_queued = false
 	if Game.pending_siege.is_empty() or Game.dead:
 		return
-	var target := str(Game.pending_siege.get("target", Game.SIEGE_TARGET))
-	var state := Game.begin_pending_siege(_player_at_siege_target(target))
-	if state.is_empty():
+	var claim := Game.claim_pending_horde(Game.current_location)
+	if claim.is_empty():
 		return
 	_hide_menu()
 	_hide_detail()
 	if time_layer:
 		time_layer.visible = false
+	var mode := str(claim.get("mode", ""))
+	if mode == "open_ground":
+		_outdoor_horde = claim
+		_outdoor_fights_left = int(claim.get("fights_left", claim.get("intensity", 1)))
+		Game.add_log("The sound comes through the trees from every side. They have found the place you kept returning to.")
+		_render_outdoor_horde_choice()
+		return
+	if mode == "empty_search":
+		_outdoor_horde = claim
+		Game.add_log("The horde turns into the woods, following smoke, scent, and old signs instead of the house.")
+		_resolve_empty_outdoor_horde(false)
+		return
+	if mode == "shelter_approach":
+		_outdoor_horde = claim
+		_render_shelter_approach()
+		return
+	_begin_claimed_shelter_horde(claim, bool(claim.get("player_present", false)))
+
+func _begin_claimed_shelter_horde(claim: Dictionary, present: bool) -> void:
+	var target := str(claim.get("target", Game.SIEGE_TARGET))
+	if not Game.active_horde.is_empty():
+		Game.active_horde["mode"] = "shelter_siege"
+		Game.active_horde["phase"] = "claimed"
+		Game.active_horde["player_present"] = present
+	var state := Game.begin_siege(target, int(claim.get("intensity", 1)), present)
+	if state.is_empty():
+		Game.finish_horde("invalid")
+		return
 	Game.add_log(_siege_flavor("horde_arrives"))
 	Game.add_log(_siege_flavor("testing_the_door"))
 	if not bool(state.get("player_present", false)):
@@ -2134,6 +2215,140 @@ func _start_pending_siege() -> void:
 		_end_siege(false)
 		return
 	_render_siege_push()
+
+func _render_shelter_approach() -> void:
+	if _outdoor_horde.is_empty() or Game.dead:
+		return
+	for child in siege_action_box.get_children():
+		siege_action_box.remove_child(child)
+		child.queue_free()
+	var target := str(_outdoor_horde.get("target", Game.SIEGE_TARGET))
+	var can_reach: bool = LOCATIONS.get(Game.current_location, {}).get("connections", {}).has(target)
+	siege_kicker_label.text = "THE MANOR HAS BEEN FOUND"
+	siege_title_label.text = "The weight is gathering at the house"
+	siege_progress_label.text = "NEARBY  ·  %s" % _location_title(Game.current_location).to_upper()
+	siege_pressure_label.text = "You are near enough to make for the entrance, but the choice has to be made now."
+	siege_status_label.text = "Inside, you can brace what you built. Staying clear leaves the manor to take them unattended."
+	var enter_button := _btn("Make for the manor\nGet behind the entrance before the first hard push.")
+	enter_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	enter_button.disabled = not can_reach
+	if can_reach:
+		enter_button.pressed.connect(_enter_shelter_for_horde)
+	else:
+		enter_button.tooltip_text = "You have not found a way into the manor."
+	siege_action_box.add_child(enter_button)
+	var stay_button := _btn("Stay clear\nDo not draw them onto you. The house will face them without your hands on the braces.")
+	stay_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	stay_button.pressed.connect(_leave_shelter_unattended)
+	siege_action_box.add_child(stay_button)
+	siege_layer.visible = true
+
+func _enter_shelter_for_horde() -> void:
+	if _outdoor_horde.is_empty() or Game.dead:
+		return
+	var target := str(_outdoor_horde.get("target", Game.SIEGE_TARGET))
+	if not LOCATIONS.get(Game.current_location, {}).get("connections", {}).has(target):
+		return
+	siege_layer.visible = false
+	_save_ground(Game.current_location)
+	Game.current_location = target
+	Game.location_indoor = bool(LOCATIONS[target].get("indoor", true))
+	_rebuild_out_there()
+	_load_ground(target)
+	Game.add_log("You make the hall before their weight reaches the door.")
+	var claim := _outdoor_horde
+	_outdoor_horde = {}
+	_begin_claimed_shelter_horde(claim, true)
+
+func _leave_shelter_unattended() -> void:
+	if _outdoor_horde.is_empty() or Game.dead:
+		return
+	siege_layer.visible = false
+	var claim := _outdoor_horde
+	_outdoor_horde = {}
+	Game.add_log("You stay low and let their movement pass toward the manor. No hands will be on the braces there.")
+	_begin_claimed_shelter_horde(claim, false)
+
+func _render_outdoor_horde_choice() -> void:
+	if _outdoor_horde.is_empty() or Game.dead:
+		return
+	for child in siege_action_box.get_children():
+		siege_action_box.remove_child(child)
+		child.queue_free()
+	siege_kicker_label.text = "NO WALLS HERE"
+	siege_title_label.text = "Shapes moving through the trees"
+	siege_progress_label.text = "THE WOODS  ·  %d press%s still coming" % [_outdoor_fights_left, "" if _outdoor_fights_left == 1 else "es"]
+	siege_pressure_label.text = "The camp drew them here. You have moments to abandon it or meet them without a door between you."
+	siege_status_label.text = "Running costs 30 Stamina and 45 minutes. What you leave behind will take their attention."
+	var run_disabled := float(Game.meters.get("Energy", 0.0)) < 30.0
+	var run_button := _btn("Run for the grounds\nLeave the camp to them and spend what strength the road demands.")
+	run_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	run_button.disabled = run_disabled
+	if run_disabled:
+		run_button.tooltip_text = "You are too exhausted to make the grounds ahead of them."
+	else:
+		run_button.pressed.connect(_evacuate_outdoor_horde.bind("the_grounds", 45))
+	siege_action_box.add_child(run_button)
+	var stay_button := _btn("Make a last stand\nFight in the open. There is no barricade and no safe first strike.")
+	stay_button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	stay_button.pressed.connect(_stand_outdoor_horde)
+	siege_action_box.add_child(stay_button)
+	siege_layer.visible = true
+
+func _evacuate_outdoor_horde(dest: String, mins: int) -> void:
+	if _outdoor_horde.is_empty() or float(Game.meters.get("Energy", 0.0)) < 30.0:
+		return
+	var from_loc := Game.current_location
+	if not LOCATIONS.get(from_loc, {}).get("connections", {}).has(dest):
+		return
+	siege_layer.visible = false
+	_save_ground(from_loc)
+	var before := Game.meters.duplicate()
+	Audio.play_cue("travel_outdoor")
+	Game.add_attention(from_loc, {"habitation": 3.0})
+	Game.advance_time(mins, false, true, 1.0)
+	if Game.dead:
+		Game.finish_horde("fallen_while_fleeing")
+		_outdoor_horde = {}
+		_outdoor_fights_left = 0
+		_animate_meters(before, {})
+		return
+	Game.current_location = dest
+	Game.location_indoor = bool(LOCATIONS[dest].get("indoor", true))
+	_rebuild_out_there()
+	_load_ground(dest)
+	_show_time_passing(mins)
+	_animate_meters(before, {})
+	Game.add_log("You leave the fire ring and run until the branches give way to the grounds. The noise stays behind you.")
+	Game.active_horde["mode"] = "empty_search"
+	_resolve_empty_outdoor_horde(true)
+
+func _stand_outdoor_horde() -> void:
+	if _outdoor_horde.is_empty() or _outdoor_fights_left <= 0:
+		return
+	siege_layer.visible = false
+	_start_combat("zombie", null, "outdoor_horde", false)
+
+func _resolve_empty_outdoor_horde(evacuated: bool) -> void:
+	var result := Game.resolve_empty_horde()
+	if result.is_empty():
+		return
+	var cost := str(result.get("destroyed_source", ""))
+	if cost == "alarm_clock":
+		Game.add_log("When the woods finally quiet, the clock is gone with the trampled leaves. It bought the manor time.")
+	elif cost.begins_with("campfire"):
+		Game.add_log("They worry at the brightest sign of you until the fire is dead and the stone ring scattered.")
+	else:
+		Game.add_log("They search the old traces until the trail goes cold. The manor remains untouched.")
+	if evacuated:
+		Game.add_log("You hear them spend themselves where you were, not where you are.")
+	_outdoor_horde = {}
+	_outdoor_fights_left = 0
+	_rebuild_out_there()
+	on_layout_changed()
+	if Game.force_sleep and not Game.dead and not _collapsing:
+		Game.force_sleep = false
+		_collapse_sleep.call_deferred()
 
 func _siege_outlook(action: String) -> String:
 	var preview := Game.siege_preview(action)
@@ -2186,6 +2401,8 @@ func _render_siege_push() -> void:
 	var pressures: Array = state.get("pressures", [])
 	var loc := str(state.get("target", Game.SIEGE_TARGET))
 	var pressure := Game.siege_current_pressure()
+	siege_kicker_label.text = "THE HOUSE MUST HOLD"
+	siege_title_label.text = "Something at the door"
 	siege_progress_label.text = "PUSH %d OF %d" % [idx + 1, pressures.size()]
 	siege_pressure_label.text = Game.siege_pressure_word(pressure)
 	siege_status_label.text = _siege_status_text(loc)
@@ -2331,6 +2548,8 @@ func _restart() -> void:
 	Game.reset()
 	_siege_start_queued = false
 	_siege_resolving = false
+	_outdoor_horde = {}
+	_outdoor_fights_left = 0
 	_combat_opening_safe = false
 	if siege_layer:
 		siege_layer.visible = false
@@ -2387,6 +2606,9 @@ func _rebuild_out_there() -> void:
 	# then this location's fixtures/stations
 	for fid in loc["fixtures"]:
 		_spawn(fid, "top")
+	var campfire_id := str(CAMPFIRE_FOR_LOCATION.get(Game.current_location, ""))
+	if campfire_id != "" and Game.build_done(campfire_id):
+		_spawn(campfire_id, "top")
 	if top_head:
 		top_head.text = "OUT THERE   ·   " + str(loc["title"])
 
@@ -2407,6 +2629,20 @@ func _load_ground(loc: String) -> void:
 	_rot_food()  # catch anything that spoiled here while you were away, on arrival
 	_expire_temporary_cards()  # do not let a temporary item reappear after expiring while we were away
 	_cool_hot_containers()
+	_sync_alarm_owner_from_board()
+	_surface_attention_aftermath(loc)
+
+func _surface_attention_aftermath(loc: String) -> void:
+	var aftermath := Game.attention_aftermath_for_location(loc)
+	if aftermath.is_empty() or bool(aftermath.get("seen", false)):
+		return
+	if str(aftermath.get("destroyed_source", "")) == "alarm_clock":
+		Game.log_quiet("The leaves are churned where you left the clock. There is no sign of it now.")
+	elif str(aftermath.get("destroyed_source", "")).begins_with("campfire"):
+		Game.log_quiet("The fire ring has been kicked apart. Deep tracks circle it and then wander away.")
+	else:
+		Game.log_quiet("Tracks cross and recross the old camp. Whatever searched here found no one waiting.")
+	Game.mark_attention_aftermath_seen(loc)
 
 func _save_ground(loc: String) -> void:
 	Game.location_ground[loc] = serialize_ground_cards(rows["middle"].get_children())
@@ -2454,15 +2690,24 @@ func _travel_to(dest: String, mins: int) -> void:
 	var from_loc := Game.current_location
 	_save_ground(from_loc)
 	var before := Game.meters.duplicate()
-	Game.current_location = dest
-	Game.location_indoor = bool(LOCATIONS[dest].get("indoor", true))
 	if mins > 0:
 		Audio.play_cue("travel_outdoor")
+		Game.add_attention(from_loc, {"habitation": 2.0})
 		# a real expedition out into the world: time passes and the light moves on
 		Game.advance_time(mins)
+		if Game.dead:
+			_show_time_passing(mins)
+			_animate_meters(before, {})
+			Game.log_quiet("You do not make the far end of the road.")
+			return
+		Game.current_location = dest
+		Game.location_indoor = bool(LOCATIONS[dest].get("indoor", true))
+		Game.add_attention(dest, {"habitation": 2.0})
 		_show_time_passing(mins)
 		Game.add_log("You set out. You reach %s as the light thins." % _place_prose(dest))
 	else:
+		Game.current_location = dest
+		Game.location_indoor = bool(LOCATIONS[dest].get("indoor", true))
 		Audio.play_cue("threshold_interior")
 		# free movement within the base compound: a threshold, not a journey
 		Game.add_log(_step_log(from_loc, dest))
@@ -2682,6 +2927,8 @@ func _move_card(card: CardIcon, dest_key: String) -> void:
 	var id: String = card.data.id
 	_consume_card(card)
 	_spawn(id, dest_key)
+	if id == "alarm_clock":
+		_sync_alarm_owner_from_board()
 
 func _transform_fixture(card: CardIcon, new_id: String) -> void:
 	var loc := Game.current_location
@@ -2750,9 +2997,19 @@ func _check_snare(mins: int) -> void:
 func recipe_for(item_id: String, target_id: String) -> Variant:
 	if RECIPES.has(item_id) and RECIPES[item_id].has(target_id):
 		return RECIPES[item_id][target_id]
+	if RECIPES.has(item_id) and RECIPES[item_id].has("fire_source") and CARD_FILES.has(target_id):
+		var target_data: CardData = load(CARD_FILES[target_id])
+		if target_data != null and target_data.is_fire_source:
+			return RECIPES[item_id]["fire_source"]
 	return null
 
 func _is_recipe_target(id: String) -> bool:
+	if CARD_FILES.has(id):
+		var target_data: CardData = load(CARD_FILES[id])
+		if target_data != null and target_data.is_fire_source:
+			for src in RECIPES:
+				if RECIPES[src].has("fire_source"):
+					return true
 	for src in RECIPES:
 		if RECIPES[src].has(id):
 			return true
@@ -2764,6 +3021,7 @@ func on_drag_begin(card: CardIcon) -> void:
 
 func on_card_reordered() -> void:
 	Audio.play_cue("ui_card_place")
+	_sync_alarm_owner_from_board()
 	on_layout_changed()
 
 func on_drag_end() -> void:
@@ -2815,11 +3073,11 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		match rec["effect"]:
 			"add_fuel":
 				target.set_state(target.state_value + float(rec.get("amount", 40)))
-				if Game.is_fire_lit():
+				if Game.is_lit(target.data.id):
 					Game.add_log("You feed the fire. It flares: warm, bright, and loud.")
 					fx = {"Warmth": 8.0}
 				else:
-					Game.add_log("You lay wood in the cold grate. It only wants a light now.")
+					Game.add_log("You lay dry wood in the cold fire. It only wants a light now.")
 				_consume_card(src)
 			"light_tinder":
 				if src.state_value <= 0.0:
@@ -2837,7 +3095,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				_consume_card(src)
 				Game.add_log("You feed the burning tinder in. The fire takes: warm light, and a beacon.")
 			"steep_remedy":
-				if not Game.is_fire_lit():
+				if not Game.is_lit(target.data.id):
 					_blocked("You need a live fire to steep them.")
 					on_drag_end()
 					return
@@ -2846,7 +3104,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				Game.add_log("You steep the herbs over the fire into a bitter, cloudy tea.")
 				Game.gain_skill("cooking", 2.5)
 			"cook":
-				if not Game.is_fire_lit():
+				if not Game.is_lit(target.data.id):
 					_blocked("You need a live fire to cook it.")
 					on_drag_end()
 					return
@@ -2855,7 +3113,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 				Game.add_log("You spit the meat and hold it to the flame until it browns and spits fat.")
 				Game.gain_skill("cooking", 2.0)
 			"smoke":
-				if not Game.is_fire_lit():
+				if not Game.is_lit(target.data.id):
 					_blocked("You need a live fire to smoke it.")
 					on_drag_end()
 					return
@@ -2899,12 +3157,12 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			Game.add_log("The clean water clouds as it meets the dirty. It needs boiling again.")
 		else:
 			Game.add_log("You pour %s into the %s." % [src._content_display(poured).to_lower(), target.data.title.to_lower()])
-	elif src.data.is_container and target.data.id == "hearth":
+	elif src.data.is_container and target.data.is_fire_source:
 		if src.content != "dirty_water" or src.state_value <= 0.0:
 			_blocked("There's no dirty water in the %s to boil." % src.data.title.to_lower())
 			on_drag_end()
 			return
-		if not Game.is_fire_lit():
+		if not Game.is_lit(target.data.id):
 			_blocked("You need a live fire to boil it.")
 			on_drag_end()
 			return
@@ -2942,10 +3200,11 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		Audio.play_cue("liquid_pour", -4.0)
 	elif src.data.is_container and target.data.is_container:
 		Audio.play_cue("liquid_pour")
-	elif src.data.is_container and target.data.id == "hearth":
+	elif src.data.is_container and target.data.is_fire_source:
 		Audio.play_cue("water_boiling")
 	elif src.data.is_container and (target.data.id == "stream" or target.data.id == "rain_barrel"):
 		Audio.play_cue("water_fill")
+	Game.add_attention(Game.current_location, rec.get("attention", {}))
 	Game.advance_time(rmins)
 	_show_time_passing(rmins)
 	on_drag_end()
@@ -3012,7 +3271,7 @@ func on_card_clicked(card: CardIcon) -> void:
 	else:
 		_menu_actions = []
 		for action in ACTIONS.get(card.data.id, []):
-			if action.get("needs_fire", false) and not Game.is_fire_lit():
+			if action.get("needs_fire", false) and not Game.is_lit(card.data.id if card.data.is_fire_source else Game.fire_source_at(Game.current_location)):
 				continue
 			if card.data.state_kind == "charges" and card.state_value <= 0.0 and float(action.get("state_delta", 0.0)) < 0.0:
 				continue
@@ -3125,10 +3384,28 @@ func _sleep() -> void:
 	on_layout_changed()
 
 func _alarm_clock_nearby() -> bool:
-	return _find_card("alarm_clock") != null
+	return Game.alarm_location() == Game.current_location
 
-func _on_alarm_triggered() -> void:
-	if not _alarm_clock_nearby():
+func _sync_alarm_owner_from_board() -> void:
+	if rows.has("inv"):
+		for node in rows["inv"].get_children():
+			if node is CardIcon and (node as CardIcon).data.id == "alarm_clock":
+				Game.set_alarm_owner(Game.ALARM_CARRIED)
+				return
+	if rows.has("middle"):
+		for node in rows["middle"].get_children():
+			if node is CardIcon and (node as CardIcon).data.id == "alarm_clock":
+				Game.set_alarm_owner(Game.current_location)
+				return
+	for loc in Game.location_ground:
+		for entry in Game.location_ground[loc]:
+			var id := str(entry.get("id", "")) if entry is Dictionary else str(entry)
+			if id == "alarm_clock":
+				Game.set_alarm_owner(str(loc))
+				return
+
+func _on_alarm_triggered(_ring_at: int, ring_location: String) -> void:
+	if ring_location != Game.current_location:
 		return
 	Audio.play_alarm_ring()
 	if _sleep_in_progress:
@@ -3211,6 +3488,7 @@ func _do_maintenance(id: String) -> void:
 	Audio.play_cue("construction_wood")
 	var wmin := int(job.get("work_mins", 30))
 	var before := Game.meters.duplicate()
+	Game.add_attention(loc, {"sound": 14.0, "habitation": 1.0})
 	Game.advance_time(wmin, false, true, CONSTRUCTION_EFFORT)
 	_show_time_passing(wmin)
 	Game.gain_skill("crafting", 2.0)
@@ -3387,7 +3665,7 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 		_sync_world_audio()
 		on_layout_changed()
 		return
-	if act.get("needs_fire", false) and not Game.is_fire_lit():
+	if act.get("needs_fire", false) and not Game.is_lit(card.data.id if card != null and card.data.is_fire_source else Game.fire_source_at(Game.current_location)):
 		Game.add_log("There is no fire lit.")
 		return
 	if act.has("drink"):
@@ -3457,6 +3735,7 @@ func _perform(card: CardIcon, act: Dictionary) -> void:
 	var wood_work: bool = card != null and (card.data.state_kind == "fell" or card.data.state_kind == "wood")
 	if wood_work:
 		_mins = maxi(1, int(round(float(_mins) * Game.wood_speed())))  # skill makes wood work quicker
+	Game.add_attention(Game.current_location, act.get("attention", {}))
 	Game.advance_time(_mins, false, physical, effort)
 	_show_time_passing(_mins)
 	if wood_work:
@@ -3590,6 +3869,18 @@ func _refresh_shelter_status() -> void:
 		shelter_barricade_label.text = "Barricade %s · %s" % [pips, condition]
 		shelter_barricade_label.tooltip_text = "%d of %d sound crossbars." % [current, maximum]
 
+func _refresh_attention_status() -> void:
+	if attention_status_box == null or attention_status_label == null:
+		return
+	var zone := Game.attention_zone_for_location(Game.current_location)
+	attention_status_box.visible = zone != ""
+	if zone == "":
+		return
+	var area_prefix := "Around the manor compound: " if zone == "manor_compound" else "In these woods: "
+	var summary := Game.attention_summary(zone)
+	attention_status_label.text = area_prefix + summary.substr(0, 1).to_lower() + summary.substr(1)
+	attention_status_label.tooltip_text = "Sound fades quickly. Smoke and food linger. Repeated use leaves the slowest signs."
+
 func _refresh() -> void:
 	_sync_world_audio()
 	_expire_temporary_cards()
@@ -3657,9 +3948,10 @@ func _refresh() -> void:
 			cond_tray.add_child(_make_cond_bar(id, str(stg["name"]), float(Game.conditions[id]), cst, Game.cond_trajectory(id)))
 	if weather_label:
 		weather_label.text = Game.weather_line()
+	_refresh_attention_status()
 	_refresh_shelter_status()
 	_update_environment()  # ease the mood toward the current place / fire / time / season
-	if Game.force_sleep and not Game.dead and not _combat_resolving and Game.pending_siege.is_empty() and Game.active_siege.is_empty() and (not combat_layer or not combat_layer.visible):
+	if Game.force_sleep and not Game.dead and not _combat_resolving and Game.pending_siege.is_empty() and Game.active_siege.is_empty() and Game.active_horde.is_empty() and _outdoor_horde.is_empty() and (not siege_layer or not siege_layer.visible) and (not combat_layer or not combat_layer.visible):
 		Game.force_sleep = false
 		if not _collapsing:
 			_collapse_sleep.call_deferred()

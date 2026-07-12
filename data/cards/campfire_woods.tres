@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://data/card_data.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/campfire.png" id="2_cover"]
+[ext_resource type="Texture2D" path="res://assets/card_art/campfire_lit.png" id="3_lit"]
+
+[resource]
+script = ExtResource("1")
+cover_image = ExtResource("2_cover")
+cover_image_lit = ExtResource("3_lit")
+id = "campfire_woods"
+title = "Campfire"
+kind = "station"
+blurb = "A blackened ring of stones and cold timber, laid ready beneath the trees."
+blurb_fueled = "Dry wood waits inside the stone ring."
+blurb_lit = "Flame works through the timber, warm and bright among the bare trees."
+state_kind = "fuel"
+state_start = 0.0
+is_fire_source = true

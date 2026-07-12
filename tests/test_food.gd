@@ -33,7 +33,7 @@ func run(tree, h) -> void:
 	var f := FileAccess.open("res://main.gd", FileAccess.READ)
 	h.expect(f != null, "main.gd source opens")
 	var src := f.get_as_text() if f != null else ""
-	h.expect(src.contains("\"rat_meat\": {\"hearth\":"), "RECIPES has a rat_meat -> hearth entry")
+	h.expect(src.contains("\"rat_meat\": {\"fire_source\":"), "RECIPES cooks rat meat at any local fire source")
 	h.expect(src.contains("\"effect\": \"cook\", \"spawn\": \"cooked_rat_meat\""), "the hearth recipe cooks into cooked_rat_meat")
 
 	# Containers show their contents and keep newly boiled water unsafe until it cools.
@@ -75,5 +75,5 @@ func run(tree, h) -> void:
 	h.expect(preserved != null, "preserved_meat.tres loads")
 	h.expect_eq(preserved.id, "preserved_meat", "preserved_meat id")
 	h.expect_eq(preserved.kind, "item", "preserved_meat is an item")
-	h.expect(src.contains("\"cooked_rat_meat\": {\"hearth\":"), "RECIPES has a cooked_rat_meat -> hearth entry")
+	h.expect(src.contains("\"cooked_rat_meat\": {\"fire_source\":"), "RECIPES smokes cooked meat at any local fire source")
 	h.expect(src.contains("\"effect\": \"smoke\", \"spawn\": \"preserved_meat\""), "the smoke recipe preserves into preserved_meat")

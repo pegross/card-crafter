@@ -4,7 +4,7 @@ extends Node
 ## by an action. There is no real-time _process tick. Waiting is an action.
 
 signal changed
-signal alarm_triggered
+signal alarm_triggered(ring_at: int, location: String)
 
 var rng := RandomNumberGenerator.new()  ## seedable sim RNG; tests set Game.rng.seed for reproducibility
 
@@ -84,8 +84,13 @@ var radio_powered: bool = true          ## mains power; fails permanently at gri
 var radio_last_broadcast_day: int = 0   ## last day a broadcast was drawn (repeat-listen = static)
 ## ALARM CLOCK -- the next occurrence of a recurring daily alarm. Whether it can be heard is decided by main.gd,
 ## because only the scene knows whether the physical clock is in inventory or on the nearby floor.
+const ALARM_CARRIED := "carried"
+const ATTENTION_ALARM_SOUND := 50.0
 var alarm_at: int = -1
 var alarm_ring_count: int = 0
+## The clock is unique. It is either carried (and follows current_location) or lies at a location.
+## main.gd updates this when the physical card moves; keeping it here lets a remote clock remain a decoy.
+var alarm_owner: String = "lordly_manor"
 ## SIEGE bridge — the Director queues an ordeal, main.gd snapshots player presence and starts it.
 ## Mechanical push resolution is deterministic; only the combat reached through a breach uses rng.
 const SIEGE_TARGET := "lordly_manor"
@@ -95,10 +100,35 @@ const SIEGE_PUSH_MINS := 5
 const BUILD_EFFECT_TAGS := ["structure_defense", "insulation", "barricade_capacity"]
 var pending_siege: Dictionary = {}  ## {target, intensity}; empty = none
 var active_siege: Dictionary = {}   ## live deterministic push state; main.gd owns presentation/combat
+var active_horde: Dictionary = {}   ## claimed M2 horde arrival; shelter siege is one resolution mode
 var barricades: Dictionary = {}     ## shelter id -> current intact segments; maximum comes from builds
 var damaged_builds: Dictionary = {} ## completed construction id -> true while structurally damaged
 var shelter_breaches: Dictionary = {} ## shelter id -> true while the bare shell has an open breach
 var siege_cooldown_until: Dictionary = {} ## M2 seam: location -> day before attention can draw another horde
+
+## ATTENTION: two deliberately coarse zones. The horde follows accumulated evidence, never occupancy.
+## Sound fades within hours, scent across days, and habitation across many days. Light is not stored:
+## it is derived from authoritative lit-source state at the instant the horde locks its target.
+const ATTENTION_ZONE_ORDER := ["manor_compound", "woods"]
+const ATTENTION_ZONE_FOR_LOCATION := {
+	"lordly_manor": "manor_compound", "the_grounds": "manor_compound", "cellar": "manor_compound",
+	"the_woods": "woods",
+}
+const ATTENTION_ZONE_TARGET := {"manor_compound": "lordly_manor", "woods": "the_woods"}
+const ATTENTION_KINDS := ["sound", "scent", "habitation"]
+const ATTENTION_DECAY_PER_HOUR := {"sound": 18.0, "scent": 0.75, "habitation": 0.10}
+const ATTENTION_SCORE_WEIGHT := {"sound": 1.0, "scent": 0.75, "habitation": 1.0, "light": 0.75}
+const ATTENTION_INTENSITY_THRESHOLDS := [60.0, 120.0]
+const ATTENTION_FIRE_SOURCES := {
+	"hearth": {"location": "lordly_manor", "light": 20.0, "scent_per_hour": 1.20},
+	"campfire_grounds": {"location": "the_grounds", "light": 24.0, "scent_per_hour": 1.60, "requires_build": true},
+	"campfire_woods": {"location": "the_woods", "light": 24.0, "scent_per_hour": 1.60, "requires_build": true},
+}
+const CAMPFIRE_SOURCE_FOR_LOCATION := {
+	"the_grounds": "campfire_grounds", "the_woods": "campfire_woods",
+}
+var attention_traces: Dictionary = {} ## zone -> {sound, scent, habitation}, each clamped 0..100
+var attention_aftermath: Dictionary = {} ## zone -> deferred empty-target aftermath
 
 ## SKILLS (0..100, learn-by-doing) and background RESEARCH (progresses in waking time).
 var skills := {"woodworking": 0.0, "cooking": 0.0, "crafting": 0.0, "tailoring": 0.0}
@@ -248,6 +278,34 @@ const CONSTRUCTION := {
 				 "log": "You extend the sockets back into the hall and brace them against the floor."},
 			{"label": "Fit the second bars", "materials": {"firewood": 2}, "work_mins": 90, "audio": "construction_wood",
 				 "log": "You fit a second pair of bars behind the first. The entrance has depth now."}
+		]
+	},
+	"campfire_grounds": {
+		"site": "the_grounds",
+		"on_done_fixture": "campfire_grounds",
+		"effects": {},
+		"label": "Lay a campfire on the grounds",
+		"broken_desc": "A ring of stone would keep a small outdoor fire controlled and away from the house.",
+		"done_label": "Grounds campfire",
+		"done_desc": "A shallow stone fire ring, cold until it is laid with fuel and lit.",
+		"done_log": "You settle the last stone into the fire ring. It is ready to take a small fire.",
+		"phases": [
+			{"label": "Lay the fire ring", "materials": {"stone": 2}, "work_mins": 45, "audio": "construction_stone",
+			 "log": "You scrape the ground bare and lay a close ring of stone."}
+		]
+	},
+	"campfire_woods": {
+		"site": "the_woods",
+		"on_done_fixture": "campfire_woods",
+		"effects": {},
+		"label": "Lay a campfire in the woods",
+		"broken_desc": "A bare patch among the trees would take a careful stone-ringed fire.",
+		"done_label": "Woods campfire",
+		"done_desc": "A low stone fire ring beneath the trees, ready for fuel.",
+		"done_log": "The fire ring sits quiet among the trees. You can cook here without lighting the manor.",
+		"phases": [
+			{"label": "Lay the fire ring", "materials": {"stone": 2}, "work_mins": 45, "audio": "construction_stone",
+			 "log": "You clear needles to the soil and lay the stones one by one."}
 		]
 	}
 }
@@ -538,13 +596,20 @@ func _ready() -> void:
 	rng.randomize()  # normal play stays varied; tests overwrite rng.seed after reset()
 	_seed_schedule()  # lay down the deterministic event spine for a fresh game (reset() re-seeds)
 
-func is_fire_lit() -> bool:
-	return is_lit("hearth")
+func fire_source_at(loc: String) -> String:
+	if loc == "lordly_manor":
+		return "hearth"
+	var campfire := campfire_source_for_location(loc)
+	return campfire if campfire != "" and build_done(campfire) else ""
 
-## A lit fire in the ROOM you are actually in — a fire only warms and lights its own place. Only the
-## manor hearth exists for now; generalize to a location->fire-source lookup when more fires/rooms land.
+func is_fire_lit(loc: String = "") -> bool:
+	var target_loc := current_location if loc == "" else loc
+	var source := fire_source_at(target_loc)
+	return source != "" and is_lit(source)
+
+## A fire only warms, dries, lights, and supports cooking at its own mapped location.
 func fire_here() -> bool:
-	return is_fire_lit() and current_location == "lordly_manor"
+	return is_fire_lit(current_location)
 
 func is_lit(id: String) -> bool:
 	return bool(lit_sources.get(id, false)) and card_state.get(id, 0.0) > 0.0
@@ -552,12 +617,230 @@ func is_lit(id: String) -> bool:
 func extinguish(id: String) -> void:
 	lit_sources[id] = false
 
+func attention_zone_for_location(loc: String) -> String:
+	return str(ATTENTION_ZONE_FOR_LOCATION.get(loc, ""))
+
+func _attention_zone_key(zone_or_loc: String) -> String:
+	if zone_or_loc in ATTENTION_ZONE_ORDER:
+		return zone_or_loc
+	return attention_zone_for_location(zone_or_loc)
+
+func _fresh_attention_state() -> Dictionary:
+	var fresh := {}
+	for zone in ATTENTION_ZONE_ORDER:
+		fresh[zone] = {"sound": 0.0, "scent": 0.0, "habitation": 0.0}
+	return fresh
+
+func add_attention(loc: String, contribution: Dictionary) -> Dictionary:
+	var zone := attention_zone_for_location(loc)
+	if zone == "":
+		return {}
+	return add_attention_zone(zone, contribution)
+
+func add_attention_zone(zone: String, contribution: Dictionary) -> Dictionary:
+	if zone not in ATTENTION_ZONE_ORDER:
+		return {}
+	if not attention_traces.has(zone):
+		attention_traces[zone] = {"sound": 0.0, "scent": 0.0, "habitation": 0.0}
+	for kind in contribution:
+		if str(kind) not in ATTENTION_KINDS:
+			continue
+		var old_value := float(attention_traces[zone].get(kind, 0.0))
+		attention_traces[zone][kind] = clampf(old_value + maxf(0.0, float(contribution[kind])), 0.0, 100.0)
+	return (attention_traces[zone] as Dictionary).duplicate(true)
+
+func attention_trace(zone_or_loc: String, kind: String) -> float:
+	var zone := _attention_zone_key(zone_or_loc)
+	if zone == "" or kind not in ATTENTION_KINDS:
+		return 0.0
+	return float((attention_traces.get(zone, {}) as Dictionary).get(kind, 0.0))
+
+func _attention_decay_multiplier(kind: String) -> float:
+	if weather != "rain":
+		return 1.0
+	if kind == "sound":
+		return 1.5
+	if kind == "scent":
+		return 3.0
+	return 1.0
+
+func _fire_source_active(id: String) -> bool:
+	var profile: Dictionary = ATTENTION_FIRE_SOURCES.get(id, {})
+	if profile.is_empty() or not is_lit(id):
+		return false
+	return not bool(profile.get("requires_build", false)) or build_done(id)
+
+func _tick_attention(hours: float, sleeping: bool = false) -> void:
+	if hours <= 0.0:
+		return
+	for zone in ATTENTION_ZONE_ORDER:
+		if not attention_traces.has(zone):
+			attention_traces[zone] = {"sound": 0.0, "scent": 0.0, "habitation": 0.0}
+		for kind in ATTENTION_KINDS:
+			var decay := float(ATTENTION_DECAY_PER_HOUR[kind]) * _attention_decay_multiplier(kind) * hours
+			attention_traces[zone][kind] = maxf(0.0, float(attention_traces[zone].get(kind, 0.0)) - decay)
+	# A fire leaves smoke after its light goes out. These emissions are traces; light below is not.
+	for id in ATTENTION_FIRE_SOURCES:
+		if not _fire_source_active(str(id)):
+			continue
+		var profile: Dictionary = ATTENTION_FIRE_SOURCES[id]
+		var fuel_hours := float(card_state.get(id, 0.0)) / HEARTH_BURN_PER_HOUR
+		var burning_hours := minf(hours, maxf(0.0, fuel_hours))
+		add_attention(str(profile["location"]), {"scent": float(profile.get("scent_per_hour", 0.0)) * burning_hours})
+	# Sleeping in a place is slow habitation evidence, whether it is a bedroom or a rough camp.
+	if sleeping:
+		add_attention(current_location, {"habitation": 0.30 * hours})
+
+func _attention_light_time_factor() -> float:
+	if minute < 5 * 60 or minute >= 21 * 60:
+		return 1.0
+	if minute < 8 * 60:
+		return lerpf(1.0, 0.15, float(minute - 5 * 60) / 180.0)
+	if minute < 18 * 60:
+		return 0.15
+	return lerpf(0.15, 1.0, float(minute - 18 * 60) / 180.0)
+
+func active_light_attention(zone_or_loc: String) -> float:
+	var zone := _attention_zone_key(zone_or_loc)
+	if zone == "":
+		return 0.0
+	var light := 0.0
+	for id in ATTENTION_FIRE_SOURCES:
+		var profile: Dictionary = ATTENTION_FIRE_SOURCES[id]
+		if attention_zone_for_location(str(profile["location"])) == zone and _fire_source_active(str(id)):
+			light += float(profile.get("light", 0.0))
+	var weather_visibility := 0.50 if weather == "rain" else (0.85 if weather == "overcast" else 1.0)
+	return light * _attention_light_time_factor() * weather_visibility
+
+func attention_components(zone_or_loc: String) -> Dictionary:
+	var zone := _attention_zone_key(zone_or_loc)
+	if zone == "":
+		return {}
+	var sound_mask := 0.60 if weather == "rain" else 1.0
+	var scent_mask := 0.75 if weather == "rain" else 1.0
+	return {
+		"sound": attention_trace(zone, "sound") * sound_mask,
+		"scent": attention_trace(zone, "scent") * scent_mask,
+		"habitation": attention_trace(zone, "habitation"),
+		"light": active_light_attention(zone),
+	}
+
+func attention_score(zone_or_loc: String) -> float:
+	var components := attention_components(zone_or_loc)
+	if components.is_empty():
+		return 0.0
+	var score := 0.0
+	for kind in ATTENTION_SCORE_WEIGHT:
+		score += float(components.get(kind, 0.0)) * float(ATTENTION_SCORE_WEIGHT[kind])
+	return score
+
+func attention_summary(zone_or_loc: String) -> String:
+	var zone := _attention_zone_key(zone_or_loc)
+	if zone == "":
+		return "No readable signs remain here."
+	var parts: Array[String] = []
+	var sound := attention_trace(zone, "sound")
+	var scent := attention_trace(zone, "scent")
+	var habitation := attention_trace(zone, "habitation")
+	var light := active_light_attention(zone)
+	if sound >= 25.0:
+		parts.append("Recent noise will have carried")
+	elif sound >= 8.0:
+		parts.append("Some sound still hangs here")
+	if scent >= 25.0:
+		parts.append("A strong scent lingers")
+	elif scent >= 8.0:
+		parts.append("Smoke and food can still be smelled")
+	if habitation >= 25.0:
+		parts.append("This place bears unmistakable signs of habitation")
+	elif habitation >= 8.0:
+		parts.append("Repeated use has left signs behind")
+	if light >= 8.0:
+		parts.append("The fire shows through the dark")
+	if parts.is_empty():
+		return "Little here would draw notice."
+	return ". ".join(PackedStringArray(parts)) + "."
+
+func horde_target_snapshot(base_intensity: int) -> Dictionary:
+	var chosen := str(ATTENTION_ZONE_ORDER[0])
+	var chosen_score := attention_score(chosen)
+	for i in range(1, ATTENTION_ZONE_ORDER.size()):
+		var zone := str(ATTENTION_ZONE_ORDER[i])
+		var score := attention_score(zone)
+		if score > chosen_score: # exact ties deliberately preserve manor-first authored behavior
+			chosen = zone
+			chosen_score = score
+	var bonus := 0
+	for threshold in ATTENTION_INTENSITY_THRESHOLDS:
+		if chosen_score >= float(threshold):
+			bonus += 1
+	return {
+		"zone": chosen,
+		"target": str(ATTENTION_ZONE_TARGET[chosen]),
+		"base_intensity": maxi(1, base_intensity),
+		"intensity": clampi(maxi(1, base_intensity) + bonus, 1, 5),
+		"score": chosen_score,
+		"components": attention_components(chosen),
+		"locked_day": day,
+		"locked_minute": minute,
+	}
+
+func consume_attention(zone_or_loc: String) -> Dictionary:
+	var zone := _attention_zone_key(zone_or_loc)
+	if zone == "":
+		return {}
+	var before: Dictionary = (attention_traces.get(zone, {}) as Dictionary).duplicate(true)
+	attention_traces[zone] = {
+		"sound": 0.0,
+		"scent": attention_trace(zone, "scent") * 0.25,
+		"habitation": attention_trace(zone, "habitation") * 0.75,
+	}
+	return before
+
+func campfire_source_for_location(loc: String) -> String:
+	return str(CAMPFIRE_SOURCE_FOR_LOCATION.get(loc, ""))
+
+func campfire_built(loc: String) -> bool:
+	var id := campfire_source_for_location(loc)
+	return id != "" and build_done(id)
+
+func destroy_campfire(loc: String) -> String:
+	var id := campfire_source_for_location(loc)
+	if id == "" or not build_done(id):
+		return ""
+	builds.erase(id)
+	build_progress.erase(id)
+	lit_sources.erase(id)
+	card_state.erase(id)
+	return id
+
+func _ground_entry_id(entry) -> String:
+	return str(entry.get("id", "")) if entry is Dictionary else str(entry)
+
+func destroy_ground_item(loc: String, id: String) -> bool:
+	var ground: Array = location_ground.get(loc, [])
+	for i in ground.size():
+		if _ground_entry_id(ground[i]) == id:
+			ground.remove_at(i)
+			location_ground[loc] = ground
+			return true
+	return false
+
 func hhmm() -> String:
 	@warning_ignore("integer_division")
 	return "%02d:%02d" % [minute / 60, minute % 60]
 
 func abs_minute() -> int:
 	return day * 1440 + minute
+
+func set_alarm_owner(owner: String) -> bool:
+	if owner != ALARM_CARRIED and attention_zone_for_location(owner) == "":
+		return false
+	alarm_owner = owner
+	return true
+
+func alarm_location() -> String:
+	return current_location if alarm_owner == ALARM_CARRIED else alarm_owner
 
 ## Wind the alarm for the next occurrence of this time of day (never the occurrence already past).
 func set_alarm(hour: int, alarm_minute: int) -> int:
@@ -585,12 +868,20 @@ func alarm_hhmm() -> String:
 	return "%02d:%02d" % [minute_of_day / 60, minute_of_day % 60]
 
 ## Ring every occurrence crossed by this time step, then leave the next day's occurrence armed.
-## The scene decides whether the physical clock is close enough for the player to hear it.
+## The sound belongs to the physical clock even when it is remote and unheard by the player.
 func _advance_alarm(target_abs: int) -> void:
 	while alarm_at >= 0 and alarm_at <= target_abs:
+		var ring_at := alarm_at
 		alarm_at += 1440
 		alarm_ring_count += 1
-		alarm_triggered.emit()
+		var loc := alarm_location()
+		# Large headless advances can cross old rings. Age their very short-lived sound instead of
+		# stacking several past days as if every clock had gone off at the end of the action.
+		var age_hours := maxf(0.0, float(target_abs - ring_at) / 60.0)
+		var heard_by_world := maxf(0.0, ATTENTION_ALARM_SOUND - float(ATTENTION_DECAY_PER_HOUR["sound"]) * _attention_decay_multiplier("sound") * age_hours)
+		if heard_by_world > 0.0:
+			add_attention(loc, {"sound": heard_by_world})
+		alarm_triggered.emit(ring_at, loc)
 
 ## Freshness of a perishable, from its absolute spoil-minute. 0 fresh, 1 turning (last 4h), 2 spoiled.
 func spoil_stage(spoil_at: int) -> int:
@@ -701,11 +992,17 @@ func _complete_research(id: String) -> void:
 	research_progress = 0.0
 	add_log(str(RESEARCH[id].get("done_log", "You have it worked out at last.")))
 
+func construction_project_location(id: String) -> String:
+	if not CONSTRUCTION.has(id):
+		return ""
+	var project: Dictionary = CONSTRUCTION[id]
+	return str(project.get("shelter", project.get("site", "")))
+
 func construction_for(loc: String) -> Array:
-	# only projects for this shelter whose unlocking research (if any) is done
+	# Projects can improve a shelter or establish a small site feature such as an outdoor campfire.
 	var out: Array = []
 	for id in CONSTRUCTION:
-		if str(CONSTRUCTION[id]["shelter"]) != loc:
+		if construction_project_location(str(id)) != loc:
 			continue
 		var req := str(CONSTRUCTION[id].get("requires_research", ""))
 		if req != "" and not researched.has(req):
@@ -820,7 +1117,7 @@ func complete_build_phase(id: String) -> void:
 	var idx := build_phase_idx(id) + 1
 	build_progress[id] = idx
 	if idx >= build_phase_count(id):
-		var loc := str(CONSTRUCTION[id]["shelter"])
+		var loc := construction_project_location(id)
 		var old_capacity := barricade_capacity(loc)
 		builds[id] = true
 		var added_capacity := maxi(0, barricade_capacity(loc) - old_capacity)
@@ -835,7 +1132,7 @@ func build_effect(loc: String, tag: String) -> float:
 	var total := 0.0
 	for id in CONSTRUCTION:
 		var project: Dictionary = CONSTRUCTION[id]
-		if str(project.get("shelter", "")) != loc or not build_done(id):
+		if construction_project_location(str(id)) != loc or not build_done(id):
 			continue
 		var effects: Dictionary = project.get("effects", {})
 		if not effects.has(tag):
@@ -1012,6 +1309,7 @@ func begin_siege(target: String, intensity: int, player_present: bool) -> Dictio
 	if dead or not active_siege.is_empty() or not is_shelter(target):
 		return {}
 	active_siege = {
+		"zone": attention_zone_for_location(target),
 		"target": target,
 		"player_present": player_present,
 		"intensity": maxi(1, intensity),
@@ -1022,17 +1320,111 @@ func begin_siege(target: String, intensity: int, player_present: bool) -> Dictio
 		"phase": "decision",
 		"last_result": {}
 	}
+	if not active_horde.is_empty() and str(active_horde.get("mode", "")) == "shelter_siege" and str(active_horde.get("target", "")) == target:
+		active_horde["phase"] = "shelter_siege"
 	return active_siege.duplicate(true)
 
 func begin_pending_siege(player_present: bool) -> Dictionary:
-	if dead or pending_siege.is_empty() or not active_siege.is_empty():
+	if dead or pending_siege.is_empty() or not active_siege.is_empty() or not active_horde.is_empty():
 		return {}
 	var pending := pending_siege.duplicate(true)
 	var target := str(pending.get("target", SIEGE_TARGET))
 	if not is_shelter(target):
 		return {}  # preserve the queued event so bad future target data cannot silently erase it
 	pending_siege = {}
-	return begin_siege(target, int(pending.get("intensity", 1)), player_present)
+	active_horde = pending.duplicate(true)
+	active_horde["zone"] = str(pending.get("zone", attention_zone_for_location(target)))
+	active_horde["target"] = target
+	active_horde["player_present"] = player_present
+	active_horde["mode"] = "shelter_siege"
+	active_horde["phase"] = "shelter_siege"
+	var state := begin_siege(target, int(pending.get("intensity", 1)), player_present)
+	if state.is_empty():
+		pending_siege = pending
+		active_horde = {}
+	return state
+
+## Claim a locked horde without assuming its target is a shelter. The caller branches on mode:
+## shelter_siege -> begin_siege, shelter_approach -> choose whether to defend, open_ground ->
+## combat, empty_search -> resolve_empty_horde.
+func claim_pending_horde(player_loc: String) -> Dictionary:
+	if dead or pending_siege.is_empty() or not active_horde.is_empty() or not active_siege.is_empty():
+		return {}
+	var claim := pending_siege.duplicate(true)
+	var zone := str(claim.get("zone", attention_zone_for_location(str(claim.get("target", "")))))
+	var target := str(claim.get("target", ATTENTION_ZONE_TARGET.get(zone, "")))
+	if zone not in ATTENTION_ZONE_ORDER or target == "" or attention_zone_for_location(target) != zone:
+		return {}
+	var player_zone := attention_zone_for_location(player_loc)
+	var same_zone := player_zone == zone
+	# Attention aggregates the whole compound, but physical attendance does not. Someone in the
+	# cellar or on the grounds still has to choose whether to make for the manor before it is hit.
+	var present := player_loc == target
+	var mode := ("shelter_siege" if present or not same_zone else "shelter_approach") if is_shelter(target) else ("open_ground" if same_zone else "empty_search")
+	claim["zone"] = zone
+	claim["target"] = target
+	claim["player_zone"] = player_zone
+	claim["same_zone"] = same_zone
+	claim["player_present"] = present
+	claim["mode"] = mode
+	claim["phase"] = "claimed"
+	if mode == "open_ground":
+		claim["fights_left"] = clampi(int(claim.get("intensity", 1)), 1, 3)
+	pending_siege = {}
+	active_horde = claim
+	return active_horde.duplicate(true)
+
+func _settle_horde_attention(zone: String, target: String) -> void:
+	consume_attention(zone)
+	if target != "":
+		siege_cooldown_until[target] = day + 3
+
+func finish_horde(outcome: String = "passed") -> Dictionary:
+	if active_horde.is_empty() or not active_siege.is_empty():
+		return {}
+	if str(active_horde.get("mode", "")) == "shelter_siege" and outcome != "invalid":
+		return {}
+	var summary := active_horde.duplicate(true)
+	summary["outcome"] = outcome
+	_settle_horde_attention(str(active_horde.get("zone", "")), str(active_horde.get("target", "")))
+	active_horde = {}
+	return summary
+
+func resolve_empty_horde() -> Dictionary:
+	if active_horde.is_empty() or str(active_horde.get("mode", "")) != "empty_search":
+		return {}
+	var zone := str(active_horde.get("zone", ""))
+	var target := str(active_horde.get("target", ""))
+	var destroyed_source := ""
+	# Destroy only the explicit conspicuous lure, never a random cache item. A ringing clock is
+	# found before a fire ring; otherwise the outdoor camp itself bears the cost of the decoy.
+	if alarm_owner == target and destroy_ground_item(target, "alarm_clock"):
+		destroyed_source = "alarm_clock"
+		clear_alarm()
+		alarm_owner = ""
+	elif zone == "woods":
+		destroyed_source = destroy_campfire(target)
+	attention_aftermath[zone] = {
+		"day": day,
+		"intensity": int(active_horde.get("intensity", 1)),
+		"kind": "searched_empty",
+		"destroyed_source": destroyed_source,
+		"seen": false,
+	}
+	active_horde["phase"] = "complete"
+	active_horde["destroyed_source"] = destroyed_source
+	return finish_horde("empty_search")
+
+func attention_aftermath_for_location(loc: String) -> Dictionary:
+	var zone := attention_zone_for_location(loc)
+	return (attention_aftermath.get(zone, {}) as Dictionary).duplicate(true)
+
+func mark_attention_aftermath_seen(loc: String) -> bool:
+	var zone := attention_zone_for_location(loc)
+	if zone == "" or not attention_aftermath.has(zone):
+		return false
+	attention_aftermath[zone]["seen"] = true
+	return true
 
 func siege_current_pressure() -> int:
 	if active_siege.is_empty() or str(active_siege.get("phase", "")) != "decision":
@@ -1156,10 +1548,13 @@ func finish_siege() -> Dictionary:
 		return {}
 	var summary := active_siege.duplicate(true)
 	var target := str(active_siege.get("target", SIEGE_TARGET))
-	siege_cooldown_until[target] = day + 3
+	var zone := str(active_siege.get("zone", attention_zone_for_location(target)))
+	_settle_horde_attention(zone, target)
 	if str(active_siege.get("phase", "")) == "complete" and not dead and bool(active_siege.get("player_present", false)):
 		modify("Mental", 4.0)
 	active_siege = {}
+	if not active_horde.is_empty() and str(active_horde.get("target", "")) == target:
+		active_horde = {}
 	return summary
 
 func siege_pressure_word(pressure: int) -> String:
@@ -1253,7 +1648,9 @@ func _director_tick() -> void:
 func _fire_event(ev: Dictionary) -> void:
 	var id: String = str(ev["id"])
 	var def: Dictionary = EVENTS[id]
-	var ol := _event_line(id, "onset")
+	# Horde prose is selected after its target locks below; it must not announce the house when
+	# accumulated evidence has actually drawn the movement into the woods.
+	var ol := "" if id == "horde_surge" else _event_line(id, "onset")
 	if ol != "":
 		add_log(ol)
 	match id:
@@ -1265,7 +1662,16 @@ func _fire_event(ev: Dictionary) -> void:
 		"drought":
 			active_events.append({"id": id, "ends_day": day + int(def["duration_days"]), "temp_drop": 0.0})
 		"horde_surge":
-			pending_siege = {"target": SIEGE_TARGET, "intensity": int(ev.get("waves", def["base_waves"]))}
+			# Target and size lock exactly once at onset. Later movement, noise, weather, or an
+			# extinguished decoy cannot turn a horde around after it has committed.
+			if pending_siege.is_empty() and active_horde.is_empty() and active_siege.is_empty():
+				pending_siege = horde_target_snapshot(int(ev.get("waves", def["base_waves"])))
+				if str(pending_siege.get("zone", "")) == "woods":
+					add_log("The movement turns beneath the trees, following the signs you left there.")
+				else:
+					var horde_line := _event_line(id, "onset")
+					if horde_line != "":
+						add_log(horde_line)
 		"grid_failure":
 			radio_powered = false  # permanent dead air from here on
 		"gale":
@@ -1342,6 +1748,9 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 		meters[k] = clampf(meters[k] - _drain[k] * hours * mk, 0.0, 100.0)
 	_tick_conditions(hours)
 	_apply_influences(hours)
+	# Attention uses the weather and active fire state at the start of this action. Action-specific
+	# traces are deposited by the caller before advance_time, so they age naturally over the work.
+	_tick_attention(hours, sleeping)
 	# every LIT fire source burns its fuel down; unlit fuel just sits. Out of fuel = out.
 	for src_id in lit_sources.keys():
 		if lit_sources[src_id]:
@@ -1390,11 +1799,13 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 	# A stopgap until per-location insulation lands.
 	var damp := shelter_damp()
 	# only a fire in the room you're in heats it; the cellar stays cold while the manor hearth burns
-	var target := 19.0 if fire_here() else (7.0 + season_offset() * damp)
+	var target := 19.0 if location_indoor and fire_here() else (7.0 + season_offset() * damp)
 	temperature = lerpf(temperature, target, clampf(hours * 0.6, 0.0, 1.0))
 	# your Warmth follows the AMBIENT temperature where you actually are:
 	# indoors = the room (fire-warmed); outdoors = the weather. Below the comfort point you shed heat.
 	var ambient := temperature if location_indoor else outdoor_temp
+	if not location_indoor and fire_here():
+		ambient = maxf(ambient, 19.0) # close to an outdoor fire is locally warm despite the wider weather
 	var warm_delta := (ambient - WARMTH_NEUTRAL) * WARMTH_RATE * hours
 	if warm_delta < 0.0:
 		warm_delta *= (1.0 + wet / 100.0)  # being wet steepens the chill
@@ -1448,6 +1859,10 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 		weight_warned = false
 	minute += mins
 	while minute >= 1440:
+		# A pre-midnight decoy must sound before the Director locks the new day's horde target.
+		# Process only alarms due through this boundary; alarms later in the action remain later.
+		var boundary_abs := (day + 1) * 1440
+		_advance_alarm(boundary_abs)
 		minute -= 1440
 		day += 1
 		var s := season()
@@ -1928,12 +2343,16 @@ func reset() -> void:
 	radio_last_broadcast_day = 0
 	alarm_at = -1
 	alarm_ring_count = 0
+	alarm_owner = "lordly_manor"
 	pending_siege = {}
 	active_siege = {}
+	active_horde = {}
 	barricades = {}
 	damaged_builds = {}
 	shelter_breaches = {}
 	siege_cooldown_until = {}
+	attention_traces = _fresh_attention_state()
+	attention_aftermath = {}
 	_seed_schedule()
 	current_location = "the_grounds"
 	location_indoor = false
