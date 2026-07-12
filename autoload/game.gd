@@ -734,29 +734,42 @@ func attention_score(zone_or_loc: String) -> float:
 		score += float(components.get(kind, 0.0)) * float(ATTENTION_SCORE_WEIGHT[kind])
 	return score
 
-func attention_summary(zone_or_loc: String) -> String:
+## Player-facing evidence remains channel-specific. This deliberately does not accept or inspect
+## the combined attention score: sound can only produce sound prose, scent only scent prose, etc.
+func attention_cues(zone_or_loc: String) -> Dictionary:
 	var zone := _attention_zone_key(zone_or_loc)
 	if zone == "":
-		return "No readable signs remain here."
-	var parts: Array[String] = []
+		return {}
+	var cues := {"sound": "", "scent": "", "habitation": "", "light": ""}
 	var sound := attention_trace(zone, "sound")
 	var scent := attention_trace(zone, "scent")
 	var habitation := attention_trace(zone, "habitation")
 	var light := active_light_attention(zone)
 	if sound >= 25.0:
-		parts.append("Recent noise will have carried")
+		cues["sound"] = "Recent noise will have carried"
 	elif sound >= 8.0:
-		parts.append("Some sound still hangs here")
+		cues["sound"] = "Some sound still hangs here"
 	if scent >= 25.0:
-		parts.append("A strong scent lingers")
+		cues["scent"] = "A strong scent lingers"
 	elif scent >= 8.0:
-		parts.append("Smoke and food can still be smelled")
+		cues["scent"] = "Smoke and food can still be smelled"
 	if habitation >= 25.0:
-		parts.append("This place bears unmistakable signs of habitation")
+		cues["habitation"] = "This place bears unmistakable signs of habitation"
 	elif habitation >= 8.0:
-		parts.append("Repeated use has left signs behind")
+		cues["habitation"] = "Repeated use has left signs behind"
 	if light >= 8.0:
-		parts.append("The fire shows through the dark")
+		cues["light"] = "The fire shows through the dark"
+	return cues
+
+func attention_summary(zone_or_loc: String) -> String:
+	var cues := attention_cues(zone_or_loc)
+	if cues.is_empty():
+		return "No readable signs remain here."
+	var parts: Array[String] = []
+	for kind in ["sound", "scent", "habitation", "light"]:
+		var cue := str(cues.get(kind, ""))
+		if cue != "":
+			parts.append(cue)
 	if parts.is_empty():
 		return "Little here would draw notice."
 	return ". ".join(PackedStringArray(parts)) + "."

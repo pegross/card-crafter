@@ -107,6 +107,8 @@ mobility (only `item`/`resource`/`tool` can be dragged).
   the woods is separate. Firelight is derived from active local fires. The authored Director
   still decides *when* a horde comes; `horde_target_snapshot()` deterministically locks where
   it goes and a bounded intensity modifier. Later actions cannot retarget an active ordeal.
+  `attention_cues()` reads each channel independently for UI prose; never derive feedback from
+  the combined targeting score (noise must not be described as smoke, light, or habitation).
 - **Fire state is location-scoped by stable card id.** `fire_source_at(loc)` maps the manor
   hearth and the two independently persisted campfires. Cooking recipes check the actual
   target source, never a global hearth flag.

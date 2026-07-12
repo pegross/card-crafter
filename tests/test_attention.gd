@@ -17,6 +17,29 @@ func run(tree, h) -> void:
 	h.expect_near(zones.attention_trace("woods", "unknown"), 0.0, "unknown trace kinds are rejected")
 	h.expect("noise" in zones.attention_summary("woods").to_lower(), "attention feedback is qualitative rather than a numeric bar")
 
+	# Feedback reads the actual evidence channels, never the combined targeting score. Noise cannot
+	# masquerade as smoke; scent cannot masquerade as sound; habitation and light keep their own prose.
+	var sound_only = tree.make_sim(610)
+	sound_only.add_attention("the_woods", {"sound": 40.0})
+	var sound_words: String = sound_only.attention_summary("woods").to_lower()
+	h.expect("noise" in sound_words and "scent" not in sound_words and "smoke" not in sound_words and "fire" not in sound_words, "sound-only evidence produces only sound feedback")
+	var scent_only = tree.make_sim(611)
+	scent_only.add_attention("the_woods", {"scent": 40.0})
+	var scent_words: String = scent_only.attention_summary("woods").to_lower()
+	h.expect("scent" in scent_words and "noise" not in scent_words and "sound" not in scent_words and "fire" not in scent_words, "scent-only evidence produces only scent feedback")
+	var habitation_only = tree.make_sim(612)
+	habitation_only.add_attention("the_woods", {"habitation": 40.0})
+	var habitation_words: String = habitation_only.attention_summary("woods").to_lower()
+	h.expect("habitation" in habitation_words and "noise" not in habitation_words and "smoke" not in habitation_words and "fire" not in habitation_words, "habitation-only evidence produces only physical-sign feedback")
+	var light_only = tree.make_sim(613)
+	light_only.minute = 0
+	light_only.weather = "clear"
+	light_only.builds["campfire_woods"] = true
+	light_only.lit_sources["campfire_woods"] = true
+	light_only.card_state["campfire_woods"] = 50.0
+	var light_words: String = light_only.attention_summary("woods").to_lower()
+	h.expect("fire" in light_words and "noise" not in light_words and "smoke" not in light_words and "scent" not in light_words, "light-only evidence produces only visibility feedback")
+
 	# Sound vanishes in hours, scent in days, habitation much more slowly; rain washes/masks.
 	var decay = tree.make_sim(62)
 	decay.weather = "clear"
