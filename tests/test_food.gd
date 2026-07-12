@@ -36,6 +36,40 @@ func run(tree, h) -> void:
 	h.expect(src.contains("\"rat_meat\": {\"hearth\":"), "RECIPES has a rat_meat -> hearth entry")
 	h.expect(src.contains("\"effect\": \"cook\", \"spawn\": \"cooked_rat_meat\""), "the hearth recipe cooks into cooked_rat_meat")
 
+	# Containers show their contents and keep newly boiled water unsafe until it cools.
+	var bottle: CardData = load("res://data/cards/plastic_bottle.tres")
+	h.expect(bottle.cover_image_empty != null, "bottle has empty-state art")
+	h.expect(bottle.cover_image_water != null, "bottle has clean-water art")
+	h.expect(bottle.cover_image_dirty_water != null, "bottle has dirty-water art")
+	h.expect(bottle.cover_image_boiling_water != null, "bottle has boiling-water art")
+	h.expect(bottle.cover_image_fuel != null, "bottle has fuel art")
+	h.expect(src.contains("src.boil(rmins + 30)"), "boiled water cools thirty minutes after the boiling action")
+	var card_file := FileAccess.open("res://card.gd", FileAccess.READ)
+	var card_src := card_file.get_as_text() if card_file != null else ""
+	h.expect(card_src.contains("content = \"boiling_water\""), "boiling water is a distinct container content")
+	h.expect(card_src.contains("func cool_if_ready()"), "hot container contents can cool into normal water")
+
+	var hearth: CardData = load("res://data/cards/hearth.tres")
+	h.expect(hearth.cover_image_empty != null, "hearth has empty-fuel art")
+	h.expect(hearth.cover_image_low != null, "hearth has low-fuel art")
+	h.expect(hearth.cover_image_lit_low != null, "hearth has lit low-fuel art")
+
+	var lighter: CardData = load("res://data/cards/lighter.tres")
+	h.expect(lighter.cover_image_empty != null, "lighter has distinct empty-fuel art")
+	h.expect(card_src.contains("not data.is_container and state_value <= 0.0"), "generic stateful tools use their zero-state art")
+
+	for weapon_art in ["fire_axe", "lead_pipe", "kitchen_knife", "crowbar", "claw_hammer", "makeshift_spear"]:
+		h.expect(load("res://assets/card_art/%s.png" % weapon_art) != null, "%s card art loads" % weapon_art)
+
+	var antibiotics: CardData = load("res://data/cards/antibiotics.tres")
+	h.expect_eq(antibiotics.state_kind, "charges", "antibiotics use discrete remaining-pill state")
+	h.expect_eq(antibiotics.state_start, 6.0, "antibiotics start with six pills")
+	h.expect_eq(antibiotics.state_max, 6.0, "antibiotics are capped at six pills")
+	h.expect_eq(antibiotics.cover_images_by_state.size(), 7, "antibiotics have art for counts zero through six")
+	for image in antibiotics.cover_images_by_state:
+		h.expect(image != null, "every antibiotics count image loads")
+	h.expect(src.contains("\"state_delta\": -1.0"), "taking an antibiotic removes one pill rather than the whole card")
+
 	# PRESERVATION: cooked meat can be smoked into a keeps-well ration for winter.
 	var preserved: CardData = load("res://data/cards/preserved_meat.tres")
 	h.expect(preserved != null, "preserved_meat.tres loads")

@@ -23,14 +23,14 @@ func run(tree, h) -> void:
 	var gfuel = tree.make_sim(5)
 	gfuel.meters["Warmth"] = 80.0
 	var sat0: float = gfuel.meters["Satiation"]
-	var cal0: float = gfuel.meters["Calories"]
+	var wgt0: float = gfuel.meters["Weight"]
 	var slp0: float = gfuel.meters["Sleep"]
 	gfuel.advance_time(60, false, true)
 	var gidle = tree.make_sim(5)
 	gidle.meters["Warmth"] = 80.0
 	gidle.advance_time(60)  # light hour for comparison
 	h.expect(gfuel.meters["Satiation"] < sat0, "physical work makes you hungry (drains Satiation)")
-	h.expect(gfuel.meters["Calories"] < cal0, "physical work bites into Calories")
+	h.expect(gfuel.meters["Weight"] < wgt0, "physical work bites into your body reserve (Weight)")
 	h.expect((slp0 - gfuel.meters["Sleep"]) > (slp0 - gidle.meters["Sleep"]), "physical work drains Sleep faster than a light hour")
 
 	# --- heavier work (higher effort) costs more than lighter work of the same length ---

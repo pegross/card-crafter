@@ -41,6 +41,7 @@ func _init() -> void:
 		"food": preload("res://tests/test_food.gd").new(),
 		"equipment": preload("res://tests/test_equipment.gd").new(),
 		"exertion": preload("res://tests/test_exertion.gd").new(),
+		"warmth": preload("res://tests/test_warmth.gd").new(),
 		"determinism": preload("res://tests/test_determinism.gd").new(),
 		"audio": preload("res://tests/test_audio.gd").new(),
 	}

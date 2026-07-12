@@ -1,12 +1,23 @@
-[gd_resource type="Resource" load_steps=3 format=3]
+[gd_resource type="Resource" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://data/card_data.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics.png" id="2_cover"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_6.png" id="2_cover"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_0.png" id="3_0"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_1.png" id="4_1"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_2.png" id="5_2"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_3.png" id="6_3"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_4.png" id="7_4"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_5.png" id="8_5"]
+[ext_resource type="Texture2D" path="res://assets/card_art/antibiotics_6.png" id="9_6"]
 
 [resource]
 script = ExtResource("1")
 cover_image = ExtResource("2_cover")
+cover_images_by_state = Array[Texture2D]([ExtResource("3_0"), ExtResource("4_1"), ExtResource("5_2"), ExtResource("6_3"), ExtResource("7_4"), ExtResource("8_5"), ExtResource("9_6")])
 id = "antibiotics"
 title = "Antibiotics"
 kind = "item"
-blurb = "A half-strip of pills. Strong, and there is not much of it."
+blurb = "A battered strip of broad-spectrum pills. Strong, finite medicine."
+state_kind = "charges"
+state_start = 6.0
+state_max = 6.0

@@ -30,7 +30,7 @@ const SWEAT_HEAVY := 0.30          ## extra wetness per point, scaling up as you
 ## labour means you must eat, drink and sleep to keep it up. All per point of Stamina burned.
 const SATIATION_PER_EXERTION := 0.25  ## hunger from work: refill it by eating
 const HYDRATION_PER_EXERTION := 0.15  ## thirst from work: refill it by drinking
-const CALORIES_PER_EXERTION := 0.10   ## a small bite into the deeper food reserve on top of hunger
+const WEIGHT_PER_EXERTION := 0.03     ## a small bite into your body reserve (Weight) on top of hunger
 const SLEEP_PER_EXERTION := 0.08      ## extra Sleep debt per point of Stamina burned (heavy days need real rest)
 var temperature: float = 14.0  ## indoor °C — rises while the fire is lit, falls when it's out
 var outdoor_temp: float = 1.0  ## outdoor °C (weather + season drive it)
@@ -343,7 +343,7 @@ const SIEGE := {
 ## Continuous needs, 0..100 (the CSTI-style sliders). Provisional values.
 var meters := {
 	"Satiation": 65.0,
-	"Calories": 82.0,
+	"Weight": 55.0,
 	"Hydration": 74.0,
 	"Warmth": 70.0,
 	"Energy": 85.0,
@@ -364,7 +364,7 @@ var _drain := {
 var log_lines: Array[String] = []
 
 ## NO need is instantly lethal at 0 now — deprivation spawns a growing CONDITION that kills:
-## low Hydration -> Dehydration, low Warmth -> Hypothermia, low Calories -> Weight (starvation).
+## low Hydration -> Dehydration, low Warmth -> Hypothermia, low Weight -> starvation.
 ## Energy -> forced sleep; Immune/Mental are modifiers.
 const LETHAL_METERS := []
 
@@ -450,7 +450,8 @@ var dead: bool = false
 var obituary: String = ""
 var cond_pending: Array = []  ## incubating doses: {id, amt, ready (abs minute), cause}
 var mental_driver: String = ""  ## biggest current Mental drain source (for tooltip + obituary)
-var weight: float = 55.0  ## body mass 0..100 (~50 ideal); Calorie surplus feeds it, deficit burns it
+## Weight is now a meter (meters["Weight"]) — the single body reserve: a full belly builds it, hunger
+## and hard work burn it, bottoming out starves you and running heavy taxes physical work.
 var weight_warned: bool = false  ## one-shot "wasting away" tell latch
 
 func _ready() -> void:
@@ -459,6 +460,11 @@ func _ready() -> void:
 
 func is_fire_lit() -> bool:
 	return is_lit("hearth")
+
+## A lit fire in the ROOM you are actually in — a fire only warms and lights its own place. Only the
+## manor hearth exists for now; generalize to a location->fire-source lookup when more fires/rooms land.
+func fire_here() -> bool:
+	return is_fire_lit() and current_location == "lordly_manor"
 
 func is_lit(id: String) -> bool:
 	return bool(lit_sources.get(id, false)) and card_state.get(id, 0.0) > 0.0
@@ -486,13 +492,13 @@ func spoil_stage(spoil_at: int) -> int:
 
 func sleep_quality() -> float:
 	var q: float = 0.35 + 0.45 * float(meters["Warmth"]) / 100.0 + 0.20 * float(meters["Mental"]) / 100.0
-	if meters["Calories"] < 20.0 or meters["Hydration"] < 20.0:
+	if meters["Weight"] < 20.0 or meters["Hydration"] < 20.0:
 		q = minf(q, 0.5)
 	return clampf(q, 0.3, 1.0)
 
 func weight_toll() -> float:
 	# overweight makes physical effort cost more (actions run longer); healthy weight = no toll
-	return 1.0 + maxf(0.0, weight - 78.0) * 0.02
+	return 1.0 + maxf(0.0, float(meters["Weight"]) - 78.0) * 0.02
 
 func weather_line() -> String:
 	var w: String = {"clear": "Clear and cold.", "overcast": "Overcast, still.", "rain": "Cold rain, steady."}.get(weather, "Overcast, still.")
@@ -907,8 +913,6 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 		if sleeping and k == "Hydration":
 			mk = 1.0  # illness dehydration suspended while prone
 		meters[k] = clampf(meters[k] - _drain[k] * hours * mk, 0.0, 100.0)
-	# CALORIES: the slow reservoir under Satiation. A full belly rebuilds it; an empty one burns it.
-	meters["Calories"] = clampf(meters["Calories"] + (meters["Satiation"] - 45.0) * 0.03 * hours, 0.0, 100.0)
 	_tick_conditions(hours)
 	_apply_influences(hours)
 	# every LIT fire source burns its fuel down; unlit fuel just sits. Out of fuel = out.
@@ -939,7 +943,7 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 	if weather == "rain" and not location_indoor:
 		wet = clampf(wet + 30.0 * hours, 0.0, 100.0)
 	else:
-		wet = maxf(0.0, wet - (25.0 if (location_indoor or is_fire_lit()) else 8.0) * hours)
+		wet = maxf(0.0, wet - (25.0 if (location_indoor or fire_here()) else 8.0) * hours)
 	# the rain barrel catches the sky wherever it sits, so rain slowly refills it
 	if weather == "rain":
 		card_state["rain_barrel"] = minf(100.0, float(card_state.get("rain_barrel", 100.0)) + 8.0 * hours)
@@ -958,7 +962,8 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 	# winter still creeps in (a lit fire overrides it). Draught-proofing research seals it tighter.
 	# A stopgap until per-location insulation lands.
 	var damp := shelter_damp()
-	var target := 19.0 if is_fire_lit() else (7.0 + season_offset() * damp)
+	# only a fire in the room you're in heats it; the cellar stays cold while the manor hearth burns
+	var target := 19.0 if fire_here() else (7.0 + season_offset() * damp)
 	temperature = lerpf(temperature, target, clampf(hours * 0.6, 0.0, 1.0))
 	# your Warmth follows the AMBIENT temperature where you actually are:
 	# indoors = the room (fire-warmed); outdoors = the weather. Below the comfort point you shed heat.
@@ -987,7 +992,7 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 			meters["Energy"] = clampf(meters["Energy"] - burn, 0.0, 100.0)
 			meters["Satiation"] = clampf(meters["Satiation"] - burn * SATIATION_PER_EXERTION, 0.0, 100.0)
 			meters["Hydration"] = clampf(meters["Hydration"] - burn * HYDRATION_PER_EXERTION, 0.0, 100.0)
-			meters["Calories"] = clampf(meters["Calories"] - burn * CALORIES_PER_EXERTION, 0.0, 100.0)
+			meters["Weight"] = clampf(meters["Weight"] - burn * WEIGHT_PER_EXERTION, 0.0, 100.0)
 			modify("Warmth", burn * WARMTH_PER_EXERTION)
 			var sweat_frac := clampf((75.0 - float(meters["Energy"])) / 75.0, 0.0, 1.0)
 			wet = clampf(wet + burn * (SWEAT_LIGHT + SWEAT_HEAVY * sweat_frac), 0.0, 100.0)
@@ -1006,12 +1011,13 @@ func advance_time(mins: int, sleeping := false, physical := false, effort := 1.0
 			research_progress += hours
 			if research_progress >= research_hours(current_research):
 				_complete_research(current_research)
-	# WEIGHT: the slow body-mass reservoir — Calorie surplus feeds it, a deficit burns it
-	weight = clampf(weight + (meters["Calories"] - 50.0) * 0.025 * hours, 0.0, 100.0)
-	if weight < 20.0 and not weight_warned:
+	# WEIGHT: the slow body reserve — a full belly builds it, an empty one burns it (hard work also
+	# bites into it, up in the physical branch). Bottom out and you starve.
+	meters["Weight"] = clampf(meters["Weight"] + (meters["Satiation"] - 50.0) * 0.02 * hours, 0.0, 100.0)
+	if meters["Weight"] < 20.0 and not weight_warned:
 		weight_warned = true
 		add_log("Your clothes hang loose on you now. You are wasting away.")
-	elif weight > 26.0 and weight_warned:
+	elif meters["Weight"] > 26.0 and weight_warned:
 		weight_warned = false
 	minute += mins
 	while minute >= 1440:
@@ -1087,6 +1093,8 @@ func _apply_influences(hours: float) -> void:
 	var contrib := {}
 	if meters["Sleep"] < 50.0:
 		contrib["weariness"] = ((50.0 - meters["Sleep"]) / 100.0) * 3.0 * hours
+	if meters["Satiation"] < 35.0:
+		contrib["hunger"] = ((35.0 - meters["Satiation"]) / 100.0) * 4.0 * hours
 	if cond_stage.get("gut_bug", 0) >= 3:
 		contrib["Dysentery"] = 2.0 * hours
 	var total := 0.0
@@ -1138,9 +1146,7 @@ func _apply_influences(hours: float) -> void:
 func need_desc(m: String) -> String:
 	match m:
 		"Satiation":
-			return "How full you are right now. Meals fill it\nfast and it falls off through the day.\nKeep it up and your reserves recover."
-		"Calories":
-			return "Your body's deeper reserves. They fill\nwhen you eat well and burn when you go\nwithout. Hitting empty won't kill you; it\nburns your Weight instead."
+			return "How full you are right now. Meals fill it\nfast and it falls off through the day.\nLet it run empty and it wears on your mind,\nand your body starts to waste."
 		"Hydration":
 			return "Body water. Drops faster when you're ill\nor working hard. Let it run low and\ndehydration takes hold."
 		"Warmth":
@@ -1178,7 +1184,7 @@ func need_influences(m: String) -> String:
 			var ambient: float = temperature if location_indoor else outdoor_temp
 			if ambient < WARMTH_NEUTRAL:
 				notes.append("the cold is pulling it down" + (", worse while you're wet" if wet > 40.0 else ""))
-			elif is_fire_lit() and location_indoor:
+			elif fire_here():
 				notes.append("the fire is holding it up")
 	if notes.is_empty():
 		return ""
@@ -1302,8 +1308,8 @@ func _check_collapse() -> void:
 				log_lines.pop_front()
 			health_log.append(obituary)
 			return
-	# wasting away: weight is the true starvation death (Calories at 0 only starts the burn)
-	if weight <= 0.0:
+	# wasting away: Weight bottoming out is the starvation death
+	if meters["Weight"] <= 0.0:
 		dead = true
 		obituary = "You have wasted down to nothing. It was starvation."
 		log_lines.append("%s  %s" % [hhmm(), obituary])
@@ -1327,7 +1333,7 @@ func _cond_obituary(id: String, stage: int) -> String:
 	return "%s It was %s. (%s)" % [lead, str(s.get("death", "it")), str(s["name"])]
 
 func _build_obituary(meter: String) -> String:
-	var death: String = {"Hydration": "dehydration", "Calories": "starvation", "Warmth": "the cold", "Energy": "sheer exhaustion", "Immune": "sickness", "Mental": "despair"}.get(meter, meter)
+	var death: String = {"Hydration": "dehydration", "Weight": "starvation", "Warmth": "the cold", "Energy": "sheer exhaustion", "Immune": "sickness", "Mental": "despair"}.get(meter, meter)
 	var worst := ""
 	var worst_stage := 0
 	for id in conditions:
@@ -1380,7 +1386,7 @@ func reset() -> void:
 	stocks = {}
 	loc_indoor = {}
 	lit_sources = {}
-	meters = {"Satiation": 65.0, "Calories": 82.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Sleep": 90.0, "Immune": 78.0, "Mental": 64.0}
+	meters = {"Satiation": 65.0, "Weight": 55.0, "Hydration": 74.0, "Warmth": 55.0, "Energy": 70.0, "Sleep": 90.0, "Immune": 78.0, "Mental": 64.0}
 	conditions = {}
 	cond_stage = {}
 	cond_prev = {}
@@ -1397,7 +1403,6 @@ func reset() -> void:
 	force_sleep = false
 	force_sleep_kind = ""
 	worn = ""
-	weight = 55.0
 	weight_warned = false
 
 func modify(m: String, amount: float) -> void:

@@ -14,9 +14,11 @@ extends Resource
 @export var cover_image_dirty_water: Texture2D
 @export var cover_image_boiling_water: Texture2D
 @export var cover_image_fuel: Texture2D
+@export var cover_images_by_state: Array[Texture2D] = []  ## indexed discrete-count art, e.g. 0..6 pills
 @export_multiline var blurb: String = ""
 @export var state_kind: String = ""  ## "" / "explore" / "water" / "fell" / "wood"
 @export var state_start: float = 0.0
+@export var state_max: float = 100.0
 @export var becomes: String = ""  ## on completion (e.g. a felled tree -> a log)
 @export var build_project: String = ""  ## construction recipe represented by this world object or blueprint card
 @export var is_container: bool = false  ## holds one liquid/resource at a time, with a fill %

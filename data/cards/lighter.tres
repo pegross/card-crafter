@@ -1,7 +1,8 @@
-[gd_resource type="Resource" load_steps=3 format=3]
+[gd_resource type="Resource" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://data/card_data.gd" id="1"]
 [ext_resource type="Texture2D" path="res://assets/card_art/lighter.png" id="2_cover"]
+[ext_resource type="Texture2D" path="res://assets/card_art/lighter_empty.png" id="3_empty"]
 
 [resource]
 script = ExtResource("1")
@@ -9,6 +10,7 @@ id = "lighter"
 title = "Lighter"
 kind = "tool"
 cover_image = ExtResource("2_cover")
+cover_image_empty = ExtResource("3_empty")
 blurb = "A cheap lighter. Good while the fuel holds."
 state_kind = "fuel"
 state_start = 100.0

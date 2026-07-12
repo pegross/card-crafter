@@ -26,7 +26,8 @@ func expect_near(a: float, b: float, msg: String, eps: float = 0.001) -> void:
 
 ## Pin the survival meters high so a long test run does not die of an unrelated cause.
 func keep_alive(g) -> void:
-	g.meters["Calories"] = 80.0
+	g.meters["Weight"] = 55.0
+	g.meters["Satiation"] = 80.0
 	g.meters["Hydration"] = 80.0
 	g.meters["Warmth"] = 80.0
 	g.meters["Energy"] = 80.0

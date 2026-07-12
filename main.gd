@@ -20,6 +20,7 @@ const GREEN := Color(0.545, 0.690, 0.541)
 const INV_CAP := 6
 const SIP := 25.0  ## a standard mouthful of liquid, in fill units — drinks pull this much (or the last of it)
 const COMBAT_ROUND_MINS := 3  ## in-game minutes each combat swing/round takes
+const CONSTRUCTION_EFFORT := 1.3  ## how strenuous building is (Stamina effort multiplier for a build phase)
 
 var CARD_FILES := {}
 
@@ -50,13 +51,13 @@ var ACTIONS := {
 		{"label": "Fell the tree (30m)", "mins": 30, "physical": true, "effort": 1.5, "audio": "wood_axe_oak", "state_delta": 50.0, "log": "You swing until your shoulders burn. The old oak groans a little lower."},
 	],
 	"the_woods": [
-		{"label": "Forage (45m)", "mins": 45, "physical": true, "audio": "search_outdoors", "fx": {"Mental": 2.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
+		{"label": "Forage (45m)", "mins": 45, "physical": true, "effort": 0.5, "audio": "search_outdoors", "fx": {"Mental": 2.0}, "state_delta": 8.0, "log": "You move quiet through the trees. A few late berries, kindling, tracks that are not yours."},
 	],
 	"lordly_manor": [
-		{"label": "Search the manor (30m)", "mins": 30, "physical": true, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms, one after another."},
+		{"label": "Search the manor (30m)", "mins": 30, "physical": true, "effort": 0.5, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You search the cold rooms, one after another."},
 	],
 	"the_grounds": [
-		{"label": "Search the grounds (15m)", "mins": 15, "physical": true, "audio": "search_outdoors", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
+		{"label": "Search the grounds (15m)", "mins": 15, "physical": true, "effort": 0.5, "audio": "search_outdoors", "fx": {"Mental": -1.0}, "state_delta": 15.0, "log": "You walk the overgrown grounds, turning over what the weather left behind."},
 	],
 	"spoiled_meat": [
 		{"label": "Choke it down (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 4.0, "Mental": -9.0}, "cond": {"gut_bug": 35.0}, "cond_cause": "spoiled meat", "consume": true, "log": "It is rank and slick and your throat fights it, but hunger wins out. Your gut will turn on you for it."},
@@ -77,7 +78,7 @@ var ACTIONS := {
 		{"label": "Wear it", "wear": "hide_coat", "log": "You shrug the coat on. Stiff and heavy, but it cuts the cold at once."},
 	],
 	"cellar": [
-		{"label": "Search the cellar (30m)", "mins": 30, "physical": true, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
+		{"label": "Search the cellar (30m)", "mins": 30, "physical": true, "effort": 0.5, "audio": "search_interior", "fx": {"Mental": -1.0}, "state_delta": 25.0, "log": "Cold shelves in the dark. You work through them slowly."},
 	],
 	"forage_food": [
 		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 18.0, "Mental": 1.0}, "consume": true, "log": "Bitter and stringy, but it is food."},
@@ -86,10 +87,10 @@ var ACTIONS := {
 		{"label": "Eat it raw (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 8.0, "Mental": -12.0}, "cond": {"gut_bug": 20.0}, "cond_cause": "raw rat meat", "consume": true, "log": "You force the raw meat down cold, gagging. Your gut coils in protest."},
 	],
 	"cooked_rat_meat": [
-		{"label": "Eat (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 18.0, "Calories": 4.0, "Mental": -3.0}, "consume": true, "log": "You eat it off the fire, chewing slow. Not good, but it stays down."},
+		{"label": "Eat (10m)", "mins": 10, "audio": "eat_meat", "fx": {"Satiation": 18.0, "Mental": -3.0}, "consume": true, "log": "You eat it off the fire, chewing slow. Not good, but it stays down."},
 	],
 	"preserved_meat": [
-		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 16.0, "Calories": 3.0}, "consume": true, "log": "You gnaw a strip of the smoked meat. Lean and tough, but it holds you together."},
+		{"label": "Eat (10m)", "mins": 10, "audio": "eat_dry", "fx": {"Satiation": 16.0}, "consume": true, "log": "You gnaw a strip of the smoked meat. Lean and tough, but it holds you together."},
 	],
 	"log": [
 		{"label": "Split for firewood (15m)", "mins": 15, "physical": true, "effort": 1.4, "audio": "wood_split", "spawn": "firewood", "state_delta": -34.0, "log": "You set the wedge and swing. The log gives up a few good splits."},
@@ -98,7 +99,7 @@ var ACTIONS := {
 		{"label": "Drink the remedy (5m)", "mins": 5, "audio": "drink", "fx": {"Mental": 1.0}, "cure": {"gut_bug": -15.0}, "consume": true, "log": "Bitter and earthy. Your gut eases, a little."},
 	],
 	"antibiotics": [
-		{"label": "Take antibiotics (5m)", "mins": 5, "audio": "medicine_pills", "cure": {"gut_bug": -50.0, "infection": -50.0}, "consume": true, "log": "You dry-swallow two. Real medicine, and not much left."},
+		{"label": "Take an antibiotic (5m)", "mins": 5, "audio": "medicine_pills", "cure": {"gut_bug": -50.0, "infection": -50.0}, "state_delta": -1.0, "log": "You dry-swallow one. Real medicine, and one fewer left."},
 	],
 	"bandage": [
 		{"label": "Bind your wounds (10m)", "mins": 10, "audio": "bandage_apply", "cure": {"wound": -45.0}, "consume": true, "log": "You clean it out and bind it tight. Not clever work, but it will hold."},
@@ -140,8 +141,6 @@ var top_head: Label
 var log_label: Label
 var inv_head: Label
 var cond_tray: VBoxContainer
-var weight_bar: ProgressBar
-var weight_fill: StyleBoxFlat
 var weather_label: Label
 var _collapsing: bool = false
 var _locations_initial: Dictionary
@@ -186,6 +185,10 @@ var _siege_waves_left: int = 0
 var combat_flee_btn: Button
 var hurt_flash: ColorRect
 var passout_dim: ColorRect
+var env_bg: ColorRect        ## the app background
+var env_add: ColorRect       ## additive warm layer — lifts daylight / firelight
+var env_mix: ColorRect       ## mix layer — darkens + vignettes for night / cold
+var _env_tween: Tween
 var _shake_tween: Tween
 var time_layer: Control
 var _clock_face: ClockFace
@@ -215,6 +218,7 @@ func _ready() -> void:
 	_build_tooltip_theme()
 	_build_background()
 	_build_ui()
+	_build_environment()  # above the play view, below the modal popups added after
 	_build_overlay()
 	_build_time_popup()
 	_build_menu()
@@ -228,6 +232,7 @@ func _ready() -> void:
 	Game.changed.connect(_refresh)
 	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
+	_update_environment(true)  # paint the mood with no fade
 	_sync_world_audio()
 	on_layout_changed()
 	_validate_content()
@@ -379,11 +384,11 @@ func _label(txt: String, col: Color, sz: int) -> Label:
 
 # ---------- build ----------
 func _build_background() -> void:
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	env_bg = ColorRect.new()
+	env_bg.color = BG
+	env_bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	env_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(env_bg)
 
 func _build_ui() -> void:
 	var margin := MarginContainer.new()
@@ -440,24 +445,8 @@ func _build_left() -> Control:
 
 	vb.add_child(HSeparator.new())
 	vb.add_child(_label("CONDITION", COLD, 11))
-	for m in ["Calories", "Satiation", "Hydration", "Warmth", "Energy", "Sleep", "Immune", "Mental"]:
+	for m in ["Satiation", "Weight", "Hydration", "Warmth", "Energy", "Sleep", "Immune", "Mental"]:
 		vb.add_child(_make_meter(m))
-	var wbox := VBoxContainer.new()
-	wbox.add_theme_constant_override("separation", 4)
-	wbox.add_child(_label("Weight", INK, 12))
-	weight_bar = ProgressBar.new()
-	weight_bar.min_value = 0.0
-	weight_bar.max_value = 100.0
-	weight_bar.show_percentage = false
-	weight_bar.custom_minimum_size = Vector2(0, 11)
-	weight_bar.add_theme_stylebox_override("background", _flat(BG, BORDER, 5))
-	weight_fill = StyleBoxFlat.new()
-	weight_fill.bg_color = GREEN
-	weight_fill.set_corner_radius_all(5)
-	weight_bar.add_theme_stylebox_override("fill", weight_fill)
-	weight_bar.tooltip_text = Game.need_desc("Weight")
-	wbox.add_child(weight_bar)
-	vb.add_child(wbox)
 	cond_tray = VBoxContainer.new()
 	cond_tray.add_theme_constant_override("separation", 5)
 	vb.add_child(cond_tray)
@@ -909,13 +898,24 @@ func _detail_action_btn(txt: String) -> Button:
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	return b
 
+# Stamina a physical action will burn (0 for non-physical actions), used to gate when spent.
+func _stamina_cost(act: Dictionary) -> float:
+	if not bool(act.get("physical", false)):
+		return 0.0
+	return Game.STAMINA_DRAIN_PHYSICAL * (float(act.get("mins", 30)) / 60.0) * float(act.get("effort", 1.0))
+
+# True when a physical action needs more Stamina than you have left — too spent to attempt it.
+func _too_exhausted(act: Dictionary) -> bool:
+	var cost := _stamina_cost(act)
+	return cost > 0.0 and float(Game.meters["Energy"]) < cost
+
 func _detail_card_art(card: CardIcon) -> Control:
 	var frame := PanelContainer.new()
 	frame.custom_minimum_size = Vector2(500, 434)
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.add_theme_stylebox_override("panel", _flat(PANEL2, BORDER, 8))
 	var art := TextureRect.new()
-	art.texture = card.data.cover_image_lit if card.data.is_fire_source and Game.is_lit(card.data.id) and card.data.cover_image_lit != null else card.data.cover_image
+	art.texture = card.current_cover_image()
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -979,7 +979,11 @@ func _render_card_detail() -> void:
 	else:
 		for i in _menu_actions.size():
 			var b := _detail_action_btn(str(_menu_actions[i]["label"]))
-			b.pressed.connect(_on_detail_pick.bind(i))
+			if _too_exhausted(_menu_actions[i]):
+				b.disabled = true
+				b.tooltip_text = "Too exhausted — rest first."
+			else:
+				b.pressed.connect(_on_detail_pick.bind(i))
 			detail_body.add_child(b)
 
 func _open_craft_hub() -> void:
@@ -1110,11 +1114,19 @@ func _render_build_project(id: String, show_project_identity: bool) -> void:
 			detail_body.add_child(_label("%s   %d / %d" % [_card_title(str(mid)), have, need], (WARM_SOFT if have >= need else BLOOD), 12))
 		var wmin: int = int(phase.get("work_mins", 60))
 		var wb := _detail_action_btn("Work on it  (%s)" % _dur_text(wmin))
-		wb.disabled = not have_all
-		wb.pressed.connect(_do_build_phase.bind(id))
+		var too_spent: bool = float(Game.meters["Energy"]) < Game.STAMINA_DRAIN_PHYSICAL * (float(wmin) / 60.0) * CONSTRUCTION_EFFORT
+		if not have_all:
+			wb.disabled = true
+		elif too_spent:
+			wb.disabled = true
+			wb.tooltip_text = "Too exhausted — rest first."
+		else:
+			wb.pressed.connect(_do_build_phase.bind(id))
 		detail_body.add_child(wb)
 		if not have_all:
 			detail_body.add_child(_wrapped("You need the materials to hand first, on the ground here or in your pack.", MUTED, 11))
+		elif too_spent:
+			detail_body.add_child(_wrapped("You are too worn out to swing a hammer. Rest up first.", MUTED, 11))
 
 func _goto_detail_mode(mode: String) -> void:
 	_detail_mode = mode
@@ -1163,7 +1175,7 @@ func _do_build_phase(id: String) -> void:
 	var wmin: int = int(phase.get("work_mins", 60))
 	var before := Game.meters.duplicate()
 	var fx := {}  # all effort costs (Stamina, food, water, sleep) come from the physical flag below
-	Game.advance_time(wmin, false, true, 1.3)  # construction is heavy physical work
+	Game.advance_time(wmin, false, true, CONSTRUCTION_EFFORT)  # construction is heavy physical work
 	_show_time_passing(wmin)
 	Game.gain_skill("crafting", 3.0)
 	if phase.has("log"):
@@ -1201,7 +1213,7 @@ func _do_craft(id: String) -> void:
 	var wmin: int = int(craft.get("work_mins", 30))
 	var before := Game.meters.duplicate()
 	# crafting/tailoring is light bench work: no Stamina cost, so the time at it lets Stamina recover
-	var fx := {"Calories": -3.0, "Hydration": -3.0}
+	var fx := {"Hydration": -3.0}
 	for k in fx:
 		Game.modify(k, fx[k])
 	Game.advance_time(wmin)
@@ -1426,6 +1438,121 @@ func _build_hurt_flash() -> void:
 	hurt_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(hurt_flash)
 
+# TWO stacked full-screen layers (no screen-read, so no feedback): an ADDITIVE warm layer that
+# genuinely LIFTS daylight and firelight, and a MIX layer that SINKS and vignettes for night/cold.
+const ENV_ADD_SHADER := "
+shader_type canvas_item;
+render_mode blend_add;
+uniform vec3 add_color : source_color = vec3(0.0);
+uniform float add_strength = 0.0;
+uniform float add_gradient = 0.0;  // 0 = flat glow, 1 = light from above falling off downward
+void fragment() {
+	float g = 1.0 - add_gradient * UV.y;   // brightest at the top of the screen (the sky)
+	COLOR = vec4(add_color, add_strength * g);
+}
+"
+const ENV_MIX_SHADER := "
+shader_type canvas_item;
+render_mode blend_mix;
+uniform vec3 dark_color : source_color = vec3(0.0);
+uniform float dark_strength = 0.0;
+uniform float vignette_strength = 0.0;
+uniform float vignette_extent = 0.8;
+void fragment() {
+	float d = distance(UV, vec2(0.5));
+	float vig = smoothstep(vignette_extent, 1.05, d) * vignette_strength;
+	float a = clamp(dark_strength + vig, 0.0, 1.0);
+	COLOR = vec4(dark_color, a);
+}
+"
+
+# Centralized environment/mood layer. Reads state only; grades the WORLD (never bar/text values).
+func _build_environment() -> void:
+	env_add = ColorRect.new()
+	env_add.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	env_add.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var am := ShaderMaterial.new()
+	var ash := Shader.new(); ash.code = ENV_ADD_SHADER
+	am.shader = ash
+	am.set_shader_parameter("add_color", Color(0, 0, 0))
+	am.set_shader_parameter("add_strength", 0.0)
+	am.set_shader_parameter("add_gradient", 0.0)
+	env_add.material = am
+	add_child(env_add)
+
+	env_mix = ColorRect.new()
+	env_mix.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	env_mix.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var mm := ShaderMaterial.new()
+	var msh := Shader.new(); msh.code = ENV_MIX_SHADER
+	mm.shader = msh
+	mm.set_shader_parameter("dark_color", Color(0.05, 0.08, 0.20))
+	mm.set_shader_parameter("dark_strength", 0.0)
+	mm.set_shader_parameter("vignette_strength", 0.0)
+	mm.set_shader_parameter("vignette_extent", 0.8)
+	env_mix.material = mm
+	add_child(env_mix)
+
+# The mood target: how much warm light to ADD, how much (and what colour) dark to MIX, vignette shape.
+func _environment_target() -> Dictionary:
+	var indoor: bool = Game.location_indoor
+	var cellar: bool = Game.current_location == "cellar"
+	var winter: bool = Game.season() == 1
+	var at_fire: bool = Game.fire_here()  # a fire only lights its own room (same scoping as the warmth sim)
+	# daylight: 0 at night, rising through dawn (5->8h), full midday, falling through dusk (18->21h)
+	var hour: float = float(Game.minute) / 60.0
+	var daylight: float = clampf(smoothstep(5.0, 8.0, hour) - smoothstep(18.0, 21.0, hour), 0.0, 1.0)
+	var wf: float = 1.0  # cloud/rain thins the sun
+	match Game.weather:
+		"overcast": wf = 0.72
+		"rain": wf = 0.5
+	var sky: float = daylight * wf
+	var add := Color(0, 0, 0)
+	var add_str := 0.0
+	var grad := 0.0
+	var dark := Color(0.05, 0.08, 0.20)
+	var dark_str := 0.0
+	var vig := 0.30
+	var extent := 0.80
+	if at_fire:  # a lit hearth adds a flat warm glow; a guttering one (low fuel) fades toward embers
+		var f: float = clampf(float(Game.card_state.get("hearth", 0.0)) / 35.0, 0.0, 1.0)
+		add = Color(1.0, 0.70, 0.38); add_str = lerpf(0.03, 0.17, f)
+		dark = Color(0.05, 0.04, 0.03); dark_str = lerpf(0.12, 0.0, f)
+		vig = lerpf(0.44, 0.24, f); extent = lerpf(0.60, 0.84, f)
+	elif cellar:  # underground: no daylight, cold and close, edges pressing in
+		dark = Color(0.06, 0.10, 0.24); dark_str = 0.22; vig = 0.72; extent = 0.48
+	elif not indoor:  # OUTDOORS: golden sun pouring in from above by day; deep cold dark night
+		add = Color(1.0, 0.83, 0.46); add_str = lerpf(0.0, 0.26, sky); grad = 0.85
+		dark = Color(0.05, 0.09, 0.28); dark_str = lerpf(0.36, 0.0, sky)
+		vig = lerpf(0.72, 0.14, sky); extent = lerpf(0.46, 0.90, sky)
+	else:  # INDOORS, no fire: a thin shaft of daylight from the windows above; dark and close at night
+		add = Color(0.95, 0.86, 0.62); add_str = lerpf(0.0, 0.07, sky); grad = 0.9
+		dark = Color(0.05, 0.08, 0.20); dark_str = lerpf(0.32, 0.15, sky)
+		vig = lerpf(0.62, 0.44, sky); extent = lerpf(0.50, 0.66, sky)
+	if winter:  # the season pulls colder, greyer and a touch darker
+		dark = dark.lerp(Color(0.14, 0.18, 0.30), 0.4); dark_str += 0.03; add_str *= 0.85
+	return {"add": add, "add_str": clampf(add_str, 0.0, 1.0), "grad": clampf(grad, 0.0, 1.0), "dark": dark, "dark_str": clampf(dark_str, 0.0, 1.0), "vig": clampf(vig, 0.0, 1.0), "extent": clampf(extent, 0.4, 1.0)}
+
+# Ease the environment toward the current target (instant on first paint).
+func _update_environment(instant := false) -> void:
+	if env_add == null or env_mix == null:
+		return
+	var t := _environment_target()
+	var dur: float = 0.0 if instant else 0.9
+	if _env_tween and _env_tween.is_valid():
+		_env_tween.kill()
+	var am: ShaderMaterial = env_add.material
+	var mm: ShaderMaterial = env_mix.material
+	_env_tween = create_tween()
+	_env_tween.set_parallel(true)
+	_env_tween.tween_property(am, "shader_parameter/add_color", t["add"], dur)
+	_env_tween.tween_property(am, "shader_parameter/add_strength", float(t["add_str"]), dur)
+	_env_tween.tween_property(am, "shader_parameter/add_gradient", float(t["grad"]), dur)
+	_env_tween.tween_property(mm, "shader_parameter/dark_color", t["dark"], dur)
+	_env_tween.tween_property(mm, "shader_parameter/dark_strength", float(t["dark_str"]), dur)
+	_env_tween.tween_property(mm, "shader_parameter/vignette_strength", float(t["vig"]), dur)
+	_env_tween.tween_property(mm, "shader_parameter/vignette_extent", float(t["extent"]), dur)
+
 func _build_passout_dim() -> void:
 	# a full-screen black used to fade the world out and back in when you pass out
 	passout_dim = ColorRect.new()
@@ -1639,6 +1766,7 @@ func _restart() -> void:
 		d["bar"].value = Game.meters[m]
 	Game.add_log("Day 1. You wake on the grounds of a great old house, cold to the bone and remembering little. Frost on the weeds, your breath white, no sound anywhere. A way in, somewhere past the overgrowth.")
 	_refresh()
+	_update_environment(true)  # paint the mood with no fade
 	_sync_world_audio()
 	on_layout_changed()
 
@@ -1692,6 +1820,7 @@ func _load_ground(loc: String) -> void:
 	# surface additional renewable items up to the location's current stock ceiling.
 	_rot_food()  # catch anything that spoiled here while you were away, on arrival
 	_expire_temporary_cards()  # do not let a temporary item reappear after expiring while we were away
+	_cool_hot_containers()
 
 func _save_ground(loc: String) -> void:
 	Game.location_ground[loc] = serialize_ground_cards(rows["middle"].get_children())
@@ -2095,6 +2224,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		return
 	var before := Game.meters.duplicate()
 	var fx := {}
+	var rmins := int(rec.get("mins", 10))
 	if rec.has("effect"):
 		match rec["effect"]:
 			"add_fuel":
@@ -2179,7 +2309,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			on_drag_end()
 			return
 		src.drain_content(moved)
-		if target.content == "dirty_water" and (target_was == "water" or poured == "water"):
+		if target.content == "dirty_water" and (target_was in ["water", "boiling_water"] or poured in ["water", "boiling_water"]):
 			Game.add_log("The clean water clouds as it meets the dirty. It needs boiling again.")
 		else:
 			Game.add_log("You pour %s into the %s." % [src._content_display(poured).to_lower(), target.data.title.to_lower()])
@@ -2192,8 +2322,8 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			_blocked("You need a live fire to boil it.")
 			on_drag_end()
 			return
-		src.boil()
-		Game.add_log("You set the %s by the fire until it steams. The water runs clean." % src.data.title.to_lower())
+		src.boil(rmins + 30)
+		Game.add_log("You boil the %s clean. It is scalding and needs half an hour to cool." % src.data.title.to_lower())
 		Game.gain_skill("cooking", 2.0)
 	elif src.data.is_container and (target.data.id == "stream" or target.data.id == "rain_barrel"):
 		var room: float = src.data.capacity - src.state_value
@@ -2214,7 +2344,7 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 			return
 		if target.data.state_kind == "water":
 			target.set_state(target.state_value - moved2)
-		if src_was == "water":
+		if src_was in ["water", "boiling_water"]:
 			Game.add_log("The clean water in the %s clouds with dirt. It needs boiling again." % src.data.title.to_lower())
 		else:
 			Game.add_log("You fill the %s with cold, clouded water." % src.data.title.to_lower())
@@ -2230,7 +2360,6 @@ func perform_recipe(src: CardIcon, target: CardIcon, rec: Dictionary) -> void:
 		Audio.play_cue("water_boiling")
 	elif src.data.is_container and (target.data.id == "stream" or target.data.id == "rain_barrel"):
 		Audio.play_cue("water_fill")
-	var rmins := int(rec.get("mins", 10))
 	Game.advance_time(rmins)
 	_show_time_passing(rmins)
 	on_drag_end()
@@ -2247,6 +2376,9 @@ func _container_actions(card: CardIcon) -> Array:
 	return []
 
 func _do_drink(card: CardIcon, clean: bool, mins: int) -> void:
+	if card.content == "boiling_water":
+		_blocked("The water is still boiling hot. Let it cool before drinking it.")
+		return
 	# every drink pulls one SIP (or the last of what's there, for less hydration)
 	if card.data.id == "stream" and float(Game.card_state.get("stream", 100.0)) <= 15.0:
 		Game.add_log(Game.STREAM_DRY_LINE)  # a drought has slowed it to nothing
@@ -2296,6 +2428,8 @@ func on_card_clicked(card: CardIcon) -> void:
 		for action in ACTIONS.get(card.data.id, []):
 			if action.get("needs_fire", false) and not Game.is_fire_lit():
 				continue
+			if card.data.state_kind == "charges" and card.state_value <= 0.0 and float(action.get("state_delta", 0.0)) < 0.0:
+				continue
 			_menu_actions.append(action)
 	if card.data.is_fire_source and Game.is_lit(card.data.id):
 		_menu_actions.append({"label": "Extinguish", "extinguish": true})
@@ -2329,7 +2463,11 @@ func _open_menu() -> void:
 		sb_h.content_margin_top = 3.0
 		sb_h.content_margin_bottom = 3.0
 		b.add_theme_stylebox_override("hover", sb_h)
-		b.pressed.connect(_on_menu_pick.bind(i))
+		if _too_exhausted(_menu_actions[i]):
+			b.disabled = true
+			b.tooltip_text = "Too exhausted — rest first."
+		else:
+			b.pressed.connect(_on_menu_pick.bind(i))
 		menu_vbox.add_child(b)
 	menu_panel.reset_size()
 	menu_panel.position = get_global_mouse_position()
@@ -2451,9 +2589,9 @@ func _collapse_sleep() -> void:
 			Game.meters["Energy"] = maxf(Game.meters["Energy"], 20.0)
 	_animate_meters(before, {})
 	on_layout_changed()
-	# hold the dark a beat, then come to
-	await get_tree().create_timer(0.7).timeout
-	await _fade_black(1.0, 0.0, 0.55)
+	# hold the dark a beat, then come to slowly
+	await get_tree().create_timer(0.8).timeout
+	await _fade_black(1.0, 0.0, 1.1)
 	_collapsing = false
 
 func _clamp_menu() -> void:
@@ -2655,7 +2793,7 @@ func _blocked(line: String) -> void:
 
 func _sync_world_audio() -> void:
 	Audio.set_location(Game.current_location)
-	Audio.set_hearth_active(Game.current_location == "lordly_manor" and Game.is_fire_lit())
+	Audio.set_hearth_active(Game.fire_here())
 
 func _expire_temporary_cards() -> void:
 	var now := Game.abs_minute()
@@ -2670,9 +2808,22 @@ func _expire_temporary_cards() -> void:
 						Game.log_quiet(card.data.expiry_log)
 					_consume_card(card)
 
+func _cool_hot_containers() -> void:
+	var cooled_ids := {}
+	for key in ["middle", "inv"]:
+		if not rows.has(key):
+			continue
+		for node in rows[key].get_children():
+			if node is CardIcon:
+				var card := node as CardIcon
+				if not cooled_ids.has(card.data.id) and card.cool_if_ready():
+					cooled_ids[card.data.id] = true
+					Game.log_quiet("The boiling water in the %s has cooled enough to drink." % card.data.title.to_lower())
+
 func _refresh() -> void:
 	_sync_world_audio()
 	_expire_temporary_cards()
+	_cool_hot_containers()
 	if clock_label:
 		clock_label.text = Game.time_string()
 	if temp_label:
@@ -2684,22 +2835,21 @@ func _refresh() -> void:
 	for m in bars:
 		var v: float = Game.meters[m]
 		var c := COLD
-		if v < 20.0:
+		if m == "Weight":
+			# Weight is bad at BOTH ends: too low = wasting, too high = overweight
+			if v < 20.0 or v > 85.0:
+				c = BLOOD
+			elif v < 30.0 or v > 78.0:
+				c = WARM
+			else:
+				c = GREEN
+		elif v < 20.0:
 			c = BLOOD
 		elif v < 45.0:
 			c = WARM
 		bars[m]["fill"].bg_color = c
 		bars[m]["bar"].tooltip_text = Game.need_tooltip(m)
 		bars[m]["bar"].queue_redraw()
-	if weight_bar:
-		weight_bar.value = Game.weight
-		var wc := GREEN
-		if Game.weight < 20.0 or Game.weight > 85.0:
-			wc = BLOOD
-		elif Game.weight < 30.0 or Game.weight > 78.0:
-			wc = WARM
-		weight_fill.bg_color = wc
-		weight_bar.queue_redraw()
 	if log_label:
 		log_label.text = "\n".join(PackedStringArray(Game.log_lines))
 	# keep card state bars (e.g. the hearth fuel burning down) in sync with the model
@@ -2735,6 +2885,7 @@ func _refresh() -> void:
 			cond_tray.add_child(_make_cond_bar(id, str(stg["name"]), float(Game.conditions[id]), cst, Game.cond_trajectory(id)))
 	if weather_label:
 		weather_label.text = Game.weather_line()
+	_update_environment()  # ease the mood toward the current place / fire / time / season
 	if Game.force_sleep and not Game.dead and (not combat_layer or not combat_layer.visible):
 		Game.force_sleep = false
 		if not _collapsing:

@@ -157,7 +157,7 @@ func setup(card_data: CardData, main_ref) -> void:
 		_state_bar = ProgressBar.new()
 		_state_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_state_bar.min_value = 0.0
-		_state_bar.max_value = data.capacity if data.is_container else 100.0
+		_state_bar.max_value = data.capacity if data.is_container else data.state_max
 		_state_bar.show_percentage = false
 		_state_bar.custom_minimum_size = Vector2(0, 7)
 		var sbg := StyleBoxFlat.new()
@@ -195,13 +195,19 @@ func _accent() -> Color:
 		_: return MUTED
 
 func set_state(v: float) -> void:
-	state_value = clampf(v, 0.0, 100.0)
+	state_value = clampf(v, 0.0, data.state_max)
 	Game.card_state[data.id] = state_value
 	_refresh_state()
 
 func _refresh_state() -> void:
 	_refresh_cover_image()
 	if _state_label == null:
+		return
+	if data.state_kind == "charges":
+		var count := int(round(state_value))
+		_state_label.text = "%d pill%s left" % [count, "" if count == 1 else "s"]
+		if _state_bar:
+			_state_bar.value = state_value
 		return
 	if data.is_fire_source:
 		var pct := int(round(state_value))
@@ -232,6 +238,10 @@ func _refresh_cover_image() -> void:
 	_cover_rect.texture = current_cover_image()
 
 func current_cover_image() -> Texture2D:
+	if data.state_kind == "charges" and not data.cover_images_by_state.is_empty():
+		var state_index := clampi(int(round(state_value)), 0, data.cover_images_by_state.size() - 1)
+		if data.cover_images_by_state[state_index] != null:
+			return data.cover_images_by_state[state_index]
 	if data.is_container:
 		match content:
 			"water":
@@ -244,6 +254,11 @@ func current_cover_image() -> Texture2D:
 				if data.cover_image_fuel != null: return data.cover_image_fuel
 			"":
 				if data.cover_image_empty != null: return data.cover_image_empty
+	# Stateful tools such as lighters can opt into zero-state art without needing
+	# item-specific display code. Containers select by contents above; fire sources
+	# continue into their lit/low-fuel matrix below.
+	if not data.is_container and state_value <= 0.0 and data.cover_image_empty != null:
+		return data.cover_image_empty
 	if data.is_fire_source:
 		var low_fuel := state_value > 0.0 and state_value < 40.0
 		if Game.is_lit(data.id):
@@ -310,6 +325,9 @@ func state_summary() -> String:
 			return "Burning  %d%%" % int(round(state_value))
 		return ("Unlit  %d%%" % int(round(state_value))) if state_value > 0.0 else "Cold"
 	if data.state_kind != "":
+		if data.state_kind == "charges":
+			var count := int(round(state_value))
+			return "%d pill%s remaining" % [count, "" if count == 1 else "s"]
 		return "%s  %d%%" % [_state_word(), int(round(state_value))]
 	return ""
 
@@ -338,6 +356,7 @@ func _content_display(c: String) -> String:
 		"dirty_water": return "Dirty Water"
 		"boiling_water": return "Boiling Water"
 		"fuel": return "Fuel"
+		"charges": return "Remaining"
 		_: return c.capitalize()
 
 func _content_color(c: String) -> Color:
@@ -346,6 +365,7 @@ func _content_color(c: String) -> Color:
 		"dirty_water": return Color(0.46, 0.42, 0.30)
 		"boiling_water": return Color(0.72, 0.82, 0.86)
 		"fuel": return WARM
+		"charges": return COLD
 		_: return COLD
 
 func _persist_container() -> void:
